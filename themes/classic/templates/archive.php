@@ -3,7 +3,7 @@
 /** @var string $siteTitle */
 /** @var array<int,array> $items */
 /** @var string|null $type */
-$this->render('layouts/base', compact('assets','siteTitle'), function() use ($items, $type) {
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($items, $type) {
 ?>
   <div class="card">
     <h2 style="margin-top:0">Archiv<?= $type ? ' – ' . htmlspecialchars($type, ENT_QUOTES, 'UTF-8') : '' ?></h2>

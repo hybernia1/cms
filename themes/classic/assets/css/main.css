@@ -3,6 +3,8 @@ html,body { background: var(--bg); color: var(--fg); margin:0; }
 a { color: var(--pri); text-decoration: none; }
 .container { width: min(960px, 92vw); margin: 2rem auto; }
 .nav { display:flex; gap:1rem; margin-bottom:1.5rem; }
+.nav__link { color: var(--fg); font-weight:500; }
+.nav__link:hover { text-decoration:underline; }
 .card { background:#151517; border:1px solid #23252a; border-radius:12px; padding:1rem 1.25rem; }
 .footer { margin-top:2rem; color: var(--muted); font-size: .9rem; }
 .meta { color: var(--muted); font-size:.9rem; }

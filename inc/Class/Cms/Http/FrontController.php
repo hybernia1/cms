@@ -10,6 +10,7 @@ use Cms\View\ViewEngine;
 use Cms\View\Assets;
 use Cms\Settings\CmsSettings;
 use Cms\Auth\AuthService;
+use Cms\Domain\Repositories\NavigationRepository;
 
 final class FrontController
 {
@@ -19,16 +20,19 @@ final class FrontController
     private Assets $assets;
     private CmsSettings $settings;
     private ?array $frontUser = null;
+    /** @var array<int,array<string,mixed>> */
+    private array $navigation = [];
 
     public function __construct()
     {
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $this->tm        = new ThemeManager();
-        $this->resolver  = new ThemeResolver($this->tm);
-        $this->view      = new ViewEngine($this->tm->templateBasePath());
-        $this->assets    = new Assets($this->tm);
-        $this->settings  = new CmsSettings();
-        $this->frontUser = (new AuthService())->user(); // sdílíme admin login i na frontendu
+        $this->tm         = new ThemeManager();
+        $this->resolver   = new ThemeResolver($this->tm);
+        $this->view       = new ViewEngine($this->tm->templateBasePath());
+        $this->assets     = new Assets($this->tm);
+        $this->settings   = new CmsSettings();
+        $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
+        $this->navigation = (new NavigationRepository())->treeByLocation('primary');
     }
 
     public function handle(): void
@@ -116,10 +120,12 @@ final class FrontController
         $rel  = ltrim(str_replace($this->tm->templateBasePath(), '', $file), '/\\');
 
         $base = [
-            'assets'    => $this->assets,
-            'siteTitle' => $this->siteTitle(),
-            'frontUser' => $this->frontUser,
+            'assets'      => $this->assets,
+            'siteTitle'   => $this->siteTitle(),
+            'frontUser'   => $this->frontUser,
+            'navigation'  => $this->navigation,
         ];
+        $this->view->share($base);
         $this->view->render($rel, $base + $data);
     }
 
@@ -168,17 +174,24 @@ final class FrontController
 
         $commentsAllowed = (int)($row['comments_allowed'] ?? 1) === 1 && $type === 'post';
         $tree = [];
-        if ($commentsAllowed) $tree = $this->commentsTree((int)$row['id']);
+        if ($commentsAllowed) {
+            $tree = $this->commentsTree((int)$row['id']);
+        }
 
-$tpl = ($type === 'page') ? 'page' : 'single';
-$this->render($tpl, ['type' => $type], [
-    $tpl === 'page' ? 'page' : 'post' => $row,
-    'commentsTree'    => $tree,
-    'commentsAllowed' => $commentsAllowed,
-    'csrfPublic'      => $this->tokenPublic(),
-    'commentFlash'    => $this->readFrontFlash(),
-    'frontUser'       => $this->frontUser,
-]);
+        $tpl = $type === 'page' ? 'page' : 'single';
+
+        $this->render(
+            $tpl,
+            ['type' => $type],
+            [
+                $tpl === 'page' ? 'page' : 'post' => $row,
+                'commentsTree'    => $tree,
+                'commentsAllowed' => $commentsAllowed,
+                'csrfPublic'      => $this->tokenPublic(),
+                'commentFlash'    => $this->readFrontFlash(),
+                'frontUser'       => $this->frontUser,
+            ]
+        );
     }
 
     private function archive(string $type): void

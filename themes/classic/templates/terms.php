@@ -5,7 +5,7 @@
 /** @var array<int,string> $availableTypes */
 /** @var string|null $activeType */
 
-$this->render('layouts/base', compact('assets','siteTitle'), function() use ($terms,$availableTypes,$activeType) {
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($terms, $availableTypes, $activeType) {
     $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $formatType = static function(string $type): string {
         return function_exists('mb_convert_case')
