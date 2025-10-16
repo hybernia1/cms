@@ -42,6 +42,7 @@ final class ThemesController
             ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
             ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>false],
             ['key'=>'themes','label'=>'Šablony','href'=>'admin.php?r=themes','active'=>true],
+            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation','active'=>false],
             ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
         ];
     }

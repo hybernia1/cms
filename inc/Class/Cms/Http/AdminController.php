@@ -24,6 +24,7 @@ public function handle(string $route, string $action): void
         case 'terms':       (new \Cms\Http\Admin\TermsController($this->baseViewsPath))->handle($action); return;
         case 'comments':    (new \Cms\Http\Admin\CommentsController($this->baseViewsPath))->handle($action); return;
         case 'themes':      (new \Cms\Http\Admin\ThemesController($this->baseViewsPath))->handle($action); return;
+        case 'navigation':  (new \Cms\Http\Admin\NavigationController($this->baseViewsPath))->handle($action); return;
         case 'settings':    (new \Cms\Http\Admin\SettingsController($this->baseViewsPath))->handle($action); return;
         case 'migrations':  (new \Cms\Http\Admin\MigrationsController($this->baseViewsPath))->handle($action); return;
         case 'users': (new \Cms\Http\Admin\UsersController($this->baseViewsPath))->handle($action); return;
@@ -54,6 +55,7 @@ public function handle(string $route, string $action): void
             ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms'],
             ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments'],
             ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users'],
+            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation'],
             ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings'],
         ];
         foreach ($items as &$it) { $it['active'] = ($it['key'] === $active); }
