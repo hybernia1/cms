@@ -39,7 +39,7 @@ final class MigrationsController
     {
         return [
             ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts','label'=>'Příspěvky','href'=>'admin.php?r=posts','active'=>false],
+            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post','active'=>false],
             ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>false],
             ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>false],
             ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],

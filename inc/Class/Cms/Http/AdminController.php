@@ -47,7 +47,9 @@ public function handle(string $route, string $action): void
     {
         $items = [
             ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard'],
-            ['key'=>'posts','label'=>'Příspěvky','href'=>'admin.php?r=posts'],
+            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post'],
+            ['key'=>'posts:page','label'=>'Stránky','href'=>'admin.php?r=posts&type=page'],
+            ['key'=>'posts:product','label'=>'Produkty','href'=>'admin.php?r=posts&type=product'],
             ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media'],
             ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms'],
             ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments'],

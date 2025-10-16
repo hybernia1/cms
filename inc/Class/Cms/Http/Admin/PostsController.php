@@ -50,17 +50,44 @@ final class PostsController
     }
 
     // ---------------- Helpers ----------------
-    private function nav(): array
+    private function typeConfig(): array
     {
         return [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts','label'=>'Příspěvky','href'=>'admin.php?r=posts','active'=>true],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>false],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>false],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>false],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
+            'post'    => ['nav' => 'Příspěvky', 'list' => 'Příspěvky', 'create' => 'Nový příspěvek', 'edit' => 'Upravit příspěvek', 'label' => 'Příspěvek'],
+            'page'    => ['nav' => 'Stránky', 'list' => 'Stránky', 'create' => 'Nová stránka', 'edit' => 'Upravit stránku', 'label' => 'Stránka'],
+            'product' => ['nav' => 'Produkty', 'list' => 'Produkty', 'create' => 'Nový produkt', 'edit' => 'Upravit produkt', 'label' => 'Produkt'],
         ];
+    }
+
+    private function requestedType(): string
+    {
+        $types = $this->typeConfig();
+        $type = (string)($_GET['type'] ?? 'post');
+        if (!array_key_exists($type, $types)) {
+            $type = 'post';
+        }
+        return $type;
+    }
+
+    private function nav(string $type): array
+    {
+        $types = $this->typeConfig();
+        $items = [
+            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard'],
+            ['key'=>'posts:post','label'=>$types['post']['nav'],'href'=>'admin.php?r=posts&type=post'],
+            ['key'=>'posts:page','label'=>$types['page']['nav'],'href'=>'admin.php?r=posts&type=page'],
+            ['key'=>'posts:product','label'=>$types['product']['nav'],'href'=>'admin.php?r=posts&type=product'],
+            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media'],
+            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms'],
+            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments'],
+            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users'],
+            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings'],
+        ];
+        foreach ($items as &$it) {
+            $it['active'] = ($it['key'] === 'posts:' . $type);
+        }
+        unset($it);
+        return $items;
     }
 
     private function token(): string
@@ -142,8 +169,9 @@ final class PostsController
     {
         $repo = new PostsRepository();
 
+        $type = $this->requestedType();
         $filters = [
-            'type'   => (string)($_GET['type'] ?? ''),
+            'type'   => $type,
             'status' => (string)($_GET['status'] ?? ''),
             'author' => (string)($_GET['author'] ?? ''),
             'q'      => (string)($_GET['q'] ?? ''),
@@ -154,8 +182,8 @@ final class PostsController
         $pag = $repo->paginate($filters, $page, $perPage);
 
         $data = [
-            'pageTitle'   => 'Příspěvky',
-            'nav'         => $this->nav(),
+            'pageTitle'   => $this->typeConfig()[$type]['list'],
+            'nav'         => $this->nav($type),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'filters'     => $filters,
@@ -167,6 +195,8 @@ final class PostsController
                 'pages'    => $pag['pages'] ?? 1,
             ],
             'csrf'        => $this->token(),
+            'type'        => $type,
+            'types'       => $this->typeConfig(),
         ];
         unset($_SESSION['_flash']);
 
@@ -177,26 +207,38 @@ final class PostsController
     {
         $id  = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         $row = null;
+        $type = $this->requestedType();
         if ($id > 0) {
             $row = (new PostsRepository())->find($id);
-            if (!$row) { $this->flash('danger','Příspěvek nebyl nalezen.'); header('Location: admin.php?r=posts'); exit; }
+            if (!$row) { $this->flash('danger','Příspěvek nebyl nalezen.'); header('Location: ' . $this->listUrl($type)); exit; }
+            $rowType = (string)($row['type'] ?? 'post');
+            if (array_key_exists($rowType, $this->typeConfig())) {
+                $type = $rowType;
+            }
         }
 
         $terms = $this->termsData($id ?: null);
 
         $data = [
-            'pageTitle'   => $id ? 'Upravit příspěvek' : 'Nový příspěvek',
-            'nav'         => $this->nav(),
+            'pageTitle'   => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
+            'nav'         => $this->nav($type),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'post'        => $row,
             'csrf'        => $this->token(),
             'terms'       => $terms['byType'],
             'selected'    => $terms['selected'],
+            'type'        => $type,
+            'types'       => $this->typeConfig(),
         ];
         unset($_SESSION['_flash']);
 
         $this->view->render('posts/edit', $data);
+    }
+
+    private function listUrl(string $type): string
+    {
+        return 'admin.php?r=posts&type=' . urlencode($type);
     }
 
     private function store(): void
@@ -207,7 +249,7 @@ final class PostsController
             if (!$user) throw new \RuntimeException('Nejste přihlášeni.');
 
             $title   = trim((string)($_POST['title'] ?? ''));
-            $type    = (string)($_POST['type'] ?? 'post');
+            $type    = $this->requestedType();
             $status  = (string)($_POST['status'] ?? 'draft');
             $content = (string)($_POST['content'] ?? '');
             $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
@@ -241,12 +283,13 @@ final class PostsController
             $this->syncTerms($postId, $catIds, $tagIds);
 
             $this->flash('success', 'Příspěvek byl vytvořen.');
-            header('Location: admin.php?r=posts&a=edit&id='.(int)$postId);
+            header('Location: admin.php?r=posts&a=edit&id='.(int)$postId.'&type='.$type);
             exit;
 
         } catch (\Throwable $e) {
             $this->flash('danger', $e->getMessage());
-            header('Location: admin.php?r=posts&a=create');
+            $type = $this->requestedType();
+            header('Location: admin.php?r=posts&a=create&type='.$type);
             exit;
         }
     }
@@ -255,7 +298,15 @@ final class PostsController
     {
         $this->assertCsrf();
         $id = (int)($_GET['id'] ?? 0);
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: admin.php?r=posts'); exit; }
+        $type = $this->requestedType();
+        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: '.$this->listUrl($type)); exit; }
+
+        $post = (new PostsRepository())->find($id);
+        if (!$post) { $this->flash('danger','Příspěvek nebyl nalezen.'); header('Location: '.$this->listUrl($type)); exit; }
+        $rowType = (string)($post['type'] ?? '');
+        if (array_key_exists($rowType, $this->typeConfig())) {
+            $type = $rowType;
+        }
 
         try {
             $user = $this->auth->user();
@@ -288,12 +339,12 @@ final class PostsController
             $this->syncTerms($id, $catIds, $tagIds);
 
             $this->flash('success', 'Změny byly uloženy.');
-            header('Location: admin.php?r=posts&a=edit&id='.$id);
+            header('Location: admin.php?r=posts&a=edit&id='.$id.'&type='.$type);
             exit;
 
         } catch (\Throwable $e) {
             $this->flash('danger', $e->getMessage());
-            header('Location: admin.php?r=posts&a=edit&id='.$id);
+            header('Location: admin.php?r=posts&a=edit&id='.$id.'&type='.$type);
             exit;
         }
     }
@@ -302,14 +353,23 @@ final class PostsController
     {
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: admin.php?r=posts'); exit; }
+        $type = $this->requestedType();
+        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: '.$this->listUrl($type)); exit; }
+
+        $post = (new PostsRepository())->find($id);
+        if ($post) {
+            $rowType = (string)($post['type'] ?? '');
+            if (array_key_exists($rowType, $this->typeConfig())) {
+                $type = $rowType;
+            }
+        }
 
         // smaž vazby i post
         DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
         (new PostsRepository())->delete($id);
 
         $this->flash('success', 'Příspěvek byl odstraněn.');
-        header('Location: admin.php?r=posts');
+        header('Location: '.$this->listUrl($type));
         exit;
     }
 
@@ -317,16 +377,21 @@ final class PostsController
     {
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: admin.php?r=posts'); exit; }
+        $type = $this->requestedType();
+        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: '.$this->listUrl($type)); exit; }
 
         $post = (new PostsRepository())->find($id);
-        if (!$post) { $this->flash('danger','Příspěvek nenalezen.'); header('Location: admin.php?r=posts'); exit; }
+        if (!$post) { $this->flash('danger','Příspěvek nenalezen.'); header('Location: '.$this->listUrl($type)); exit; }
+        $rowType = (string)($post['type'] ?? 'post');
+        if (array_key_exists($rowType, $this->typeConfig())) {
+            $type = $rowType;
+        }
 
         $new = ((string)$post['status'] === 'publish') ? 'draft' : 'publish';
         (new PostsService())->update($id, ['status'=>$new]);
 
         $this->flash('success', $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.');
-        header('Location: admin.php?r=posts');
+        header('Location: '.$this->listUrl($type));
         exit;
     }
 }
