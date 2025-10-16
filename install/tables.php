@@ -113,11 +113,52 @@ SQL
 <<<SQL
 CREATE TABLE IF NOT EXISTS settings (
   id TINYINT UNSIGNED NOT NULL DEFAULT 1 PRIMARY KEY,
-  site_title VARCHAR(190) NOT NULL DEFAULT 'Můj web',
+  site_title VARCHAR(190) NOT NULL DEFAULT 'Moje stránka',
   site_email VARCHAR(190) NOT NULL DEFAULT '',
-   theme_slug VARCHAR(64) NOT NULL DEFAULT 'classic';
+  theme_slug VARCHAR(64) NOT NULL DEFAULT 'classic',
+  date_format VARCHAR(64) NOT NULL DEFAULT 'Y-m-d',
+  time_format VARCHAR(64) NOT NULL DEFAULT 'H:i',
+  timezone VARCHAR(64) NOT NULL DEFAULT 'Europe/Prague',
+  allow_registration TINYINT(1) NOT NULL DEFAULT 1,
+  site_url VARCHAR(255) NOT NULL DEFAULT '',
   data JSON NULL,
+  created_at DATETIME NULL,
   updated_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** NAVIGATION MENUS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS navigation_menus (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  slug VARCHAR(64) NOT NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  location VARCHAR(64) NOT NULL DEFAULT 'primary',
+  description TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  INDEX ix_nav_menus_location (location)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** NAVIGATION ITEMS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS navigation_items (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  menu_id BIGINT UNSIGNED NOT NULL,
+  parent_id BIGINT UNSIGNED NULL,
+  title VARCHAR(150) NOT NULL,
+  url VARCHAR(500) NOT NULL,
+  target VARCHAR(20) NOT NULL DEFAULT '_self',
+  css_class VARCHAR(150) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  INDEX ix_nav_items_menu (menu_id),
+  INDEX ix_nav_items_parent (parent_id),
+  INDEX ix_nav_items_sort (sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
 ,

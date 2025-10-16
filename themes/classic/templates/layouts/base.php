@@ -2,6 +2,8 @@
 /** @var callable $content */
 /** @var \Cms\View\Assets $assets */
 /** @var string $siteTitle */
+/** @var array|null $frontUser */
+/** @var array<int,array<string,mixed>> $navigation */
 ?>
 <!doctype html>
 <html lang="cs">
@@ -12,8 +14,12 @@
   <?= $assets->css(['assets/css/main.css']) ?>
 </head>
 <body>
+  <?php $this->part('parts/user-bar', ['frontUser' => $frontUser ?? null]); ?>
   <div class="container">
-    <?php $this->part('parts/header', ['siteTitle'=>$siteTitle ?? 'Můj web']); ?>
+    <?php $this->part('parts/header', [
+      'siteTitle'   => $siteTitle ?? 'Můj web',
+      'navigation'  => $navigation ?? [],
+    ]); ?>
 
     <?php $content(); ?>
 

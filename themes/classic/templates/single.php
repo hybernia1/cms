@@ -7,8 +7,14 @@
 /** @var string $csrfPublic */
 /** @var array|null $commentFlash */
 /** @var array|null $frontUser */
+/** @var array<int,array<string,mixed>> $navigation */
 
-$this->render('layouts/base', compact('assets','siteTitle'), function() use ($post,$commentsTree,$commentsAllowed,$csrfPublic,$commentFlash,$frontUser) {
+$this->render('layouts/base', [
+  'assets'     => $assets,
+  'siteTitle'  => $siteTitle,
+  'frontUser'  => $frontUser ?? null,
+  'navigation' => $navigation ?? [],
+], function() use ($post,$commentsTree,$commentsAllowed,$csrfPublic,$commentFlash,$frontUser) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $cs = new \Cms\Settings\CmsSettings();
 
