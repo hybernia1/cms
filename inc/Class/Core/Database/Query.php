@@ -215,9 +215,13 @@ final class Query
 
     public function whereLike(string $col, string $pattern, string $bool = 'AND', bool $not = false): self
     {
-        $p = $this->bind($pattern);
-        $sql = sprintf('%s %sLIKE %s', $col, $not ? 'NOT ' : '', $p);
-        return $this->whereRaw($sql, $bool);
+        $this->wheres[] = [
+            'bool' => strtoupper($bool) === 'OR' ? 'OR' : 'AND',
+            'col'  => $col,
+            'op'   => $not ? 'NOT LIKE' : 'LIKE',
+            'val'  => $pattern,
+        ];
+        return $this;
     }
 
     public function whereRaw(string $raw, string $bool = 'AND'): self

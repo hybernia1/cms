@@ -5,6 +5,7 @@ namespace Cms\Http\Admin;
 
 use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
 
 final class CommentsController extends BaseAdminController
 {
@@ -192,7 +193,7 @@ final class CommentsController extends BaseAdminController
             $parentId,
             $_SERVER['REMOTE_ADDR'] ?? '',
             $_SERVER['HTTP_USER_AGENT'] ?? '',
-            date('Y-m-d H:i:s'),
+            DateTimeFactory::nowString(),
         ])->execute();
 
         $this->redirect('admin.php?r=comments&a=show&id=' . $parentId, 'success', 'Odpověď byla přidána.');

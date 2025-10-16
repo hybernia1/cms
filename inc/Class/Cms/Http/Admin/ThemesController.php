@@ -3,10 +3,11 @@ declare(strict_types=1);
 
 namespace Cms\Http\Admin;
 
-use Cms\View\ViewEngine;
 use Cms\Auth\AuthService;
-use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
+use Cms\View\ViewEngine;
+use Core\Database\Init as DB;
 
 final class ThemesController
 {
@@ -104,7 +105,7 @@ final class ThemesController
 
         DB::query()->table('settings')->update([
             'theme_slug' => $slug,
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => DateTimeFactory::nowString(),
         ])->where('id','=',1)->execute();
 
         $this->flash('success','Šablona aktivována.');

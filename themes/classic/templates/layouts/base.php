@@ -4,6 +4,7 @@
 /** @var string $siteTitle */
 /** @var array|null $frontUser */
 /** @var array<int,array<string,mixed>> $navigation */
+/** @var \Cms\Utils\LinkGenerator $urls */
 ?>
 <!doctype html>
 <html lang="cs">
@@ -14,11 +15,12 @@
   <?= $assets->css(['assets/css/main.css']) ?>
 </head>
 <body>
-  <?php $this->part('parts/user-bar', ['frontUser' => $frontUser ?? null]); ?>
+  <?php $this->part('parts/user-bar', ['frontUser' => $frontUser ?? null, 'urls' => $urls]); ?>
   <div class="container">
     <?php $this->part('parts/header', [
       'siteTitle'   => $siteTitle ?? 'Můj web',
       'navigation'  => $navigation ?? [],
+      'urls'        => $urls,
     ]); ?>
 
     <?php $content(); ?>

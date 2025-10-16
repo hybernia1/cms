@@ -8,6 +8,7 @@ use Cms\Utils\Slugger;
 use Cms\View\ViewEngine;
 use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
 
 final class NavigationController
 {
@@ -389,8 +390,8 @@ final class NavigationController
                 'name' => $name,
                 'location' => $location,
                 'description' => $description,
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
+                'created_at' => DateTimeFactory::nowString(),
+                'updated_at' => DateTimeFactory::nowString(),
             ])
             ->insertGetId();
 
@@ -440,7 +441,7 @@ final class NavigationController
                 'slug' => $slug,
                 'location' => $location,
                 'description' => $description,
-                'updated_at' => date('Y-m-d H:i:s'),
+                'updated_at' => DateTimeFactory::nowString(),
             ])
             ->where('id', '=', $menuId)
             ->execute();
@@ -518,8 +519,8 @@ final class NavigationController
                 'target' => $target,
                 'css_class' => $cssClass !== '' ? $cssClass : null,
                 'sort_order' => $sortOrder,
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s'),
+                'created_at' => DateTimeFactory::nowString(),
+                'updated_at' => DateTimeFactory::nowString(),
             ])
             ->insertGetId();
 
@@ -587,7 +588,7 @@ final class NavigationController
                 'css_class' => $cssClass !== '' ? $cssClass : null,
                 'parent_id' => $parentId > 0 ? $parentId : null,
                 'sort_order' => $sortOrder,
-                'updated_at' => date('Y-m-d H:i:s'),
+                'updated_at' => DateTimeFactory::nowString(),
             ])
             ->where('id', '=', $itemId)
             ->execute();

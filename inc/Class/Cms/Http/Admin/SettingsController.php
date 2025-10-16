@@ -8,6 +8,7 @@ use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
 
 final class SettingsController
 {
@@ -66,8 +67,8 @@ final class SettingsController
                 'timezone'     => 'Europe/Prague',
                 'allow_registration' => 1,
                 'site_url'     => $this->detectSiteUrl(),
-                'created_at'   => date('Y-m-d H:i:s'),
-                'updated_at'   => date('Y-m-d H:i:s')
+                'created_at'   => DateTimeFactory::nowString(),
+                'updated_at'   => DateTimeFactory::nowString()
             ])->execute();
             $row = DB::query()->table('settings')->select(['*'])->where('id','=',1)->first();
         } else {
@@ -185,7 +186,7 @@ final class SettingsController
             'timezone'           => $tz,
             'allow_registration' => $allowReg,
             'site_url'           => $siteUrl,
-            'updated_at'         => date('Y-m-d H:i:s'),
+            'updated_at'         => DateTimeFactory::nowString(),
         ])->where('id','=',1)->execute();
 
         // promaž cache settings

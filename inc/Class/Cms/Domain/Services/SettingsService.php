@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Domain\Services;
 
 use Cms\Domain\Repositories\SettingsRepository;
+use Cms\Utils\DateTimeFactory;
 
 final class SettingsService
 {
@@ -30,7 +31,7 @@ final class SettingsService
             'site_title' => $siteTitle,
             'site_email' => $siteEmail,
             'data'       => json_encode($data, JSON_UNESCAPED_UNICODE),
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => DateTimeFactory::nowString(),
         ]);
     }
 }

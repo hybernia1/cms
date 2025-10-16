@@ -1,12 +1,13 @@
 <?php
 /** @var string $siteTitle */
 /** @var array<int,array<string,mixed>> $navigation */
+/** @var \Cms\Utils\LinkGenerator $urls */
 
 $items = $navigation ?: [
-    ['title' => 'Domů',    'url' => './',             'target' => '_self', 'css_class' => '', 'children' => []],
-    ['title' => 'Blog',    'url' => './type/post',    'target' => '_self', 'css_class' => '', 'children' => []],
-    ['title' => 'Stránky', 'url' => './type/page',    'target' => '_self', 'css_class' => '', 'children' => []],
-    ['title' => 'Termy',   'url' => './terms',        'target' => '_self', 'css_class' => '', 'children' => []],
+    ['title' => 'Domů',    'url' => $urls->home(),         'target' => '_self', 'css_class' => '', 'children' => []],
+    ['title' => 'Blog',    'url' => $urls->type('post'),   'target' => '_self', 'css_class' => '', 'children' => []],
+    ['title' => 'Stránky', 'url' => $urls->type('page'),   'target' => '_self', 'css_class' => '', 'children' => []],
+    ['title' => 'Termy',   'url' => $urls->terms(),        'target' => '_self', 'css_class' => '', 'children' => []],
 ];
 
 $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');

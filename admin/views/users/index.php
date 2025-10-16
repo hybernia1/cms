@@ -27,7 +27,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
           <td><?= $h($u['email']) ?></td>
           <td><span class="badge text-bg-<?= $u['role']==='admin'?'warning':'secondary' ?>"><?= $h($u['role']) ?></span></td>
           <td><?= (int)$u['active']===1?'✅':'❌' ?></td>
-          <td><?= $h((string)$u['created_at']) ?></td>
+          <td title="<?= $h((string)($u['created_at_raw'] ?? '')) ?>"><?= $h((string)($u['created_at_display'] ?? ($u['created_at_raw'] ?? ''))) ?></td>
           <td class="text-end"><a class="btn btn-sm btn-outline-light" href="admin.php?r=users&a=edit&id=<?= (int)$u['id'] ?>">Upravit</a></td>
         </tr>
       <?php endforeach; ?>

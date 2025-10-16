@@ -4,8 +4,9 @@ declare(strict_types=1);
 namespace Cms\Domain\Services;
 
 use Cms\Domain\Repositories\TermsRepository;
-use Cms\Validation\Validator;
+use Cms\Utils\DateTimeFactory;
 use Cms\Utils\Slugger;
+use Cms\Validation\Validator;
 
 final class TermsService
 {
@@ -27,7 +28,7 @@ final class TermsService
             'slug'        => $slug,
             'name'        => $name,
             'description' => $description,
-            'created_at'  => date('Y-m-d H:i:s'),
+            'created_at'  => DateTimeFactory::nowString(),
         ]);
     }
 }

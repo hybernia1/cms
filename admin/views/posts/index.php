@@ -10,8 +10,9 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var string $type */
 /** @var array $types */
+/** @var \Cms\Utils\LinkGenerator $urls */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek'];
 
@@ -86,18 +87,35 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         </thead>
         <tbody>
           <?php foreach ($items as $it): ?>
-            <?php $isPublished = ($it['status'] ?? '') === 'publish'; ?>
+            <?php
+              $isPublished = ($it['status'] ?? '') === 'publish';
+              $itemType = (string)($it['type'] ?? $type);
+              $slug = (string)($it['slug'] ?? '');
+              $frontUrl = '';
+              if ($slug !== '') {
+                $frontUrl = $itemType === 'page'
+                  ? $urls->page($slug)
+                  : $urls->post($slug);
+              }
+            ?>
             <tr>
               <td>
-                <div class="fw-semibold text-truncate"><?= $h((string)($it['title'] ?? '—')) ?></div>
+                <?php if ($frontUrl !== ''): ?>
+                  <a class="fw-semibold text-truncate d-inline-flex align-items-center gap-1 text-decoration-none" href="<?= $h($frontUrl) ?>" target="_blank" rel="noopener">
+                    <?= $h((string)($it['title'] ?? '—')) ?>
+                    <i class="bi bi-box-arrow-up-right text-secondary small"></i>
+                  </a>
+                <?php else: ?>
+                  <div class="fw-semibold text-truncate"><?= $h((string)($it['title'] ?? '—')) ?></div>
+                <?php endif; ?>
                 <div class="text-secondary small text-truncate">
-                  <i class="bi bi-link-45deg me-1"></i><?= $h((string)($it['slug'] ?? '')) ?>
+                  <i class="bi bi-link-45deg me-1"></i><?= $h($slug) ?>
                 </div>
               </td>
 
               <td>
-                <span class="small" title="<?= $h((string)($it['created_at'] ?? '')) ?>">
-                  <?= $h((string)($it['created_at'] ?? '')) ?>
+                <span class="small" title="<?= $h((string)($it['created_at_raw'] ?? '')) ?>">
+                  <?= $h((string)($it['created_at_display'] ?? ($it['created_at_raw'] ?? ''))) ?>
                 </span>
               </td>
 
