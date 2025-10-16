@@ -6,6 +6,7 @@
       <a href="./">Domů</a>
       <a href="./type/post">Blog</a>
       <a href="./type/page">Stránky</a>
+      <a href="./terms">Termy</a>
     </nav>
   </div>
 </header>
