@@ -81,6 +81,7 @@ final class PostsController
             ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms'],
             ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments'],
             ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users'],
+            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation'],
             ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings'],
         ];
         foreach ($items as &$it) {
