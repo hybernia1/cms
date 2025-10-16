@@ -83,7 +83,9 @@ final class FrontController
             case 'post':     $this->single('post', (string)($_GET['slug'] ?? '')); return;
             case 'page':     $this->single('page', (string)($_GET['slug'] ?? '')); return;
             case 'type':     $this->archive((string)($_GET['type'] ?? 'post')); return;
-            case 'term':     $this->archiveByTerm((string)($_GET['slug'] ?? '')); return;
+            case 'term':     $this->archiveByTerm((string)($_GET['slug'] ?? ''), null); return;
+            case 'category': $this->archiveByTerm((string)($_GET['slug'] ?? ''), 'category'); return;
+            case 'tag':      $this->archiveByTerm((string)($_GET['slug'] ?? ''), 'tag'); return;
             case 'terms':    $this->terms((string)($_GET['type'] ?? '')); return;
             case 'search':   $this->search((string)($_GET['s'] ?? '')); return;
             case 'register': $this->register(); return;
@@ -104,7 +106,9 @@ final class FrontController
         if ($parts[0] === 'post'   && !empty($parts[1])) { $this->single('post', $parts[1]); return; }
         if ($parts[0] === 'page'   && !empty($parts[1])) { $this->single('page', $parts[1]); return; }
         if ($parts[0] === 'type'   && !empty($parts[1])) { $this->archive($parts[1]); return; }
-        if ($parts[0] === 'term'   && !empty($parts[1])) { $this->archiveByTerm($parts[1]); return; }
+        if ($parts[0] === 'term'   && !empty($parts[1])) { $this->archiveByTerm($parts[1], null); return; }
+        if ($parts[0] === 'category' && !empty($parts[1])) { $this->archiveByTerm($parts[1], 'category'); return; }
+        if ($parts[0] === 'tag'   && !empty($parts[1])) { $this->archiveByTerm($parts[1], 'tag'); return; }
         if ($parts[0] === 'terms')                       { $this->terms($parts[1] ?? ''); return; }
         if ($parts[0] === 'search')                      { $this->search((string)($_GET['s'] ?? '')); return; }
         if ($parts[0] === 'register')                    { $this->register(); return; }
@@ -185,6 +189,26 @@ final class FrontController
 
         $tpl = $type === 'page' ? 'page' : 'single';
 
+        $termsByType = [];
+        if ($type === 'post') {
+            $rows = DB::query()
+                ->table('post_terms', 'pt')
+                ->select(['t.id','t.slug','t.name','t.type'])
+                ->join('terms t', 'pt.term_id', '=', 't.id')
+                ->where('pt.post_id', '=', (int)$row['id'])
+                ->orderBy('t.type')
+                ->orderBy('t.name')
+                ->get();
+
+            foreach ($rows as $termRow) {
+                $tType = (string)($termRow['type'] ?? '');
+                if ($tType === '') {
+                    continue;
+                }
+                $termsByType[$tType][] = $termRow;
+            }
+        }
+
         $this->render(
             $tpl,
             ['type' => $type],
@@ -195,6 +219,7 @@ final class FrontController
                 'csrfPublic'      => $this->tokenPublic(),
                 'commentFlash'    => $this->readFrontFlash(),
                 'frontUser'       => $this->frontUser,
+                'termsByType'     => $termsByType,
             ]
         );
     }
@@ -210,25 +235,50 @@ final class FrontController
             ->limit(50)
             ->get();
 
-        $this->render('archive', ['type' => $type], ['items' => $items, 'type' => $type]);
+        $this->render('archive', ['type' => $type], [
+            'items' => $items,
+            'type'  => $type,
+            'term'  => null,
+        ]);
     }
 
-    private function archiveByTerm(string $termSlug): void
+    private function archiveByTerm(string $termSlug, ?string $type): void
     {
         if ($termSlug === '') { $this->notFound(); return; }
 
+        $termQuery = DB::query()
+            ->table('terms')
+            ->select(['id','name','slug','type'])
+            ->where('slug','=', $termSlug);
+
+        if ($type !== null) {
+            $termQuery->where('type','=', $type);
+        }
+
+        $term = $termQuery->first();
+        if (!$term) { $this->notFound(); return; }
+
         $items = DB::query()
             ->table('post_terms','pt')
-            ->select(['p.id','p.title','p.slug','p.created_at','t.slug AS term_slug'])
-            ->join('terms t', 'pt.term_id','=','t.id')
+            ->select(['p.id','p.title','p.slug','p.created_at'])
             ->join('posts p','pt.post_id','=','p.id')
-            ->where('t.slug','=', $termSlug)
+            ->where('pt.term_id','=', (int)$term['id'])
             ->where('p.status','=','publish')
             ->orderBy('p.created_at','DESC')
             ->limit(50)
             ->get();
 
-        $this->render('archive', [], ['items' => $items, 'type'  => 'term: ' . $termSlug]);
+        $typeLabel = match ((string)($term['type'] ?? '')) {
+            'category' => 'Kategorie',
+            'tag'      => 'Štítek',
+            default    => ucfirst((string)($term['type'] ?? 'Term')),
+        };
+
+        $this->render('archive', [], [
+            'items' => $items,
+            'type'  => $typeLabel . ': ' . (string)$term['name'],
+            'term'  => $term,
+        ]);
     }
 
     private function search(string $q): void

@@ -41,9 +41,12 @@ $this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($t
           <ul class="term-list">
             <?php foreach ($items as $term): ?>
               <?php $count = (int)($term['posts_count'] ?? 0); ?>
+              <?php
+                $termUrl = $urls->term((string)$term['slug'], (string)$term['type']);
+              ?>
               <li class="term-list__item">
                 <div class="term-list__header">
-                  <a class="term-list__name" href="<?= $h($urls->term((string)$term['slug'])) ?>"><?= $h((string)$term['name']) ?></a>
+                  <a class="term-list__name" href="<?= $h($termUrl) ?>"><?= $h((string)$term['name']) ?></a>
                   <span class="term-list__count"><?= $count ?> <?= $count === 1 ? 'příspěvek' : 'příspěvků' ?></span>
                 </div>
                 <?php if (!empty($term['description'])): ?>
