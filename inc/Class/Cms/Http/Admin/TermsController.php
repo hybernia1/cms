@@ -6,8 +6,10 @@ namespace Cms\Http\Admin;
 use Cms\Domain\Repositories\TermsRepository;
 use Cms\Domain\Services\TermsService;
 use Core\Database\Init as DB;
+use Cms\Settings\CmsSettings;
 use Cms\Utils\Slugger;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
 
 final class TermsController extends BaseAdminController
 {
@@ -34,13 +36,43 @@ final class TermsController extends BaseAdminController
     }
 
     // ------------- helpers -------------
+    private function typeConfig(): array
+    {
+        return [
+            'category' => [
+                'nav'    => 'Kategorie',
+                'list'   => 'Kategorie',
+                'create' => 'Nová kategorie',
+                'edit'   => 'Upravit kategorii',
+                'label'  => 'Kategorie',
+            ],
+            'tag' => [
+                'nav'    => 'Štítky',
+                'list'   => 'Štítky',
+                'create' => 'Nový štítek',
+                'edit'   => 'Upravit štítek',
+                'label'  => 'Štítek',
+            ],
+        ];
+    }
+
+    private function requestedType(): string
+    {
+        $type = (string)($_GET['type'] ?? 'category');
+        if (!array_key_exists($type, $this->typeConfig())) {
+            $type = 'category';
+        }
+        return $type;
+    }
+
     // ------------- actions -------------
 
     /** Přehled + filtry */
     private function index(): void
     {
+        $type = $this->requestedType();
         $filters = [
-            'type' => (string)($_GET['type'] ?? ''), // category|tag|...
+            'type' => $type,
             'q'    => (string)($_GET['q'] ?? ''),
         ];
         $page    = max(1, (int)($_GET['page'] ?? 1));
@@ -50,7 +82,7 @@ final class TermsController extends BaseAdminController
             ->select(['t.id','t.type','t.slug','t.name','t.description','t.created_at'])
             ->orderBy('t.created_at','DESC');
 
-        if ($filters['type'] !== '') $q->where('t.type','=', $filters['type']);
+        $q->where('t.type','=', $filters['type']);
         if ($filters['q']   !== '') {
             $like = '%' . $filters['q'] . '%';
             $q->where(function($w) use ($like) {
@@ -60,17 +92,32 @@ final class TermsController extends BaseAdminController
 
         $pag = $q->paginate($page, $perPage);
 
+        $settings = new CmsSettings();
+        $items = [];
+        foreach (($pag['items'] ?? []) as $row) {
+            $created = DateTimeFactory::fromStorage(isset($row['created_at']) ? (string)$row['created_at'] : null);
+            $row['created_at_raw'] = isset($row['created_at']) ? (string)$row['created_at'] : '';
+            if ($created) {
+                $row['created_at_display'] = $settings->formatDateTime($created);
+            } else {
+                $row['created_at_display'] = $row['created_at_raw'];
+            }
+            $items[] = $row;
+        }
+
         $this->renderAdmin('terms/index', [
-            'pageTitle'  => 'Termy',
-            'nav'        => AdminNavigation::build('terms'),
+            'pageTitle'  => $this->typeConfig()[$type]['list'],
+            'nav'        => AdminNavigation::build('terms:' . $type),
             'filters'    => $filters,
-            'items'      => $pag['items'] ?? [],
+            'items'      => $items,
             'pagination' => [
                 'page'     => $pag['page'] ?? $page,
                 'per_page' => $pag['per_page'] ?? $perPage,
                 'total'    => $pag['total'] ?? 0,
                 'pages'    => $pag['pages'] ?? 1,
             ],
+            'type'       => $type,
+            'types'      => $this->typeConfig(),
         ]);
     }
 
@@ -79,17 +126,21 @@ final class TermsController extends BaseAdminController
     {
         $id  = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         $row = null;
+        $type = $this->requestedType();
         if ($id > 0) {
             $row = (new TermsRepository())->find($id);
             if (!$row) {
-                $this->redirect('admin.php?r=terms', 'danger', 'Term nenalezen.');
+                $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'danger', 'Term nenalezen.');
             }
+            $type = (string)($row['type'] ?? $type);
         }
 
         $this->renderAdmin('terms/edit', [
-            'pageTitle' => $id ? 'Upravit term' : 'Nový term',
-            'nav'       => AdminNavigation::build('terms'),
+            'pageTitle' => $id ? ($this->typeConfig()[$type]['edit'] ?? 'Upravit term') : ($this->typeConfig()[$type]['create'] ?? 'Nový term'),
+            'nav'       => AdminNavigation::build('terms:' . $type),
             'term'      => $row,
+            'type'      => $type,
+            'types'     => $this->typeConfig(),
         ]);
     }
 
@@ -99,7 +150,10 @@ final class TermsController extends BaseAdminController
         $this->assertCsrf();
         try {
             $name = trim((string)($_POST['name'] ?? ''));
-            $type = (string)($_POST['type'] ?? 'tag');
+            $type = (string)($_POST['type'] ?? $this->requestedType());
+            if (!array_key_exists($type, $this->typeConfig())) {
+                $type = 'category';
+            }
             $slug = trim((string)($_POST['slug'] ?? ''));
             $desc = (string)($_POST['description'] ?? '');
 
@@ -112,10 +166,11 @@ final class TermsController extends BaseAdminController
             }
 
             $id = (new TermsService())->create($name, $type, $slug, $desc);
-            $this->redirect('admin.php?r=terms&a=edit&id=' . $id, 'success', 'Term byl vytvořen.');
+            $this->redirect('admin.php?r=terms&a=edit&id=' . $id . '&type=' . urlencode($type), 'success', 'Term byl vytvořen.');
 
         } catch (\Throwable $e) {
-            $this->redirect('admin.php?r=terms&a=create', 'danger', $e->getMessage());
+            $type = $this->requestedType();
+            $this->redirect('admin.php?r=terms&a=create&type=' . urlencode($type), 'danger', $e->getMessage());
         }
     }
 
@@ -125,7 +180,8 @@ final class TermsController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) {
-            $this->redirect('admin.php?r=terms', 'danger', 'Chybí ID.');
+            $type = $this->requestedType();
+            $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'danger', 'Chybí ID.');
         }
 
         try {
@@ -135,7 +191,7 @@ final class TermsController extends BaseAdminController
 
             $name = trim((string)($_POST['name'] ?? ''));
             $slug = trim((string)($_POST['slug'] ?? ''));
-            $type = (string)($_POST['type'] ?? $row['type']);
+            $type = (string)($row['type'] ?? 'category');
             $desc = (string)($_POST['description'] ?? '');
 
             if ($name === '') throw new \RuntimeException('Název je povinný.');
@@ -155,10 +211,11 @@ final class TermsController extends BaseAdminController
                 'created_at'  => $row['created_at'],
             ])->where('id','=',$id)->execute();
 
-            $this->redirect('admin.php?r=terms&a=edit&id=' . $id, 'success', 'Změny byly uloženy.');
+            $this->redirect('admin.php?r=terms&a=edit&id=' . $id . '&type=' . urlencode($type), 'success', 'Změny byly uloženy.');
 
         } catch (\Throwable $e) {
-            $this->redirect('admin.php?r=terms&a=edit&id=' . $id, 'danger', $e->getMessage());
+            $type = $this->requestedType();
+            $this->redirect('admin.php?r=terms&a=edit&id=' . $id . '&type=' . urlencode($type), 'danger', $e->getMessage());
         }
     }
 
@@ -168,13 +225,15 @@ final class TermsController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
-            $this->redirect('admin.php?r=terms', 'danger', 'Chybí ID.');
+            $type = $this->requestedType();
+            $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'danger', 'Chybí ID.');
         }
 
         // Odpoj vazby a smaž term
         DB::query()->table('post_terms')->delete()->where('term_id','=',$id)->execute();
         DB::query()->table('terms')->delete()->where('id','=',$id)->execute();
 
-        $this->redirect('admin.php?r=terms', 'success', 'Term byl odstraněn.');
+        $type = $this->requestedType();
+        $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'success', 'Term byl odstraněn.');
     }
 }

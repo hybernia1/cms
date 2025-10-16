@@ -6,15 +6,20 @@ declare(strict_types=1);
 /** @var array|null $flash */
 /** @var array|null $term */
 /** @var string $csrf */
+/** @var string $type */
+/** @var array $types */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($term,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($term,$csrf,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$term;
-  $actionUrl = $isEdit ? ('admin.php?r=terms&a=edit&id='.$h((string)$term['id'])) : 'admin.php?r=terms&a=create';
-  $selected = fn(string $val, string $cur) => $val===$cur ? 'selected' : '';
-?>
+  $typeCfg = $types[$type] ?? ['label' => strtoupper($type), 'create' => 'Nový term'];
+  $actionParams = $isEdit
+    ? ['r'=>'terms','a'=>'edit','id'=>(int)($term['id'] ?? 0),'type'=>$type]
+    : ['r'=>'terms','a'=>'create','type'=>$type];
+  $actionUrl = 'admin.php?'.http_build_query($actionParams);
+  ?>
   <form class="card" method="post" action="<?= $actionUrl ?>">
-    <div class="card-header"><?= $h($isEdit ? 'Upravit term #'.$term['id'] : 'Nový term') ?></div>
+    <div class="card-header"><?= $h($isEdit ? ($typeCfg['edit'] ?? ('Upravit '.$typeCfg['label'])).' #'.$term['id'] : ($typeCfg['create'] ?? 'Nový term')) ?></div>
     <div class="card-body">
       <div class="mb-3">
         <label class="form-label">Název</label>
@@ -29,12 +34,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
       <div class="mb-3">
         <label class="form-label">Typ</label>
-        <?php $curType = $isEdit ? (string)$term['type'] : 'category'; ?>
-        <select class="form-select" name="type">
-          <?php foreach (['category','tag'] as $t): ?>
-            <option value="<?= $t ?>" <?= $selected($t, $curType) ?>><?= $t ?></option>
-          <?php endforeach; ?>
-        </select>
+        <div class="form-control-plaintext fw-semibold"><?= $h((string)($typeCfg['label'] ?? $type)) ?></div>
+        <?php if ($isEdit): ?><div class="form-text">Typ nelze měnit.</div><?php endif; ?>
+        <input type="hidden" name="type" value="<?= $h($type) ?>">
       </div>
 
       <div class="mb-3">
@@ -46,7 +48,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
     <div class="card-footer d-flex gap-2">
       <button class="btn btn-primary" type="submit"><?= $h($isEdit ? 'Uložit změny' : 'Vytvořit') ?></button>
-      <a class="btn btn-outline-secondary" href="admin.php?r=terms">Zpět na seznam</a>
+      <a class="btn btn-outline-secondary" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','type'=>$type])) ?>">Zpět na seznam</a>
     </div>
   </form>
 <?php
