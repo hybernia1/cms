@@ -9,6 +9,7 @@ use Core\Database\Init as DB;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
+use Cms\Utils\SettingsPresets;
 
 final class SettingsController
 {
@@ -90,78 +91,17 @@ final class SettingsController
 
     private function timezones(): array
     {
-        return $this->timezonePresets();
-    }
-
-    private function timezonePresets(): array
-    {
-        $data = $this->loadJson('config/timezones.json');
-        $list = [];
-        if (is_array($data)) {
-            foreach ($data as $value) {
-                if (!is_string($value)) {
-                    continue;
-                }
-                $value = trim($value);
-                if ($value === '' || in_array($value, $list, true)) {
-                    continue;
-                }
-                $list[] = $value;
-            }
-        }
-        return $list !== [] ? $list : \DateTimeZone::listIdentifiers();
-    }
-
-    private function normalizePresetList($values, array $fallback): array
-    {
-        $result = [];
-        if (is_array($values)) {
-            foreach ($values as $value) {
-                if (!is_string($value)) {
-                    continue;
-                }
-                $value = trim($value);
-                if ($value === '' || in_array($value, $result, true)) {
-                    continue;
-                }
-                $result[] = $value;
-            }
-        }
-        return $result !== [] ? $result : $fallback;
+        $presets = SettingsPresets::timezones();
+        return $presets !== [] ? $presets : \DateTimeZone::listIdentifiers();
     }
 
     private function formatPresets(): array
     {
-        $data = $this->loadJson('config/date_time_formats.json');
-
-        $dateDefaults = ['Y-m-d', 'd.m.Y', 'j. n. Y'];
-        $timeDefaults = ['H:i', 'H:i:s', 'g:i A'];
-        $datetimeDefaults = ['Y-m-d H:i', 'd.m.Y H:i'];
-
-        $date = $this->normalizePresetList(is_array($data) ? ($data['date'] ?? null) : null, $dateDefaults);
-        $time = $this->normalizePresetList(is_array($data) ? ($data['time'] ?? null) : null, $timeDefaults);
-        $datetime = $this->normalizePresetList(is_array($data) ? ($data['datetime'] ?? null) : null, $datetimeDefaults);
-
         return [
-            'date'     => $date,
-            'time'     => $time,
-            'datetime' => $datetime,
+            'date'     => SettingsPresets::dateFormats(),
+            'time'     => SettingsPresets::timeFormats(),
+            'datetime' => SettingsPresets::dateTimeFormats(),
         ];
-    }
-
-    private function loadJson(string $relativePath): array
-    {
-        $baseDir = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__, 5);
-        $path = $baseDir . '/' . ltrim($relativePath, '/');
-        if (!is_file($path)) {
-            return [];
-        }
-        $contents = file_get_contents($path);
-        if ($contents === false) {
-            return [];
-        }
-        $decoded = json_decode($contents, true);
-        return is_array($decoded) ? $decoded : [];
     }
 
     private function decodeSettingsData($raw): array

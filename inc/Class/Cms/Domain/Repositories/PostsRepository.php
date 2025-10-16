@@ -51,4 +51,27 @@ final class PostsRepository
         $q->orderBy('p.created_at','DESC');
         return $q->paginate($page, $perPage);
     }
+
+    /**
+     * @return array<string,int>
+     */
+    public function countByStatus(string $type): array
+    {
+        $rows = DB::query()->table('posts')
+            ->select(['status', 'COUNT(*) AS aggregate'])
+            ->where('type', '=', $type)
+            ->groupBy('status')
+            ->get();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $status = (string)($row['status'] ?? '');
+            $count = isset($row['aggregate']) ? (int)$row['aggregate'] : 0;
+            $result[$status] = $count;
+        }
+
+        $result['__total'] = array_sum($result);
+
+        return $result;
+    }
 }

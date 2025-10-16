@@ -18,6 +18,9 @@ final class MediaController extends BaseAdminController
             case 'delete':
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->delete(); return; }
                 // fallthrough na index
+            case 'library':
+                $this->library();
+                return;
             case 'index':
             default:
                 $this->index();
@@ -134,5 +137,42 @@ final class MediaController extends BaseAdminController
         }
 
         $this->redirect('admin.php?r=media', 'success', 'Soubor odstraněn.');
+    }
+
+    private function library(): void
+    {
+        $limit = max(1, min(100, (int)($_GET['limit'] ?? 60)));
+        $type = trim((string)($_GET['type'] ?? ''));
+
+        $q = DB::query()->table('media','m')
+            ->select(['m.id','m.url','m.mime','m.type','m.created_at'])
+            ->orderBy('m.created_at','DESC')
+            ->limit($limit);
+
+        if ($type !== '') {
+            $q->where('m.type','=', $type);
+        }
+
+        $rows = $q->get();
+        $items = [];
+        foreach ($rows as $row) {
+            $url = (string)($row['url'] ?? '');
+            $path = $url !== '' ? parse_url($url, PHP_URL_PATH) : '';
+            $basename = $path ? basename((string)$path) : '';
+            if ($basename === '') {
+                $basename = 'ID ' . (int)($row['id'] ?? 0);
+            }
+            $items[] = [
+                'id'   => (int)($row['id'] ?? 0),
+                'url'  => $url,
+                'mime' => (string)($row['mime'] ?? ''),
+                'type' => (string)($row['type'] ?? ''),
+                'name' => $basename,
+            ];
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['items' => $items], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }

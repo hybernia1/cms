@@ -11,8 +11,9 @@ declare(strict_types=1);
 /** @var string $type */
 /** @var array $types */
 /** @var \Cms\Utils\LinkGenerator $urls */
+/** @var array<string,int> $statusCounts */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek'];
 
@@ -26,12 +27,24 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   $status = (string)($filters['status'] ?? '');
   $q = (string)($filters['q'] ?? '');
+  $statusCounts = is_array($statusCounts ?? null) ? $statusCounts : [];
+  $totalCount = (int)($statusCounts['__total'] ?? 0);
+  if ($totalCount === 0 && $statusCounts !== []) {
+    $totalCount = array_sum(array_map(static fn($v) => is_int($v) ? $v : 0, $statusCounts));
+  }
 
   $statusTabs = [
     ''         => 'Vše',
     'publish'  => 'Publikované',
     'draft'    => 'Koncepty',
   ];
+
+  $statusCountFor = function(string $value) use ($statusCounts, $totalCount): int {
+    if ($value === '') {
+      return $totalCount;
+    }
+    return (int)($statusCounts[$value] ?? 0);
+  };
 ?>
   <!-- Horní lišta: přepínače + minimalistický search + "Nový" -->
   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 mb-3">
@@ -39,10 +52,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     <nav aria-label="Filtr statusu" class="order-2 order-md-1">
       <ul class="nav nav-pills nav-sm">
         <?php foreach ($statusTabs as $value => $label): ?>
+          <?php $count = $statusCountFor($value); ?>
           <li class="nav-item">
             <a class="nav-link px-3 py-1 <?= $status===$value ? 'active' : '' ?>"
                href="<?= $h($buildUrl(['status'=>$value])) ?>">
-               <?= $h($label) ?>
+               <?= $h($label) ?><?php if ($count >= 0): ?><span class="ms-1 badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><?= $count ?></span><?php endif; ?>
             </a>
           </li>
         <?php endforeach; ?>
@@ -75,98 +89,114 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   </div>
 
   <!-- Tabulka bez #ID a bez status sloupce -->
-  <div class="card">
-    <div class="table-responsive">
-      <table class="table table-sm table-hover align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>Název</th>
-            <th style="width:200px">Vytvořeno</th>
-            <th style="width:140px" class="text-end">Akce</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($items as $it): ?>
-            <?php
-              $isPublished = ($it['status'] ?? '') === 'publish';
-              $itemType = (string)($it['type'] ?? $type);
-              $slug = (string)($it['slug'] ?? '');
-              $frontUrl = '';
-              if ($slug !== '') {
-                $frontUrl = $itemType === 'page'
-                  ? $urls->page($slug)
-                  : $urls->post($slug);
-              }
-            ?>
+  <form id="posts-bulk-form" method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'bulk','type'=>$type])) ?>">
+    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+    <div class="card">
+      <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <select class="form-select form-select-sm" name="bulk_action" id="bulk-action-select">
+            <option value="">Hromadná akce…</option>
+            <option value="publish">Publikovat</option>
+            <option value="draft">Přepnout na koncept</option>
+            <option value="delete">Smazat</option>
+          </select>
+          <button class="btn btn-primary btn-sm" type="submit" id="bulk-apply" disabled>
+            <i class="bi bi-arrow-repeat me-1"></i>Provést
+          </button>
+        </div>
+        <div class="ms-md-auto small text-secondary" id="bulk-selection-counter" aria-live="polite"></div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light">
             <tr>
-              <td>
-                <?php if ($frontUrl !== ''): ?>
-                  <a class="fw-semibold text-truncate d-inline-flex align-items-center gap-1 text-decoration-none" href="<?= $h($frontUrl) ?>" target="_blank" rel="noopener">
-                    <?= $h((string)($it['title'] ?? '—')) ?>
-                    <i class="bi bi-box-arrow-up-right text-secondary small"></i>
+              <th style="width:36px"><input class="form-check-input" type="checkbox" id="select-all"></th>
+              <th>Název</th>
+              <th style="width:200px">Vytvořeno</th>
+              <th style="width:140px" class="text-end">Akce</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($items as $it): ?>
+              <?php
+                $isPublished = ($it['status'] ?? '') === 'publish';
+                $itemType = (string)($it['type'] ?? $type);
+                $slug = (string)($it['slug'] ?? '');
+                $frontUrl = '';
+                if ($slug !== '') {
+                  $frontUrl = $itemType === 'page'
+                    ? $urls->page($slug)
+                    : $urls->post($slug);
+                }
+              ?>
+              <tr>
+                <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku"></td>
+                <td>
+                  <?php if ($frontUrl !== ''): ?>
+                    <a class="fw-semibold text-truncate d-inline-flex align-items-center gap-1 text-decoration-none" href="<?= $h($frontUrl) ?>" target="_blank" rel="noopener">
+                      <?= $h((string)($it['title'] ?? '—')) ?>
+                      <i class="bi bi-box-arrow-up-right text-secondary small"></i>
+                    </a>
+                  <?php else: ?>
+                    <div class="fw-semibold text-truncate"><?= $h((string)($it['title'] ?? '—')) ?></div>
+                  <?php endif; ?>
+                  <div class="text-secondary small text-truncate">
+                    <i class="bi bi-link-45deg me-1"></i><?= $h($slug) ?>
+                  </div>
+                </td>
+
+                <td>
+                  <span class="small" title="<?= $h((string)($it['created_at_raw'] ?? '')) ?>">
+                    <?= $h((string)($it['created_at_display'] ?? ($it['created_at_raw'] ?? ''))) ?>
+                  </span>
+                </td>
+
+                <td class="text-end">
+                  <a class="btn btn-light btn-sm border me-1"
+                     href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>"
+                     aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
+                    <i class="bi bi-pencil"></i>
                   </a>
-                <?php else: ?>
-                  <div class="fw-semibold text-truncate"><?= $h((string)($it['title'] ?? '—')) ?></div>
-                <?php endif; ?>
-                <div class="text-secondary small text-truncate">
-                  <i class="bi bi-link-45deg me-1"></i><?= $h($slug) ?>
-                </div>
-              </td>
 
-              <td>
-                <span class="small" title="<?= $h((string)($it['created_at_raw'] ?? '')) ?>">
-                  <?= $h((string)($it['created_at_display'] ?? ($it['created_at_raw'] ?? ''))) ?>
-                </span>
-              </td>
+                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'toggle','type'=>$type])) ?>" class="d-inline">
+                    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+                    <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
+                    <button class="btn btn-light btn-sm border me-1" type="submit"
+                            aria-label="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>"
+                            data-bs-toggle="tooltip" data-bs-title="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>">
+                      <?php if ($isPublished): ?>
+                        <i class="bi bi-eye"></i>
+                      <?php else: ?>
+                        <i class="bi bi-eye-slash"></i>
+                      <?php endif; ?>
+                    </button>
+                  </form>
 
-              <td class="text-end">
-                <!-- Upravit -->
-                <a class="btn btn-light btn-sm border me-1"
-                   href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>"
-                   aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
-                  <i class="bi bi-pencil"></i>
-                </a>
+                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat?');">
+                    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+                    <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
+                    <button class="btn btn-light btn-sm border"
+                            type="submit" aria-label="Smazat"
+                            data-bs-toggle="tooltip" data-bs-title="Smazat">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
 
-                <!-- Toggle publikace (oko) -->
-                <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'toggle','type'=>$type])) ?>" class="d-inline">
-                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                  <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit"
-                          aria-label="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>"
-                          data-bs-toggle="tooltip" data-bs-title="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>">
-                    <?php if ($isPublished): ?>
-                      <i class="bi bi-eye"></i>
-                    <?php else: ?>
-                      <i class="bi bi-eye-slash"></i>
-                    <?php endif; ?>
-                  </button>
-                </form>
-
-                <!-- Smazat -->
-                <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat?');">
-                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                  <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
-                  <button class="btn btn-light btn-sm border"
-                          type="submit" aria-label="Smazat"
-                          data-bs-toggle="tooltip" data-bs-title="Smazat">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </form>
-              </td>
-            </tr>
-          <?php endforeach; ?>
-
-          <?php if (!$items): ?>
-            <tr>
-              <td colspan="3" class="text-center text-secondary py-4">
-                <i class="bi bi-inbox me-1"></i>Žádné položky
-              </td>
-            </tr>
-          <?php endif; ?>
-        </tbody>
-      </table>
+            <?php if (!$items): ?>
+              <tr>
+                <td colspan="4" class="text-center text-secondary py-4">
+                  <i class="bi bi-inbox me-1"></i>Žádné položky
+                </td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  </form>
 
   <!-- Stránkování -->
   <?php if (($pagination['pages'] ?? 1) > 1): ?>
@@ -199,6 +229,55 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       tooltipTriggerList.forEach(function (el) {
         new bootstrap.Tooltip(el);
       });
+
+      var selectAll = document.getElementById('select-all');
+      var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.row-check'));
+      var bulkButton = document.getElementById('bulk-apply');
+      var bulkSelect = document.getElementById('bulk-action-select');
+      var counter = document.getElementById('bulk-selection-counter');
+      var form = document.getElementById('posts-bulk-form');
+
+      function updateState() {
+        var checked = checkboxes.filter(function (cb) { return cb.checked; });
+        var count = checked.length;
+        if (selectAll) {
+          selectAll.checked = count > 0 && count === checkboxes.length;
+          selectAll.indeterminate = count > 0 && count < checkboxes.length;
+        }
+        if (bulkButton) {
+          bulkButton.disabled = count === 0 || !bulkSelect || bulkSelect.value === '';
+        }
+        if (counter) {
+          counter.textContent = count > 0 ? ('Vybráno ' + count + ' položek') : '';
+        }
+      }
+
+      if (selectAll) {
+        selectAll.addEventListener('change', function () {
+          var checked = selectAll.checked;
+          checkboxes.forEach(function (cb) { cb.checked = checked; });
+          updateState();
+        });
+      }
+
+      checkboxes.forEach(function (cb) {
+        cb.addEventListener('change', updateState);
+      });
+
+      if (bulkSelect) {
+        bulkSelect.addEventListener('change', updateState);
+      }
+
+      if (form) {
+        form.addEventListener('submit', function (evt) {
+          if (bulkButton && bulkButton.disabled) {
+            evt.preventDefault();
+            return false;
+          }
+        });
+      }
+
+      updateState();
     })();
   </script>
 <?php

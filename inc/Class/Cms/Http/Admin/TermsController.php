@@ -28,6 +28,11 @@ final class TermsController extends BaseAdminController
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') $this->delete(); else $this->index();
                 return;
 
+            case 'bulk':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->bulk(); return; }
+                $this->index();
+                return;
+
             case 'index':
             default:
                 $this->index();
@@ -235,5 +240,56 @@ final class TermsController extends BaseAdminController
 
         $type = $this->requestedType();
         $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'success', 'Term byl odstraněn.');
+    }
+
+    private function bulk(): void
+    {
+        $this->assertCsrf();
+
+        $type = $this->requestedType();
+        $action = (string)($_POST['bulk_action'] ?? '');
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+
+        if ($ids === [] || $action === '') {
+            $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'warning', 'Vyberte položky a požadovanou akci.');
+        }
+
+        $existing = DB::query()->table('terms')
+            ->select(['id'])
+            ->where('type', '=', $type)
+            ->whereIn('id', $ids)
+            ->get();
+
+        $targetIds = [];
+        foreach ($existing as $row) {
+            $targetIds[] = (int)($row['id'] ?? 0);
+        }
+        $targetIds = array_values(array_filter($targetIds, static fn (int $id): bool => $id > 0));
+
+        if ($targetIds === []) {
+            $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'warning', 'Žádné platné položky pro hromadnou akci.');
+        }
+
+        try {
+            if ($action === 'delete') {
+                DB::query()->table('post_terms')->delete()->whereIn('term_id', $targetIds)->execute();
+                DB::query()->table('terms')->delete()->whereIn('id', $targetIds)->execute();
+            } else {
+                $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'warning', 'Neznámá hromadná akce.');
+            }
+        } catch (\Throwable $e) {
+            $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'danger', $e->getMessage());
+        }
+
+        $this->redirect(
+            'admin.php?r=terms&type=' . urlencode($type),
+            'success',
+            'Hromadná akce dokončena (' . count($targetIds) . ')'
+        );
     }
 }
