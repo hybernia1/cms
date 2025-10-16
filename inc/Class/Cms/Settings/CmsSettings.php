@@ -9,6 +9,7 @@ final class CmsSettings
 {
     /** Cache jednoho řádku settings */
     private static ?array $row = null;
+    private static ?array $dataCache = null;
 
     private static function row(): array
     {
@@ -30,10 +31,35 @@ final class CmsSettings
         return self::$row;
     }
 
+    private static function data(): array
+    {
+        if (self::$dataCache !== null) {
+            return self::$dataCache;
+        }
+        $raw = self::row()['data'] ?? null;
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                self::$dataCache = $decoded;
+                return self::$dataCache;
+            }
+        }
+        self::$dataCache = [];
+        return self::$dataCache;
+    }
+
+    private static function mediaSettings(): array
+    {
+        $data = self::data();
+        $media = $data['media'] ?? [];
+        return is_array($media) ? $media : [];
+    }
+
     /** Vyvolat po uložení nastavení, aby se promazal cache. */
     public static function refresh(): void
     {
         self::$row = null;
+        self::$dataCache = null;
     }
 
     public function siteTitle(): string   { return (string)(self::row()['site_title'] ?? ''); }
@@ -42,6 +68,19 @@ final class CmsSettings
     public function dateFormat(): string  { return (string)(self::row()['date_format'] ?? 'Y-m-d'); }
     public function timeFormat(): string  { return (string)(self::row()['time_format'] ?? 'H:i'); }
     public function timezone(): string    { return (string)(self::row()['timezone'] ?? 'Europe/Prague'); }
+
+    public function webpEnabled(): bool
+    {
+        $media = self::mediaSettings();
+        return !empty($media['webp_enabled']);
+    }
+
+    public function webpCompression(): string
+    {
+        $media = self::mediaSettings();
+        $value = isset($media['webp_compression']) ? (string)$media['webp_compression'] : 'medium';
+        return in_array($value, ['high','medium','low'], true) ? $value : 'medium';
+    }
 
     public function formatDate(\DateTimeInterface $dt): string
     {

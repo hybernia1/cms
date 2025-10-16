@@ -4,8 +4,10 @@ declare(strict_types=1);
 namespace Cms\Http\Admin;
 
 use Cms\Domain\Repositories\PostsRepository;
+use Cms\Domain\Repositories\TermsRepository;
 use Cms\Domain\Services\PostsService;
 use Cms\Domain\Services\MediaService;
+use Cms\Domain\Services\TermsService;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
@@ -72,21 +74,26 @@ final class PostsController extends BaseAdminController
     }
 
     /** Načte seznam termů rozdělený podle typu + aktuálně vybrané pro daný post. */
-    private function termsData(?int $postId): array
+    private function termsData(?int $postId, string $type): array
     {
+        $byType = ['category'=>[], 'tag'=>[]];
+        $selected = ['category'=>[], 'tag'=>[]];
+
+        if ($type !== 'post') {
+            return ['byType'=>$byType, 'selected'=>$selected];
+        }
+
         // všecky termy
         $all = DB::query()->table('terms','t')
             ->select(['t.id','t.name','t.slug','t.type'])
             ->orderBy('t.type','ASC')->orderBy('t.name','ASC')->get();
 
-        $byType = ['category'=>[], 'tag'=>[]];
         foreach ($all as $t) {
-            $type = (string)$t['type'];
-            $byType[$type][] = $t;
+            $termType = (string)$t['type'];
+            $byType[$termType][] = $t;
         }
 
         // předvybrané
-        $selected = ['category'=>[], 'tag'=>[]];
         if ($postId) {
             $rows = DB::query()->table('post_terms','pt')
                 ->select(['pt.term_id','t.type'])
@@ -188,7 +195,7 @@ final class PostsController extends BaseAdminController
             }
         }
 
-        $terms = $this->termsData($id ?: null);
+        $terms = $this->termsData($id ?: null, $type);
 
         $this->renderAdmin('posts/edit', [
             'pageTitle' => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
@@ -220,8 +227,22 @@ final class PostsController extends BaseAdminController
             $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
 
             // terms z formuláře
-            $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-            $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+            $catIds = [];
+            $tagIds = [];
+            if ($type === 'post') {
+                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+
+                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
+
+                if ($newCatNames !== []) {
+                    $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
+                }
+                if ($newTagNames !== []) {
+                    $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
+                }
+            }
 
             $thumbId = null;
             if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -245,7 +266,9 @@ final class PostsController extends BaseAdminController
             }
 
             // ulož vazby termů
-            $this->syncTerms($postId, $catIds, $tagIds);
+            if ($type === 'post') {
+                $this->syncTerms($postId, $catIds, $tagIds);
+            }
 
             $this->redirect(
                 'admin.php?r=posts&a=edit&id=' . (int)$postId . '&type=' . $type,
@@ -296,8 +319,22 @@ final class PostsController extends BaseAdminController
             }
 
             // terms z formuláře
-            $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-            $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+            $catIds = [];
+            $tagIds = [];
+            if ($type === 'post') {
+                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+
+                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
+
+                if ($newCatNames !== []) {
+                    $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
+                }
+                if ($newTagNames !== []) {
+                    $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
+                }
+            }
 
             // případný nový thumbnail
             if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -309,7 +346,11 @@ final class PostsController extends BaseAdminController
             (new PostsService())->update($id, $upd);
 
             // ulož vazby termů (přepíše existující)
-            $this->syncTerms($id, $catIds, $tagIds);
+            if ($type === 'post') {
+                $this->syncTerms($id, $catIds, $tagIds);
+            } else {
+                $this->syncTerms($id, [], []);
+            }
 
             $this->redirect(
                 'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
@@ -324,6 +365,47 @@ final class PostsController extends BaseAdminController
                 $e->getMessage()
             );
         }
+    }
+
+    private function parseNewTerms(string $input): array
+    {
+        $parts = preg_split('/[,\n]+/', $input);
+        if ($parts === false) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($parts as $part) {
+            $name = trim($part);
+            if ($name !== '') {
+                $out[] = $name;
+            }
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    private function createNewTerms(array $names, string $type): array
+    {
+        if ($names === []) {
+            return [];
+        }
+
+        $repo = new TermsRepository();
+        $svc  = new TermsService($repo);
+
+        $ids = [];
+        foreach ($names as $name) {
+            $existing = $repo->findByNameAndType($name, $type);
+            if ($existing) {
+                $ids[] = (int)$existing['id'];
+                continue;
+            }
+
+            $ids[] = $svc->create($name, $type);
+        }
+
+        return $ids;
     }
 
     private function delete(): void
