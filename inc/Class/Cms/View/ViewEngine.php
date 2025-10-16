@@ -5,7 +5,8 @@ namespace Cms\View;
 
 final class ViewEngine
 {
-    private string $basePath;
+    /** @var string[] */
+    private array $basePaths = [];
     /** @var array<string,mixed> */
     private array $shared = [];
 
@@ -20,24 +21,66 @@ final class ViewEngine
         if ($real === false || !is_dir($real)) {
             throw new \RuntimeException("Template base path not found: {$basePath}");
         }
-        $this->basePath = $real;
+        $this->basePaths = [$real];
     }
 
     /**
-     * Bezpečné sestavení absolutní cesty na základě $this->basePath.
+     * Nastav více základních cest (např. pro děděné šablony).
+     * @param array<int,string> $basePaths
      */
-    private function resolve(string $template): string
+    public function setBasePaths(array $basePaths): void
+    {
+        $resolved = [];
+        foreach ($basePaths as $path) {
+            $real = realpath($path);
+            if ($real !== false && is_dir($real)) {
+                $resolved[] = $real;
+            }
+        }
+        if ($resolved === []) {
+            throw new \RuntimeException('Template base paths list cannot be empty.');
+        }
+        $this->basePaths = $resolved;
+    }
+
+    /**
+     * Bezpečné sestavení absolutní cesty na základě dostupných basePaths.
+     */
+    private function resolve(string $template): array
     {
         $template = ltrim($template, '/');
         if (!str_ends_with($template, '.php')) {
             $template .= '.php';
         }
-        $full = $this->basePath . '/' . $template;
-        $real = realpath($full);
-        if ($real === false || !str_starts_with($real, $this->basePath . DIRECTORY_SEPARATOR)) {
-            throw new \RuntimeException("Template out of base path: {$template}");
+        foreach ($this->basePaths as $base) {
+            $full = $base . '/' . $template;
+            $real = realpath($full);
+            if ($real !== false && str_starts_with($real, $base . DIRECTORY_SEPARATOR)) {
+                return ['file' => $real, 'base' => $base];
+            }
         }
-        return $real;
+        throw new \RuntimeException("Template not found in base paths: {$template}");
+    }
+
+    private function includeTemplate(array $resolved, array $payload, ?callable $contentBlock): void
+    {
+        $file = $resolved['file'];
+        $content = function() use ($contentBlock): void {
+            if ($contentBlock) { $contentBlock(); }
+        };
+        extract($payload, EXTR_OVERWRITE);
+        include $file;
+    }
+
+    private function payload(array $data): array
+    {
+        $payload = $this->shared;
+        foreach ($data as $key => $value) {
+            if (is_string($key)) {
+                $payload[$key] = $value;
+            }
+        }
+        return $payload;
     }
 
     /**
@@ -46,18 +89,9 @@ final class ViewEngine
      */
     public function render(string $template, array $data = [], ?callable $contentBlock = null): void
     {
-        $file = $this->resolve($template);
-        $content = function() use ($contentBlock): void {
-            if ($contentBlock) { $contentBlock(); }
-        };
-        $payload = $this->shared;
-        foreach ($data as $key => $value) {
-            if (is_string($key)) {
-                $payload[$key] = $value;
-            }
-        }
-        extract($payload, EXTR_OVERWRITE);
-        include $file;
+        $resolved = $this->resolve($template);
+        $payload  = $this->payload($data);
+        $this->includeTemplate($resolved, $payload, $contentBlock);
     }
 
     /**
@@ -66,6 +100,15 @@ final class ViewEngine
     public function part(string $partial, array $data = []): void
     {
         $this->render($partial, $data);
+    }
+
+    public function renderLayout(string $layout, string $template, array $data = []): void
+    {
+        $payload = $this->payload($data);
+        $layoutResolved = $this->resolve($layout);
+        $this->includeTemplate($layoutResolved, $payload, function() use ($template, $data): void {
+            $this->render($template, $data);
+        });
     }
 
     public function share(array $data): void

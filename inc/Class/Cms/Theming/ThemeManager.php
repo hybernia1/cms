@@ -9,6 +9,10 @@ final class ThemeManager
 {
     private string $themesBase;
     private string $active;
+    /** @var array<string,mixed> */
+    private array $manifest = [];
+    /** @var string[] */
+    private array $hierarchy = [];
 
     public function __construct(?string $forceSlug = null)
     {
@@ -29,6 +33,9 @@ final class ThemeManager
                     : 'classic';
             }
         }
+
+        $this->hierarchy = [$this->active];
+        $this->loadManifest();
     }
 
     /** Slug aktivní šablony */
@@ -46,6 +53,90 @@ final class ThemeManager
     /** Absolutní cesta k templates (/themes/{slug}/templates) */
     public function templateBasePath(): string
     {
+        $bases = $this->templateBases();
+        if ($bases !== []) {
+            return $bases[0];
+        }
         return $this->activePath().'/templates';
+    }
+
+    /** @return array<string,mixed> */
+    public function manifest(): array
+    {
+        return $this->manifest;
+    }
+
+    /** @return string[] */
+    public function hierarchy(): array
+    {
+        return $this->hierarchy;
+    }
+
+    /** @return string[] */
+    public function templateBases(): array
+    {
+        $bases = [];
+        foreach ($this->hierarchy as $slug) {
+            $candidate = rtrim($this->themesBase, '/').'/'.$slug.'/templates';
+            if (is_dir($candidate)) {
+                $bases[] = $candidate;
+            }
+        }
+        return $bases;
+    }
+
+    /** @return array<int,array{slug:string,path:string}> */
+    public function themeRoots(): array
+    {
+        $roots = [];
+        foreach ($this->hierarchy as $slug) {
+            $path = rtrim($this->themesBase, '/').'/'.$slug;
+            if (is_dir($path)) {
+                $roots[] = [
+                    'slug' => $slug,
+                    'path' => $path,
+                ];
+            }
+        }
+        return $roots;
+    }
+
+    private function loadManifest(): void
+    {
+        $manifestFile = $this->activePath().'/theme.json';
+        if (!is_file($manifestFile)) {
+            return;
+        }
+
+        $decoded = json_decode((string)@file_get_contents($manifestFile), true);
+        if (!is_array($decoded)) {
+            return;
+        }
+
+        $this->manifest = $decoded;
+
+        $parent = (string)($decoded['parent'] ?? '');
+        if ($parent !== '') {
+            $this->appendParentHierarchy($parent);
+        }
+    }
+
+    private function appendParentHierarchy(string $parent): void
+    {
+        $current = $parent;
+        while ($current !== '' && !in_array($current, $this->hierarchy, true)) {
+            $path = rtrim($this->themesBase, '/').'/'.$current;
+            if (!is_dir($path)) {
+                break;
+            }
+            $this->hierarchy[] = $current;
+
+            $manifestFile = $path.'/theme.json';
+            if (!is_file($manifestFile)) {
+                break;
+            }
+            $decoded = json_decode((string)@file_get_contents($manifestFile), true);
+            $current = is_array($decoded) ? (string)($decoded['parent'] ?? '') : '';
+        }
     }
 }

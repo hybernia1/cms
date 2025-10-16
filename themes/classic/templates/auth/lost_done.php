@@ -1,8 +1,12 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
-
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() {
+ob_start();
 ?>
-<div class="alert alert-info">Pokud účet existuje, poslali jsme odkaz pro reset hesla.</div>
-<?php }); ?>
+<p>Pokud účet existuje, během několika minut dorazí e-mail s dalšími kroky. Zkontrolujte i složku SPAM.</p>
+<?php
+$body = ob_get_clean();
+$this->part('parts/auth/card', [
+    'title' => 'Instrukce odeslány',
+    'type'  => 'success',
+    'msg'   => null,
+    'body'  => $body,
+]);

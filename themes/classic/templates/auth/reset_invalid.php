@@ -1,8 +1,12 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
-
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() {
+ob_start();
 ?>
-<div class="alert alert-danger">Odkaz pro reset je neplatný nebo vypršel.</div>
-<?php }); ?>
+<p class="muted">Odkaz pro změnu hesla je neplatný nebo vypršel. Vyžádejte si prosím nové heslo.</p>
+<?php
+$body = ob_get_clean();
+$this->part('parts/auth/card', [
+    'title' => 'Neplatný odkaz',
+    'type'  => 'danger',
+    'msg'   => null,
+    'body'  => $body,
+]);
