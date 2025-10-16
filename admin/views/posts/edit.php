@@ -25,7 +25,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <form class="card" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span><?= $h($isEdit ? ($typeCfg['edit'] ?? 'Upravit položku').' #'.($post['id'] ?? '') : ($typeCfg['create'] ?? 'Nová položka')) ?></span>
-      <a class="btn btn-sm btn-outline-secondary" href="admin.php?r=terms">Správa termů</a>
+      <?php if ($type === 'post'): ?>
+        <a class="btn btn-sm btn-outline-secondary" href="admin.php?r=terms">Správa termů</a>
+      <?php endif; ?>
     </div>
 
     <div class="card-body">
@@ -65,30 +67,45 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         </div>
       </div>
 
-      <div class="row g-3 mt-1">
-        <div class="col-md-6">
-          <label class="form-label">Kategorie</label>
-          <select class="form-select" name="categories[]" multiple size="6">
-            <?php foreach (($terms['category'] ?? []) as $t): ?>
-              <option value="<?= (int)$t['id'] ?>" <?= $selectedOpt($selected['category'] ?? [], (int)$t['id']) ?>>
-                <?= $h((string)$t['name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-          <div class="form-text">Podrž Ctrl/⌘ pro vícenásobný výběr.</div>
+      <?php if ($type === 'post'): ?>
+        <div class="row g-3 mt-1">
+          <div class="col-md-6">
+            <label class="form-label">Kategorie</label>
+            <select class="form-select" name="categories[]" multiple size="6">
+              <?php foreach (($terms['category'] ?? []) as $t): ?>
+                <option value="<?= (int)$t['id'] ?>" <?= $selectedOpt($selected['category'] ?? [], (int)$t['id']) ?>>
+                  <?= $h((string)$t['name']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Podrž Ctrl/⌘ pro vícenásobný výběr.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Štítky</label>
+            <select class="form-select" name="tags[]" multiple size="6">
+              <?php foreach (($terms['tag'] ?? []) as $t): ?>
+                <option value="<?= (int)$t['id'] ?>" <?= $selectedOpt($selected['tag'] ?? [], (int)$t['id']) ?>>
+                  <?= $h((string)$t['name']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text">Podrž Ctrl/⌘ pro vícenásobný výběr.</div>
+          </div>
         </div>
-        <div class="col-md-6">
-          <label class="form-label">Štítky</label>
-          <select class="form-select" name="tags[]" multiple size="6">
-            <?php foreach (($terms['tag'] ?? []) as $t): ?>
-              <option value="<?= (int)$t['id'] ?>" <?= $selectedOpt($selected['tag'] ?? [], (int)$t['id']) ?>>
-                <?= $h((string)$t['name']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-          <div class="form-text">Podrž Ctrl/⌘ pro vícenásobný výběr.</div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-md-6">
+            <label class="form-label">Nové kategorie</label>
+            <input class="form-control" name="new_categories" placeholder="Např. Novinky, Aktuality">
+            <div class="form-text">Napiš názvy oddělené čárkou nebo novým řádkem. Vytvoří se a hned se přiřadí.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Nové štítky</label>
+            <input class="form-control" name="new_tags" placeholder="Např. CMS, Release">
+            <div class="form-text">Napiš názvy oddělené čárkou nebo novým řádkem. Vytvoří se a hned se přiřadí.</div>
+          </div>
         </div>
-      </div>
+      <?php endif; ?>
 
       <div class="mb-3 mt-3">
         <label class="form-label">Obsah</label>
