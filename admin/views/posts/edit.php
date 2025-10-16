@@ -70,6 +70,32 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $categorySelected = $findSelectedItems($categoriesWhitelist, $categorySelectedIds);
   $tagSelected = $findSelectedItems($tagsWhitelist, $tagSelectedIds);
 
+  $selectedListToString = function (array $items): string {
+    $names = [];
+    foreach ($items as $item) {
+      if (!is_array($item)) {
+        continue;
+      }
+      $label = '';
+      if (isset($item['value'])) {
+        $label = trim((string)$item['value']);
+      }
+      if ($label === '' && isset($item['name'])) {
+        $label = trim((string)$item['name']);
+      }
+      if ($label === '' && isset($item['slug'])) {
+        $label = trim((string)$item['slug']);
+      }
+      if ($label !== '') {
+        $names[] = $label;
+      }
+    }
+    return implode(', ', $names);
+  };
+
+  $categorySelectedText = $selectedListToString($categorySelected);
+  $tagSelectedText = $selectedListToString($tagSelected);
+
   $currentThumb = null;
   if ($isEdit && !empty($post['thumbnail_id'])) {
     $thumbRow = \Core\Database\Init::query()->table('media')->select(['id','url','mime'])->where('id','=',(int)$post['thumbnail_id'])->first();
@@ -132,6 +158,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <div class="mb-3">
             <label class="form-label">Kategorie</label>
             <input id="categories-input" class="form-control" placeholder="Přidej kategorie"
+                   value="<?= $h($categorySelectedText) ?>"
                    data-whitelist="<?= $encodeJson($categoriesWhitelist) ?>"
                    data-selected="<?= $encodeJson($categorySelected) ?>">
             <div class="form-text">Začni psát pro vyhledání existujících kategorií, nové potvrď klávesou Enter.</div>
@@ -140,6 +167,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <div class="mb-3">
             <label class="form-label">Štítky</label>
             <input id="tags-input" class="form-control" placeholder="Přidej štítky"
+                   value="<?= $h($tagSelectedText) ?>"
                    data-whitelist="<?= $encodeJson($tagsWhitelist) ?>"
                    data-selected="<?= $encodeJson($tagSelected) ?>">
             <div class="form-text">Štítky odděluj čárkou nebo potvrzuj Enterem, lze kombinovat existující i nové.</div>
@@ -309,6 +337,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         var categoriesInput = document.getElementById('categories-input');
         var categoriesHidden = document.getElementById('categories-hidden-inputs');
         if (categoriesInput && categoriesHidden) {
+          if (categoriesInput.value) {
+            categoriesInput.value = '';
+          }
           var categoryWhitelist = normalizeTagifyItems(parseDataAttr(categoriesInput, 'data-whitelist'));
           categoryTagify = new TagifyCtor(categoriesInput, {
             whitelist: categoryWhitelist,
@@ -330,6 +361,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         var tagsInput = document.getElementById('tags-input');
         var tagsHidden = document.getElementById('tags-hidden-inputs');
         if (tagsInput && tagsHidden) {
+          if (tagsInput.value) {
+            tagsInput.value = '';
+          }
           var tagWhitelist = normalizeTagifyItems(parseDataAttr(tagsInput, 'data-whitelist'));
           tagTagify = new TagifyCtor(tagsInput, {
             whitelist: tagWhitelist,
