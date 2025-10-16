@@ -3,23 +3,11 @@ declare(strict_types=1);
 
 namespace Cms\Http\Admin;
 
-use Cms\View\ViewEngine;
-use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
 
-final class UsersController
+final class UsersController extends BaseAdminController
 {
-    private ViewEngine $view;
-    private AuthService $auth;
-
-    public function __construct(string $baseViewsPath)
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $this->view = new ViewEngine($baseViewsPath);
-        $this->auth = new AuthService();
-    }
-
     public function handle(string $action): void
     {
         switch ($action) {
@@ -30,22 +18,6 @@ final class UsersController
         }
     }
 
-
-    private function token(): string
-    {
-        if (empty($_SESSION['csrf_admin'])) $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
-        return $_SESSION['csrf_admin'];
-    }
-    private function assertCsrf(): void
-    {
-        if (empty($_SESSION['csrf_admin']) || !hash_equals($_SESSION['csrf_admin'], (string)($_POST['csrf'] ?? ''))) {
-            http_response_code(419); echo 'CSRF token invalid'; exit;
-        }
-    }
-    private function flash(string $type, string $msg): void
-    {
-        $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
-    }
 
     private function index(): void
     {
@@ -62,16 +34,12 @@ final class UsersController
         $b->orderBy('u.created_at','DESC');
         $data = $b->paginate($page, 20);
 
-        $this->view->render('users/index', [
-            'pageTitle'   => 'Uživatelé',
-            'nav'         => AdminNavigation::build('users'),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'data'        => $data,
-            'q'           => $q,
-            'csrf'        => $this->token(),
+        $this->renderAdmin('users/index', [
+            'pageTitle' => 'Uživatelé',
+            'nav'       => AdminNavigation::build('users'),
+            'data'      => $data,
+            'q'         => $q,
         ]);
-        unset($_SESSION['_flash']);
     }
 
     private function edit(): void
@@ -79,64 +47,65 @@ final class UsersController
         $id = (int)($_GET['id'] ?? 0);
         $user = $id ? DB::query()->table('users')->select(['*'])->where('id','=', $id)->first() : null;
 
-        $this->view->render('users/edit', [
-            'pageTitle'   => $id ? 'Upravit uživatele' : 'Nový uživatel',
-            'nav'         => AdminNavigation::build('users'),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'user'        => $user,
-            'csrf'        => $this->token(),
+        $this->renderAdmin('users/edit', [
+            'pageTitle' => $id ? 'Upravit uživatele' : 'Nový uživatel',
+            'nav'       => AdminNavigation::build('users'),
+            'user'      => $user,
         ]);
-        unset($_SESSION['_flash']);
     }
 
     private function save(): void
-{
-    $this->assertCsrf();
-    $id     = (int)($_POST['id'] ?? 0);
-    $name   = trim((string)($_POST['name'] ?? ''));
-    $email  = trim((string)($_POST['email'] ?? ''));
-    $role   = (string)($_POST['role'] ?? 'user');
-    $active = (int)($_POST['active'] ?? 1);
-    $pass   = (string)($_POST['password'] ?? '');
+    {
+        $this->assertCsrf();
+        $id     = (int)($_POST['id'] ?? 0);
+        $name   = trim((string)($_POST['name'] ?? ''));
+        $email  = trim((string)($_POST['email'] ?? ''));
+        $role   = (string)($_POST['role'] ?? 'user');
+        $active = (int)($_POST['active'] ?? 1);
+        $pass   = (string)($_POST['password'] ?? '');
 
-    if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $this->flash('danger','Zadejte platné jméno a e-mail.');
-        header('Location: admin.php?r=users&a=edit'.($id?"&id={$id}":'')); exit;
-    }
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->redirect(
+                'admin.php?r=users&a=edit' . ($id ? "&id={$id}" : ''),
+                'danger',
+                'Zadejte platné jméno a e-mail.'
+            );
+        }
 
-    // unikátní e-mail
-    $dup = DB::query()->table('users')->select(['id'])->where('email','=', $email);
-    if ($id) $dup->where('id','!=',$id);
-    if ($dup->first()) {
-        $this->flash('danger','Tento e-mail už používá jiný účet.');
-        header('Location: admin.php?r=users&a=edit'.($id?"&id={$id}":'')); exit;
-    }
+        $dup = DB::query()->table('users')->select(['id'])->where('email','=', $email);
+        if ($id) {
+            $dup->where('id','!=',$id);
+        }
+        if ($dup->first()) {
+            $this->redirect(
+                'admin.php?r=users&a=edit' . ($id ? "&id={$id}" : ''),
+                'danger',
+                'Tento e-mail už používá jiný účet.'
+            );
+        }
 
-    $data = [
-        'name'       => $name,
-        'email'      => $email,
-        'role'       => in_array($role,['admin','user'],true)?$role:'user',
-        'active'     => $active,
-        'updated_at' => date('Y-m-d H:i:s'),
-    ];
-    if ($pass !== '') {
-        $data['password_hash'] = password_hash($pass, PASSWORD_DEFAULT);
-    }
-
-    if ($id) {
-        DB::query()->table('users')->update($data)->where('id','=', $id)->execute();
-        $this->flash('success','Uživatel upraven.');
-    } else {
-        $data += [
-            'created_at'   => date('Y-m-d H:i:s'),
-            'token'        => null,
-            'token_expire' => null,
+        $data = [
+            'name'       => $name,
+            'email'      => $email,
+            'role'       => in_array($role, ['admin','user'], true) ? $role : 'user',
+            'active'     => $active,
+            'updated_at' => date('Y-m-d H:i:s'),
         ];
-        DB::query()->table('users')->insertRow($data)->execute();
-        $this->flash('success','Uživatel vytvořen.');
-    }
+        if ($pass !== '') {
+            $data['password_hash'] = password_hash($pass, PASSWORD_DEFAULT);
+        }
 
-    header('Location: admin.php?r=users'); exit;
-}
+        if ($id) {
+            DB::query()->table('users')->update($data)->where('id','=', $id)->execute();
+            $this->redirect('admin.php?r=users', 'success', 'Uživatel upraven.');
+        } else {
+            $data += [
+                'created_at'   => date('Y-m-d H:i:s'),
+                'token'        => null,
+                'token_expire' => null,
+            ];
+            DB::query()->table('users')->insertRow($data)->execute();
+            $this->redirect('admin.php?r=users', 'success', 'Uživatel vytvořen.');
+        }
+    }
 }

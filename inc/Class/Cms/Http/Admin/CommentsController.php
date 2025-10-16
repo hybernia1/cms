@@ -3,23 +3,11 @@ declare(strict_types=1);
 
 namespace Cms\Http\Admin;
 
-use Cms\View\ViewEngine;
-use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
 
-final class CommentsController
+final class CommentsController extends BaseAdminController
 {
-    private ViewEngine $view;
-    private AuthService $auth;
-
-    public function __construct(string $baseViewsPath)
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $this->view  = new ViewEngine($baseViewsPath);
-        $this->auth  = new AuthService();
-    }
-
     public function handle(string $action): void
     {
         switch ($action) {
@@ -44,23 +32,6 @@ final class CommentsController
     }
 
     // --------- helpers ----------
-    private function token(): string
-    {
-        if (empty($_SESSION['csrf_admin'])) $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
-        return $_SESSION['csrf_admin'];
-    }
-    private function assertCsrf(): void
-    {
-        $in = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
-        if (empty($_SESSION['csrf_admin']) || !hash_equals($_SESSION['csrf_admin'], (string)$in)) {
-            http_response_code(419); echo 'CSRF token invalid'; exit;
-        }
-    }
-    private function flash(string $type, string $msg): void
-    {
-        $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
-    }
-
     // --------- actions ----------
     private function index(): void
     {
@@ -100,28 +71,26 @@ final class CommentsController
 
         $pag = $q->paginate($page, $perPage);
 
-        $this->view->render('comments/index', [
-            'pageTitle'   => 'Komentáře',
-            'nav'         => AdminNavigation::build('comments'),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'filters'     => $filters,
-            'items'       => $pag['items'] ?? [],
-            'pagination'  => [
+        $this->renderAdmin('comments/index', [
+            'pageTitle'  => 'Komentáře',
+            'nav'        => AdminNavigation::build('comments'),
+            'filters'    => $filters,
+            'items'      => $pag['items'] ?? [],
+            'pagination' => [
                 'page'     => $pag['page'] ?? $page,
                 'per_page' => $pag['per_page'] ?? $perPage,
                 'total'    => $pag['total'] ?? 0,
                 'pages'    => $pag['pages'] ?? 1,
             ],
-            'csrf'        => $this->token(),
         ]);
-        unset($_SESSION['_flash']);
     }
 
     private function show(): void
     {
         $id = (int)($_GET['id'] ?? 0);
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: admin.php?r=comments'); exit; }
+        if ($id <= 0) {
+            $this->redirect('admin.php?r=comments', 'danger', 'Chybí ID.');
+        }
 
         $row = DB::query()->table('comments','c')
             ->select([
@@ -132,7 +101,9 @@ final class CommentsController
             ->where('c.id','=', $id)
             ->first();
 
-        if (!$row) { $this->flash('danger','Komentář nenalezen.'); header('Location: admin.php?r=comments'); exit; }
+        if (!$row) {
+            $this->redirect('admin.php?r=comments', 'danger', 'Komentář nenalezen.');
+        }
 
         // načti děti (odpovědi)
         $children = DB::query()->table('comments','c')
@@ -141,23 +112,21 @@ final class CommentsController
             ->orderBy('c.created_at','ASC')
             ->get();
 
-        $this->view->render('comments/show', [
-            'pageTitle'   => 'Komentář #'.$id,
-            'nav'         => AdminNavigation::build('comments'),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'comment'     => $row,
-            'children'    => $children,
-            'csrf'        => $this->token(),
+        $this->renderAdmin('comments/show', [
+            'pageTitle' => 'Komentář #' . $id,
+            'nav'       => AdminNavigation::build('comments'),
+            'comment'   => $row,
+            'children'  => $children,
         ]);
-        unset($_SESSION['_flash']);
     }
 
     private function setStatus(string $action): void
     {
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: admin.php?r=comments'); exit; }
+        if ($id <= 0) {
+            $this->redirect('admin.php?r=comments', 'danger', 'Chybí ID.');
+        }
 
         $targets = [
             'approve' => 'published',
@@ -167,30 +136,30 @@ final class CommentsController
         $new = $targets[$action] ?? 'draft';
 
         DB::query()->table('comments')->update(['status'=>$new])->where('id','=', $id)->execute();
-        $this->flash('success', match($new){
-            'published'=>'Schváleno.',
-            'spam'=>'Označeno jako spam.',
-            default=>'Uloženo jako koncept.'
-        });
-        $back = $_POST['_back'] ?? 'admin.php?r=comments';
-        header('Location: '.$back);
-        exit;
+        $this->redirect(
+            (string)($_POST['_back'] ?? 'admin.php?r=comments'),
+            'success',
+            match ($new) {
+                'published' => 'Schváleno.',
+                'spam'      => 'Označeno jako spam.',
+                default     => 'Uloženo jako koncept.',
+            }
+        );
     }
 
     private function delete(): void
     {
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: admin.php?r=comments'); exit; }
+        if ($id <= 0) {
+            $this->redirect('admin.php?r=comments', 'danger', 'Chybí ID.');
+        }
 
         // smaž i odpovědi (jedna úroveň; pokud chceš rekurzi, dalo by se)
         DB::query()->table('comments')->delete()->where('parent_id','=', $id)->execute();
         DB::query()->table('comments')->delete()->where('id','=', $id)->execute();
 
-        $this->flash('success','Komentář odstraněn.');
-        $back = $_POST['_back'] ?? 'admin.php?r=comments';
-        header('Location: '.$back);
-        exit;
+        $this->redirect((string)($_POST['_back'] ?? 'admin.php?r=comments'), 'success', 'Komentář odstraněn.');
     }
 
     private function reply(): void
@@ -199,11 +168,13 @@ final class CommentsController
         $parentId = (int)($_POST['parent_id'] ?? 0);
         $content  = trim((string)($_POST['content'] ?? ''));
         if ($parentId <= 0 || $content === '') {
-            $this->flash('danger','Chybí text odpovědi.'); header('Location: admin.php?r=comments'); exit;
+            $this->redirect('admin.php?r=comments', 'danger', 'Chybí text odpovědi.');
         }
 
         $parent = DB::query()->table('comments')->select(['*'])->where('id','=', $parentId)->first();
-        if (!$parent) { $this->flash('danger','Původní komentář nenalezen.'); header('Location: admin.php?r=comments'); exit; }
+        if (!$parent) {
+            $this->redirect('admin.php?r=comments', 'danger', 'Původní komentář nenalezen.');
+        }
 
         $user = $this->auth->user();
         $authorName  = (string)($user['name'] ?? 'Admin');
@@ -224,8 +195,6 @@ final class CommentsController
             date('Y-m-d H:i:s'),
         ])->execute();
 
-        $this->flash('success','Odpověď byla přidána.');
-        header('Location: admin.php?r=comments&a=show&id='.$parentId);
-        exit;
+        $this->redirect('admin.php?r=comments&a=show&id=' . $parentId, 'success', 'Odpověď byla přidána.');
     }
 }

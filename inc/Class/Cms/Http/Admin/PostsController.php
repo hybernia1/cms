@@ -3,27 +3,14 @@ declare(strict_types=1);
 
 namespace Cms\Http\Admin;
 
-use Cms\View\ViewEngine;
-use Cms\Auth\AuthService;
 use Cms\Domain\Repositories\PostsRepository;
 use Cms\Domain\Services\PostsService;
 use Cms\Domain\Services\MediaService;
 use Cms\Utils\AdminNavigation;
-use Core\Files\PathResolver;
 use Core\Database\Init as DB;
 
-final class PostsController
+final class PostsController extends BaseAdminController
 {
-    private ViewEngine $view;
-    private AuthService $auth;
-
-    public function __construct(string $baseViewsPath)
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $this->view = new ViewEngine($baseViewsPath);
-        $this->auth = new AuthService();
-    }
-
     public function handle(string $action): void
     {
         switch ($action) {
@@ -68,34 +55,6 @@ final class PostsController
             $type = 'post';
         }
         return $type;
-    }
-
-    private function token(): string
-    {
-        if (empty($_SESSION['csrf_admin'])) {
-            $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
-        }
-        return $_SESSION['csrf_admin'];
-    }
-    private function assertCsrf(): void
-    {
-        $in = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
-        if (empty($_SESSION['csrf_admin']) || !hash_equals($_SESSION['csrf_admin'], (string)$in)) {
-            http_response_code(419);
-            echo 'CSRF token invalid';
-            exit;
-        }
-    }
-    private function flash(string $type, string $msg): void
-    {
-        $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
-    }
-    private function basePaths(): PathResolver
-    {
-        $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $webBase = rtrim(str_replace('\\','/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
-        $baseUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($webBase === '' ? '' : $webBase) . '/uploads';
-        return new PathResolver(baseDir: dirname(__DIR__, 5) . '/uploads', baseUrl: $baseUrl);
     }
 
     /** Načte seznam termů rozdělený podle typu + aktuálně vybrané pro daný post. */
@@ -161,26 +120,20 @@ final class PostsController
 
         $pag = $repo->paginate($filters, $page, $perPage);
 
-        $data = [
-            'pageTitle'   => $this->typeConfig()[$type]['list'],
-            'nav'         => AdminNavigation::build('posts:' . $type),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'filters'     => $filters,
-            'items'       => $pag['items'] ?? [],
-            'pagination'  => [
+        $this->renderAdmin('posts/index', [
+            'pageTitle'  => $this->typeConfig()[$type]['list'],
+            'nav'        => AdminNavigation::build('posts:' . $type),
+            'filters'    => $filters,
+            'items'      => $pag['items'] ?? [],
+            'pagination' => [
                 'page'     => $pag['page'] ?? $page,
                 'per_page' => $pag['per_page'] ?? $perPage,
                 'total'    => $pag['total'] ?? 0,
                 'pages'    => $pag['pages'] ?? 1,
             ],
-            'csrf'        => $this->token(),
-            'type'        => $type,
-            'types'       => $this->typeConfig(),
-        ];
-        unset($_SESSION['_flash']);
-
-        $this->view->render('posts/index', $data);
+            'type'       => $type,
+            'types'      => $this->typeConfig(),
+        ]);
     }
 
     private function form(): void
@@ -190,7 +143,9 @@ final class PostsController
         $type = $this->requestedType();
         if ($id > 0) {
             $row = (new PostsRepository())->find($id);
-            if (!$row) { $this->flash('danger','Příspěvek nebyl nalezen.'); header('Location: ' . $this->listUrl($type)); exit; }
+            if (!$row) {
+                $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nebyl nalezen.');
+            }
             $rowType = (string)($row['type'] ?? 'post');
             if (array_key_exists($rowType, $this->typeConfig())) {
                 $type = $rowType;
@@ -199,21 +154,15 @@ final class PostsController
 
         $terms = $this->termsData($id ?: null);
 
-        $data = [
-            'pageTitle'   => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
-            'nav'         => AdminNavigation::build('posts:' . $type),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'post'        => $row,
-            'csrf'        => $this->token(),
-            'terms'       => $terms['byType'],
-            'selected'    => $terms['selected'],
-            'type'        => $type,
-            'types'       => $this->typeConfig(),
-        ];
-        unset($_SESSION['_flash']);
-
-        $this->view->render('posts/edit', $data);
+        $this->renderAdmin('posts/edit', [
+            'pageTitle' => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
+            'nav'       => AdminNavigation::build('posts:' . $type),
+            'post'      => $row,
+            'terms'     => $terms['byType'],
+            'selected'  => $terms['selected'],
+            'type'      => $type,
+            'types'     => $this->typeConfig(),
+        ]);
     }
 
     private function listUrl(string $type): string
@@ -241,7 +190,7 @@ final class PostsController
             $thumbId = null;
             if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $mediaSvc = new MediaService();
-                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->basePaths(), 'posts');
+                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
                 $thumbId = (int)$up['id'];
             }
 
@@ -262,15 +211,19 @@ final class PostsController
             // ulož vazby termů
             $this->syncTerms($postId, $catIds, $tagIds);
 
-            $this->flash('success', 'Příspěvek byl vytvořen.');
-            header('Location: admin.php?r=posts&a=edit&id='.(int)$postId.'&type='.$type);
-            exit;
+            $this->redirect(
+                'admin.php?r=posts&a=edit&id=' . (int)$postId . '&type=' . $type,
+                'success',
+                'Příspěvek byl vytvořen.'
+            );
 
         } catch (\Throwable $e) {
-            $this->flash('danger', $e->getMessage());
             $type = $this->requestedType();
-            header('Location: admin.php?r=posts&a=create&type='.$type);
-            exit;
+            $this->redirect(
+                'admin.php?r=posts&a=create&type=' . $type,
+                'danger',
+                $e->getMessage()
+            );
         }
     }
 
@@ -279,10 +232,14 @@ final class PostsController
         $this->assertCsrf();
         $id = (int)($_GET['id'] ?? 0);
         $type = $this->requestedType();
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: '.$this->listUrl($type)); exit; }
+        if ($id <= 0) {
+            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+        }
 
         $post = (new PostsRepository())->find($id);
-        if (!$post) { $this->flash('danger','Příspěvek nebyl nalezen.'); header('Location: '.$this->listUrl($type)); exit; }
+        if (!$post) {
+            $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nebyl nalezen.');
+        }
         $rowType = (string)($post['type'] ?? '');
         if (array_key_exists($rowType, $this->typeConfig())) {
             $type = $rowType;
@@ -309,7 +266,7 @@ final class PostsController
             // případný nový thumbnail
             if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $mediaSvc = new MediaService();
-                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->basePaths(), 'posts');
+                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
                 $upd['thumbnail_id'] = (int)$up['id'];
             }
 
@@ -318,14 +275,18 @@ final class PostsController
             // ulož vazby termů (přepíše existující)
             $this->syncTerms($id, $catIds, $tagIds);
 
-            $this->flash('success', 'Změny byly uloženy.');
-            header('Location: admin.php?r=posts&a=edit&id='.$id.'&type='.$type);
-            exit;
+            $this->redirect(
+                'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
+                'success',
+                'Změny byly uloženy.'
+            );
 
         } catch (\Throwable $e) {
-            $this->flash('danger', $e->getMessage());
-            header('Location: admin.php?r=posts&a=edit&id='.$id.'&type='.$type);
-            exit;
+            $this->redirect(
+                'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
+                'danger',
+                $e->getMessage()
+            );
         }
     }
 
@@ -334,7 +295,9 @@ final class PostsController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $type = $this->requestedType();
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: '.$this->listUrl($type)); exit; }
+        if ($id <= 0) {
+            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+        }
 
         $post = (new PostsRepository())->find($id);
         if ($post) {
@@ -348,9 +311,7 @@ final class PostsController
         DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
         (new PostsRepository())->delete($id);
 
-        $this->flash('success', 'Příspěvek byl odstraněn.');
-        header('Location: '.$this->listUrl($type));
-        exit;
+        $this->redirect($this->listUrl($type), 'success', 'Příspěvek byl odstraněn.');
     }
 
     private function toggleStatus(): void
@@ -358,10 +319,14 @@ final class PostsController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $type = $this->requestedType();
-        if ($id <= 0) { $this->flash('danger','Chybí ID.'); header('Location: '.$this->listUrl($type)); exit; }
+        if ($id <= 0) {
+            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+        }
 
         $post = (new PostsRepository())->find($id);
-        if (!$post) { $this->flash('danger','Příspěvek nenalezen.'); header('Location: '.$this->listUrl($type)); exit; }
+        if (!$post) {
+            $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nenalezen.');
+        }
         $rowType = (string)($post['type'] ?? 'post');
         if (array_key_exists($rowType, $this->typeConfig())) {
             $type = $rowType;
@@ -370,8 +335,10 @@ final class PostsController
         $new = ((string)$post['status'] === 'publish') ? 'draft' : 'publish';
         (new PostsService())->update($id, ['status'=>$new]);
 
-        $this->flash('success', $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.');
-        header('Location: '.$this->listUrl($type));
-        exit;
+        $this->redirect(
+            $this->listUrl($type),
+            'success',
+            $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.'
+        );
     }
 }
