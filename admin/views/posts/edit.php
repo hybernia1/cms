@@ -252,20 +252,47 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         try { return JSON.parse(raw); } catch (e) { return []; }
       }
 
+      function normalizeTagifyItems(items) {
+        if (!Array.isArray(items)) return [];
+        return items.map(function (item) {
+          var normalized = { id: '', value: '', slug: '' };
+          if (!item || typeof item !== 'object') {
+            return normalized;
+          }
+          if (typeof item.id === 'number' || (typeof item.id === 'string' && item.id.trim() !== '')) {
+            normalized.id = String(item.id).trim();
+          }
+          if (typeof item.slug === 'string' && item.slug.trim() !== '') {
+            normalized.slug = item.slug.trim();
+          }
+          if (typeof item.value === 'string' && item.value.trim() !== '') {
+            normalized.value = item.value.trim();
+          } else if (typeof item.name === 'string' && item.name.trim() !== '') {
+            normalized.value = item.name.trim();
+          } else if (normalized.id !== '') {
+            normalized.value = 'ID ' + normalized.id;
+          }
+          return normalized;
+        }).filter(function (item) { return item.value !== ''; });
+      }
+
       function syncTagify(tagify, container, existingName, newName) {
         if (!tagify || !container) return;
         container.innerHTML = '';
         var newNames = [];
         tagify.value.forEach(function (item) {
-          var id = item.id ? parseInt(item.id, 10) : 0;
+          var id = item && item.id ? parseInt(item.id, 10) : 0;
           if (id > 0) {
             var input = document.createElement('input');
             input.type = 'hidden';
             input.name = existingName;
             input.value = String(id);
             container.appendChild(input);
-          } else if (item.value) {
-            newNames.push(item.value);
+          } else if (item && item.value) {
+            var newVal = String(item.value).trim();
+            if (newVal !== '') {
+              newNames.push(newVal);
+            }
           }
         });
         var newInput = document.createElement('input');
@@ -282,13 +309,15 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         var categoriesInput = document.getElementById('categories-input');
         var categoriesHidden = document.getElementById('categories-hidden-inputs');
         if (categoriesInput && categoriesHidden) {
+          var categoryWhitelist = normalizeTagifyItems(parseDataAttr(categoriesInput, 'data-whitelist'));
           categoryTagify = new TagifyCtor(categoriesInput, {
-            whitelist: parseDataAttr(categoriesInput, 'data-whitelist'),
+            whitelist: categoryWhitelist,
             enforceWhitelist: false,
+            tagTextProp: 'value',
             dropdown: { enabled: 0, maxItems: 20 },
             editTags: false
           });
-          var initialCategories = parseDataAttr(categoriesInput, 'data-selected');
+          var initialCategories = normalizeTagifyItems(parseDataAttr(categoriesInput, 'data-selected'));
           if (initialCategories.length) {
             categoryTagify.addTags(initialCategories);
           }
@@ -301,13 +330,15 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         var tagsInput = document.getElementById('tags-input');
         var tagsHidden = document.getElementById('tags-hidden-inputs');
         if (tagsInput && tagsHidden) {
+          var tagWhitelist = normalizeTagifyItems(parseDataAttr(tagsInput, 'data-whitelist'));
           tagTagify = new TagifyCtor(tagsInput, {
-            whitelist: parseDataAttr(tagsInput, 'data-whitelist'),
+            whitelist: tagWhitelist,
             enforceWhitelist: false,
+            tagTextProp: 'value',
             dropdown: { enabled: 0, maxItems: 20 },
             editTags: false
           });
-          var initialTags = parseDataAttr(tagsInput, 'data-selected');
+          var initialTags = normalizeTagifyItems(parseDataAttr(tagsInput, 'data-selected'));
           if (initialTags.length) {
             tagTagify.addTags(initialTags);
           }

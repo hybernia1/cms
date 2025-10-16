@@ -15,8 +15,8 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify@4.25.3/dist/tagify.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify@4.25.3/dist/tagify.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify@4.35.4/dist/tagify.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify@4.35.4/dist/tagify.min.js"></script>
   <style>
     :root { color-scheme: light; }
     * { box-sizing: border-box; }
