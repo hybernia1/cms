@@ -8,6 +8,7 @@ use Cms\Auth\AuthService;
 use Cms\Domain\Repositories\PostsRepository;
 use Cms\Domain\Services\PostsService;
 use Cms\Domain\Services\MediaService;
+use Cms\Utils\AdminNavigation;
 use Core\Files\PathResolver;
 use Core\Database\Init as DB;
 
@@ -67,28 +68,6 @@ final class PostsController
             $type = 'post';
         }
         return $type;
-    }
-
-    private function nav(string $type): array
-    {
-        $types = $this->typeConfig();
-        $items = [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard'],
-            ['key'=>'posts:post','label'=>$types['post']['nav'],'href'=>'admin.php?r=posts&type=post'],
-            ['key'=>'posts:page','label'=>$types['page']['nav'],'href'=>'admin.php?r=posts&type=page'],
-            ['key'=>'posts:product','label'=>$types['product']['nav'],'href'=>'admin.php?r=posts&type=product'],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media'],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms'],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments'],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users'],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation'],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings'],
-        ];
-        foreach ($items as &$it) {
-            $it['active'] = ($it['key'] === 'posts:' . $type);
-        }
-        unset($it);
-        return $items;
     }
 
     private function token(): string
@@ -184,7 +163,7 @@ final class PostsController
 
         $data = [
             'pageTitle'   => $this->typeConfig()[$type]['list'],
-            'nav'         => $this->nav($type),
+            'nav'         => AdminNavigation::build('posts:' . $type),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'filters'     => $filters,
@@ -222,7 +201,7 @@ final class PostsController
 
         $data = [
             'pageTitle'   => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
-            'nav'         => $this->nav($type),
+            'nav'         => AdminNavigation::build('posts:' . $type),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'post'        => $row,

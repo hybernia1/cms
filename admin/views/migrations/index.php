@@ -8,13 +8,9 @@ declare(strict_types=1);
 /** @var array<string,bool> $applied */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$all,$applied,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($all,$applied,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <div class="d-flex gap-2 mb-3">
     <form method="post" action="admin.php?r=migrations&a=run">
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">

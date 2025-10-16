@@ -6,6 +6,7 @@ use Cms\Http\AdminController;
 use Cms\Http\AdminAuthController;
 use Cms\Auth\AuthService;
 use Cms\Auth\Authorization;
+use Cms\Utils\AdminNavigation;
 
 require_once __DIR__ . '/load.php';
 
@@ -38,9 +39,7 @@ if (!Authorization::isAdmin($user)) {
     $view = new \Cms\View\ViewEngine(__DIR__ . '/admin/views');
     $view->render('errors/403', [
         'pageTitle'   => 'Přístup odepřen',
-        'nav'         => [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>true],
-        ],
+        'nav'         => AdminNavigation::build('dashboard'),
         'currentUser' => $user,
     ]);
     exit;

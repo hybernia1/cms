@@ -6,6 +6,7 @@ namespace Cms\Http\Admin;
 use Cms\View\ViewEngine;
 use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
+use Cms\Utils\AdminNavigation;
 
 final class UsersController
 {
@@ -29,21 +30,6 @@ final class UsersController
         }
     }
 
-    private function nav(): array
-    {
-        return [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post','active'=>false],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>false],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>false],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>true],
-            ['key'=>'themes','label'=>'Šablony','href'=>'admin.php?r=themes','active'=>false],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation','active'=>false],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
-            ['key'=>'migrations','label'=>'Migrace','href'=>'admin.php?r=migrations','active'=>false],
-        ];
-    }
 
     private function token(): string
     {
@@ -78,7 +64,7 @@ final class UsersController
 
         $this->view->render('users/index', [
             'pageTitle'   => 'Uživatelé',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('users'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'data'        => $data,
@@ -95,7 +81,7 @@ final class UsersController
 
         $this->view->render('users/edit', [
             'pageTitle'   => $id ? 'Upravit uživatele' : 'Nový uživatel',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('users'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'user'        => $user,

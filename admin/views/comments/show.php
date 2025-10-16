@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** @var array<int,array> $children */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$comment,$children,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($comment,$children,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $badge = function(string $status): string {
     return match($status){
@@ -19,10 +19,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
   };
   $back = 'admin.php?r=comments';
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <div class="d-flex justify-content-between align-items-center mb-2">
     <h2 class="h5 m-0">Komentář #<?= (int)$comment['id'] ?></h2>
     <a class="btn btn-outline-secondary" href="<?= $back ?>">Zpět na seznam</a>

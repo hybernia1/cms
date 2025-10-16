@@ -14,7 +14,7 @@ declare(strict_types=1);
 /** @var array<int,array{value:int,label:string,disabled:bool}> $parentOptions */
 /** @var array<int,array{value:string,label:string}> $targets */
 
-$this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser'), function () use ($flash, $csrf, $tablesReady, $menus, $menu, $menuId, $items, $editingItem, $parentOptions, $targets) {
+$this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($csrf, $tablesReady, $menus, $menu, $menuId, $items, $editingItem, $parentOptions, $targets) {
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $itemsById = [];
     foreach ($items as $it) {
@@ -26,10 +26,6 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser'), functi
     }
     $defaultOrder = $editingItem ? (int)($editingItem['sort_order'] ?? 0) : (count($items) + 1);
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <?php if (!$tablesReady): ?>
     <div class="alert alert-warning">
       Tabulky pro navigaci nebyly nalezeny. Ujistěte se, že proběhly instalace nebo migrace databáze.

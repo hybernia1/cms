@@ -11,7 +11,7 @@ declare(strict_types=1);
 /** @var string $type */
 /** @var array $types */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$post,$csrf,$terms,$selected,$type,$types) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$post;
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek','edit'=>'Upravit příspěvek','label'=>strtoupper($type)];
@@ -22,10 +22,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
   $selectedOpt = function(array $arr, int $id): string { return in_array($id, $arr, true) ? 'selected' : ''; };
   $checked  = fn(bool $b) => $b ? 'checked' : '';
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <form class="card" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data">
     <div class="card-header d-flex justify-content-between align-items-center">
       <span><?= $h($isEdit ? ($typeCfg['edit'] ?? 'Upravit položku').' #'.($post['id'] ?? '') : ($typeCfg['create'] ?? 'Nová položka')) ?></span>

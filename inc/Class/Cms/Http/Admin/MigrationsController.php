@@ -6,6 +6,7 @@ namespace Cms\Http\Admin;
 use Cms\View\ViewEngine;
 use Cms\Auth\AuthService;
 use Core\Database\Migrations\Migrator;
+use Cms\Utils\AdminNavigation;
 
 final class MigrationsController
 {
@@ -35,21 +36,6 @@ final class MigrationsController
     {
         $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
     }
-    private function nav(): array
-    {
-        return [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post','active'=>false],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>false],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>false],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>false],
-            ['key'=>'themes','label'=>'Šablony','href'=>'admin.php?r=themes','active'=>false],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation','active'=>false],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
-            ['key'=>'migrations','label'=>'Migrace','href'=>'admin.php?r=migrations','active'=>true],
-        ];
-    }
 
     public function handle(string $action): void
     {
@@ -76,7 +62,7 @@ final class MigrationsController
 
         $this->view->render('migrations/index', [
             'pageTitle'   => 'Migrace',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('settings:migrations'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'all'         => $all,

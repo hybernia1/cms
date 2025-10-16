@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Cms\Http;
 
+use Cms\Utils\AdminNavigation;
 use Cms\View\ViewEngine;
 
 final class AdminController
@@ -37,29 +38,11 @@ public function handle(string $route, string $action): void
     {
         $data = [
             'pageTitle'   => 'Dashboard',
-            'nav'         => $this->adminNav('dashboard'),
+            'nav'         => AdminNavigation::build('dashboard'),
             'currentUser' => (new \Cms\Auth\AuthService())->user(),
             'flash'       => $this->takeFlash(),
         ];
         $this->view->render('dashboard/index', $data);
-    }
-
-    private function adminNav(string $active): array
-    {
-        $items = [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard'],
-            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post'],
-            ['key'=>'posts:page','label'=>'Stránky','href'=>'admin.php?r=posts&type=page'],
-            ['key'=>'posts:product','label'=>'Produkty','href'=>'admin.php?r=posts&type=product'],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media'],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms'],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments'],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users'],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation'],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings'],
-        ];
-        foreach ($items as &$it) { $it['active'] = ($it['key'] === $active); }
-        return $items;
     }
 
     private function takeFlash(): ?array
