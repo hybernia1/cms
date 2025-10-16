@@ -85,10 +85,11 @@ final class NavigationRepository
         return $list;
     }
 
-    private function tableExists(\PDO $pdo, string $table): bool
-    {
-        $stmt = $pdo->prepare('SHOW TABLES LIKE ?');
-        $stmt->execute([$table]);
-        return (bool)$stmt->fetchColumn();
-    }
+private function tableExists(\PDO $pdo, string $table): bool
+{
+    // POZOR: bez placeholderu, musíme quotovat sami
+    $sql = "SHOW TABLES LIKE " . $pdo->quote($table);
+    $stmt = $pdo->query($sql);
+    return (bool) $stmt->fetchColumn();
+}
 }
