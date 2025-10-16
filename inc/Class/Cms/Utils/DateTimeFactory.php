@@ -41,24 +41,4 @@ final class DateTimeFactory
         }
         return $dt->setTimezone(self::timezone())->format('Y-m-d H:i:s');
     }
-
-    public static function fromStorage(?string $value): ?DateTimeImmutable
-    {
-        $value = $value === null ? null : trim($value);
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        $tz = self::timezone();
-        $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $value, $tz);
-        if ($dt instanceof DateTimeImmutable) {
-            return $dt;
-        }
-
-        try {
-            return new DateTimeImmutable($value, $tz);
-        } catch (\Throwable) {
-            return null;
-        }
-    }
 }
