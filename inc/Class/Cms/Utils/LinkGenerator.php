@@ -64,12 +64,34 @@ final class LinkGenerator
             : $this->fallback('type', ['type' => $type]);
     }
 
-    public function term(string $slug): string
+    public function term(string $slug, ?string $type = null): string
     {
+        if ($type === 'category') {
+            return $this->category($slug);
+        }
+        if ($type === 'tag') {
+            return $this->tag($slug);
+        }
         $encoded = rawurlencode($slug);
         return $this->pretty
             ? $this->prettyPath('term/' . $encoded)
             : $this->fallback('term', ['slug' => $slug]);
+    }
+
+    public function category(string $slug): string
+    {
+        $encoded = rawurlencode($slug);
+        return $this->pretty
+            ? $this->prettyPath('category/' . $encoded)
+            : $this->fallback('category', ['slug' => $slug]);
+    }
+
+    public function tag(string $slug): string
+    {
+        $encoded = rawurlencode($slug);
+        return $this->pretty
+            ? $this->prettyPath('tag/' . $encoded)
+            : $this->fallback('tag', ['slug' => $slug]);
     }
 
     public function terms(?string $type = null): string

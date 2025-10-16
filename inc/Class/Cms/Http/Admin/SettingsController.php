@@ -79,12 +79,115 @@ final class SettingsController
             $row['allow_registration'] = isset($row['allow_registration']) ? (int)$row['allow_registration'] : 1;
             $row['site_url']           = ($row['site_url'] ?? '') !== '' ? (string)$row['site_url'] : $this->detectSiteUrl();
         }
+
+        $data = $this->decodeSettingsData($row['data'] ?? null);
+        $media = is_array($data['media'] ?? null) ? $data['media'] : [];
+        $row['webp_enabled'] = !empty($media['webp_enabled']) ? 1 : 0;
+        $row['webp_compression'] = $this->normalizeWebpCompression((string)($media['webp_compression'] ?? ''));
+
         return $row ?? [];
     }
 
     private function timezones(): array
     {
-        return \DateTimeZone::listIdentifiers();
+        return $this->timezonePresets();
+    }
+
+    private function timezonePresets(): array
+    {
+        $data = $this->loadJson('config/timezones.json');
+        $list = [];
+        if (is_array($data)) {
+            foreach ($data as $value) {
+                if (!is_string($value)) {
+                    continue;
+                }
+                $value = trim($value);
+                if ($value === '' || in_array($value, $list, true)) {
+                    continue;
+                }
+                $list[] = $value;
+            }
+        }
+        return $list !== [] ? $list : \DateTimeZone::listIdentifiers();
+    }
+
+    private function normalizePresetList($values, array $fallback): array
+    {
+        $result = [];
+        if (is_array($values)) {
+            foreach ($values as $value) {
+                if (!is_string($value)) {
+                    continue;
+                }
+                $value = trim($value);
+                if ($value === '' || in_array($value, $result, true)) {
+                    continue;
+                }
+                $result[] = $value;
+            }
+        }
+        return $result !== [] ? $result : $fallback;
+    }
+
+    private function formatPresets(): array
+    {
+        $data = $this->loadJson('config/date_time_formats.json');
+
+        $dateDefaults = ['Y-m-d', 'd.m.Y', 'j. n. Y'];
+        $timeDefaults = ['H:i', 'H:i:s', 'g:i A'];
+        $datetimeDefaults = ['Y-m-d H:i', 'd.m.Y H:i'];
+
+        $date = $this->normalizePresetList(is_array($data) ? ($data['date'] ?? null) : null, $dateDefaults);
+        $time = $this->normalizePresetList(is_array($data) ? ($data['time'] ?? null) : null, $timeDefaults);
+        $datetime = $this->normalizePresetList(is_array($data) ? ($data['datetime'] ?? null) : null, $datetimeDefaults);
+
+        return [
+            'date'     => $date,
+            'time'     => $time,
+            'datetime' => $datetime,
+        ];
+    }
+
+    private function loadJson(string $relativePath): array
+    {
+        $baseDir = defined('BASE_DIR') ? BASE_DIR : dirname(__DIR__, 5);
+        $path = $baseDir . '/' . ltrim($relativePath, '/');
+        if (!is_file($path)) {
+            return [];
+        }
+        $contents = file_get_contents($path);
+        if ($contents === false) {
+            return [];
+        }
+        $decoded = json_decode($contents, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function decodeSettingsData($raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+        return [];
+    }
+
+    private function readSettingsData(): array
+    {
+        $raw = DB::query()->table('settings')->select(['data'])->where('id','=',1)->value('data');
+        return $this->decodeSettingsData($raw);
+    }
+
+    private function normalizeWebpCompression(string $value): string
+    {
+        $value = strtolower(trim($value));
+        return in_array($value, ['high','medium','low'], true) ? $value : 'medium';
     }
 
     private function index(): void
@@ -104,6 +207,7 @@ final class SettingsController
             'csrf'        => $this->token(),
             'timezones'   => $this->timezones(),
             'previewNow'  => $now->format($dateFmt.' '.$timeFmt),
+            'formatPresets' => $this->formatPresets(),
         ]);
         unset($_SESSION['_flash']);
     }
@@ -178,6 +282,21 @@ final class SettingsController
             }
         }
 
+        $webpEnabled = (int)($_POST['webp_enabled'] ?? 0) === 1;
+        $webpCompression = $this->normalizeWebpCompression((string)($_POST['webp_compression'] ?? ''));
+
+        $data = $this->readSettingsData();
+        if (!isset($data['media']) || !is_array($data['media'])) {
+            $data['media'] = [];
+        }
+        $data['media']['webp_enabled'] = $webpEnabled;
+        $data['media']['webp_compression'] = $webpCompression;
+
+        $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($dataJson === false) {
+            $dataJson = '{}';
+        }
+
         DB::query()->table('settings')->update([
             'site_title'         => $title !== '' ? $title : 'Moje stránka',
             'site_email'         => $email,
@@ -186,6 +305,7 @@ final class SettingsController
             'timezone'           => $tz,
             'allow_registration' => $allowReg,
             'site_url'           => $siteUrl,
+            'data'               => $dataJson,
             'updated_at'         => DateTimeFactory::nowString(),
         ])->where('id','=',1)->execute();
 

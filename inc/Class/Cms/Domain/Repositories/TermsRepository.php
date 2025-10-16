@@ -17,6 +17,15 @@ final class TermsRepository
         return DB::query()->table('terms')->select(['*'])->where('slug','=',$slug)->first();
     }
 
+    public function findByNameAndType(string $name, string $type): ?array
+    {
+        return DB::query()->table('terms')
+            ->select(['*'])
+            ->where('name', '=', $name)
+            ->where('type', '=', $type)
+            ->first();
+    }
+
     public function create(array $data): int
     {
         return (int) DB::query()->table('terms')->insert($data)->insertGetId();
