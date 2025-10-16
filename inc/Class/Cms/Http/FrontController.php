@@ -5,6 +5,7 @@ namespace Cms\Http;
 
 use Core\Database\Init as DB;
 use Cms\Auth\AuthService;
+use Cms\Auth\Authorization;
 use Cms\Domain\Repositories\NavigationRepository;
 use Cms\Settings\CmsSettings;
 use Cms\Theming\ThemeManager;
@@ -447,6 +448,8 @@ final class FrontController
 
             // přihlášený uživatel?
             $user = $this->frontUser;
+            $isAdmin = Authorization::isAdmin($user);
+
             if ($user) {
                 $authorName  = (string)($user['name'] ?? 'Uživatel');
                 $authorEmail = (string)($user['email'] ?? '');
@@ -468,14 +471,15 @@ final class FrontController
                 'author_name'=> $authorName,
                 'author_email'=> $authorEmail,
                 'content'    => $text,
-                'status'     => 'draft',
+                'status'     => $isAdmin ? 'published' : 'draft',
                 'parent_id'  => $parentId ?: null,
                 'ip'         => $_SERVER['REMOTE_ADDR'] ?? '',
                 'ua'         => $_SERVER['HTTP_USER_AGENT'] ?? '',
                 'created_at' => DateTimeFactory::nowString(),
             ])->execute();
 
-            $this->writeFrontFlash('success','Komentář byl odeslán ke schválení.');
+            $message = $isAdmin ? 'Komentář byl publikován.' : 'Komentář byl odeslán ke schválení.';
+            $this->writeFrontFlash('success', $message);
             $this->redirectToPost((string)$post['slug']);
         } catch (\Throwable $e) {
             $this->writeFrontFlash('danger', $e->getMessage());
@@ -491,7 +495,7 @@ final class FrontController
     }
     private function redirectToPost(string $slug): void
     {
-        header('Location: ./post/' . rawurlencode($slug));
+        header('Location: ' . $this->urls->post($slug));
         exit;
     }
 

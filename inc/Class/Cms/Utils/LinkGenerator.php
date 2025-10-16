@@ -24,9 +24,20 @@ final class LinkGenerator
         return !preg_match('~\.php($|/)~i', $path);
     }
 
+    private function basePath(): string
+    {
+        $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+        return $base === '/' ? '' : $base;
+    }
+
     private function prettyPath(string $path): string
     {
-        return './' . ltrim($path, './');
+        $base = $this->basePath();
+        $path = ltrim($path, '/');
+        if ($path === '') {
+            return $base === '' ? '/' : $base . '/';
+        }
+        return ($base === '' ? '' : $base) . '/' . $path;
     }
 
     private function fallback(string $route, array $params = []): string
@@ -37,7 +48,12 @@ final class LinkGenerator
 
     public function home(): string
     {
-        return './';
+        if ($this->pretty) {
+            return $this->prettyPath('');
+        }
+
+        $base = $this->basePath();
+        return $base === '' ? './' : $base . '/';
     }
 
     public function post(string $slug): string
@@ -92,6 +108,11 @@ final class LinkGenerator
         return $this->pretty
             ? $this->prettyPath('tag/' . $encoded)
             : $this->fallback('tag', ['slug' => $slug]);
+    }
+
+    public function admin(): string
+    {
+        return $this->basePath() . '/admin.php';
     }
 
     public function terms(?string $type = null): string

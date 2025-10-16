@@ -7,6 +7,7 @@ declare(strict_types=1);
 /** @var \Cms\Utils\LinkGenerator $urls */
 
 $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+$isAdmin = ($frontUser['role'] ?? '') === 'admin';
 ?>
 <section class="card card--form">
   <h3 class="card__title">Přidat komentář</h3>
@@ -44,7 +45,9 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
 
     <div class="form-actions">
       <button class="btn btn--primary" type="submit">Odeslat</button>
-      <span class="form-hint">Komentář bude nejprve schválen.</span>
+      <?php if (!$isAdmin): ?>
+        <span class="form-hint">Komentář bude nejprve schválen.</span>
+      <?php endif; ?>
     </div>
   </form>
 </section>
