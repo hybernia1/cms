@@ -58,20 +58,21 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   <form id="terms-bulk-form" method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'bulk','type'=>$type])) ?>">
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-    <div class="card">
-      <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <select class="form-select form-select-sm" name="bulk_action" id="terms-bulk-action">
-            <option value="">Hromadná akce…</option>
-            <option value="delete">Smazat</option>
-          </select>
-          <button class="btn btn-primary btn-sm" type="submit" id="terms-bulk-apply" disabled>
-            <i class="bi bi-trash3 me-1"></i>Provést
-          </button>
-        </div>
-        <div class="ms-md-auto small text-secondary" id="terms-bulk-counter" aria-live="polite"></div>
+  </form>
+  <div class="card">
+    <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <select class="form-select form-select-sm" name="bulk_action" id="terms-bulk-action" form="terms-bulk-form">
+          <option value="">Hromadná akce…</option>
+          <option value="delete">Smazat</option>
+        </select>
+        <button class="btn btn-primary btn-sm" type="submit" id="terms-bulk-apply" form="terms-bulk-form" disabled>
+          <i class="bi bi-trash3 me-1"></i>Provést
+        </button>
       </div>
-      <div class="table-responsive">
+      <div class="ms-md-auto small text-secondary" id="terms-bulk-counter" aria-live="polite"></div>
+    </div>
+    <div class="table-responsive">
         <table class="table table-dark table-hover align-middle mb-0">
           <thead>
             <tr>
@@ -86,7 +87,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <tbody>
             <?php foreach ($items as $it): ?>
               <tr>
-                <td><input class="form-check-input term-row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat term"></td>
+                <td><input class="form-check-input term-row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat term" form="terms-bulk-form"></td>
                 <td>#<?= $h((string)$it['id']) ?></td>
                 <td class="fw-semibold"><?= $h((string)$it['name']) ?></td>
                 <td><code><?= $h((string)$it['slug']) ?></code></td>
@@ -108,7 +109,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         </table>
       </div>
     </div>
-  </form>
 
   <?php if (($pagination['pages'] ?? 1) > 1): ?>
     <nav class="mt-3">

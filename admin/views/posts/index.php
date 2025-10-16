@@ -91,22 +91,23 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <!-- Tabulka bez #ID a bez status sloupce -->
   <form id="posts-bulk-form" method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'bulk','type'=>$type])) ?>">
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-    <div class="card">
-      <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <select class="form-select form-select-sm" name="bulk_action" id="bulk-action-select">
-            <option value="">Hromadná akce…</option>
-            <option value="publish">Publikovat</option>
-            <option value="draft">Přepnout na koncept</option>
-            <option value="delete">Smazat</option>
-          </select>
-          <button class="btn btn-primary btn-sm" type="submit" id="bulk-apply" disabled>
-            <i class="bi bi-arrow-repeat me-1"></i>Provést
-          </button>
-        </div>
-        <div class="ms-md-auto small text-secondary" id="bulk-selection-counter" aria-live="polite"></div>
+  </form>
+  <div class="card">
+    <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <select class="form-select form-select-sm" name="bulk_action" id="bulk-action-select" form="posts-bulk-form">
+          <option value="">Hromadná akce…</option>
+          <option value="publish">Publikovat</option>
+          <option value="draft">Přepnout na koncept</option>
+          <option value="delete">Smazat</option>
+        </select>
+        <button class="btn btn-primary btn-sm" type="submit" id="bulk-apply" form="posts-bulk-form" disabled>
+          <i class="bi bi-arrow-repeat me-1"></i>Provést
+        </button>
       </div>
-      <div class="table-responsive">
+      <div class="ms-md-auto small text-secondary" id="bulk-selection-counter" aria-live="polite"></div>
+    </div>
+    <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
@@ -130,7 +131,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 }
               ?>
               <tr>
-                <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku"></td>
+                <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku" form="posts-bulk-form"></td>
                 <td>
                   <?php if ($frontUrl !== ''): ?>
                     <a class="fw-semibold text-truncate d-inline-flex align-items-center gap-1 text-decoration-none" href="<?= $h($frontUrl) ?>" target="_blank" rel="noopener">
@@ -196,7 +197,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         </table>
       </div>
     </div>
-  </form>
 
   <!-- Stránkování -->
   <?php if (($pagination['pages'] ?? 1) > 1): ?>
