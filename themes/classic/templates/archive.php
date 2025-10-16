@@ -3,7 +3,8 @@
 /** @var string $siteTitle */
 /** @var array<int,array> $items */
 /** @var string|null $type */
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($items, $type) {
+/** @var \Cms\Utils\LinkGenerator $urls */
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($items, $type, $urls) {
 ?>
   <div class="card">
     <h2 style="margin-top:0">Archiv<?= $type ? ' – ' . htmlspecialchars($type, ENT_QUOTES, 'UTF-8') : '' ?></h2>
@@ -13,7 +14,7 @@ $this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($i
       <ul>
         <?php foreach ($items as $p): ?>
           <li>
-            <a href="./post/<?= htmlspecialchars((string)$p['slug'], ENT_QUOTES, 'UTF-8') ?>">
+            <a href="<?= htmlspecialchars($urls->post((string)$p['slug']), ENT_QUOTES, 'UTF-8') ?>">
               <?= htmlspecialchars((string)$p['title'], ENT_QUOTES, 'UTF-8') ?>
             </a>
           </li>

@@ -4,13 +4,15 @@ declare(strict_types=1);
 namespace Cms\Http;
 
 use Core\Database\Init as DB;
-use Cms\Theming\ThemeManager;
-use Cms\Theming\ThemeResolver;
-use Cms\View\ViewEngine;
-use Cms\View\Assets;
-use Cms\Settings\CmsSettings;
 use Cms\Auth\AuthService;
 use Cms\Domain\Repositories\NavigationRepository;
+use Cms\Settings\CmsSettings;
+use Cms\Theming\ThemeManager;
+use Cms\Theming\ThemeResolver;
+use Cms\Utils\DateTimeFactory;
+use Cms\Utils\LinkGenerator;
+use Cms\View\Assets;
+use Cms\View\ViewEngine;
 
 final class FrontController
 {
@@ -19,6 +21,7 @@ final class FrontController
     private ViewEngine $view;
     private Assets $assets;
     private CmsSettings $settings;
+    private LinkGenerator $urls;
     private ?array $frontUser = null;
     /** @var array<int,array<string,mixed>> */
     private array $navigation = [];
@@ -31,6 +34,7 @@ final class FrontController
         $this->view       = new ViewEngine($this->tm->templateBasePath());
         $this->assets     = new Assets($this->tm);
         $this->settings   = new CmsSettings();
+        $this->urls       = new LinkGenerator();
         $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
         $this->navigation = (new NavigationRepository())->treeByLocation('primary');
     }
@@ -124,6 +128,7 @@ final class FrontController
             'siteTitle'   => $this->siteTitle(),
             'frontUser'   => $this->frontUser,
             'navigation'  => $this->navigation,
+            'urls'        => $this->urls,
         ];
         $this->view->share($base);
         $this->view->render($rel, $base + $data);
@@ -389,7 +394,7 @@ final class FrontController
                 'parent_id'  => $parentId ?: null,
                 'ip'         => $_SERVER['REMOTE_ADDR'] ?? '',
                 'ua'         => $_SERVER['HTTP_USER_AGENT'] ?? '',
-                'created_at' => date('Y-m-d H:i:s'),
+                'created_at' => DateTimeFactory::nowString(),
             ])->execute();
 
             $this->writeFrontFlash('success','Komentář byl odeslán ke schválení.');
@@ -476,8 +481,8 @@ final class FrontController
                 'active'        => 1,
                 'token'         => null,
                 'token_expire'  => null,
-                'created_at'    => date('Y-m-d H:i:s'),
-                'updated_at'    => date('Y-m-d H:i:s'),
+                'created_at'    => DateTimeFactory::nowString(),
+                'updated_at'    => DateTimeFactory::nowString(),
             ])->execute();
 
             $this->render('auth/register_success', [], ['email'=>$email]);
@@ -504,11 +509,11 @@ final class FrontController
             }
 
             $token = bin2hex(random_bytes(20));
-            $exp   = date('Y-m-d H:i:s', time()+3600); // 1 hod
+            $exp   = DateTimeFactory::now()->modify('+1 hour')->format('Y-m-d H:i:s'); // 1 hod
             DB::query()->table('users')->update([
                 'token'        => $token,
                 'token_expire' => $exp,
-                'updated_at'   => date('Y-m-d H:i:s'),
+                'updated_at'   => DateTimeFactory::nowString(),
             ])->where('id','=', (int)$user['id'])->execute();
 
             // email
@@ -555,7 +560,7 @@ final class FrontController
                 'password_hash' => $hash,
                 'token'         => null,
                 'token_expire'  => null,
-                'updated_at'    => date('Y-m-d H:i:s'),
+                'updated_at'    => DateTimeFactory::nowString(),
             ])->where('id','=', (int)$user['id'])->execute();
 
             $this->render('auth/reset_done');

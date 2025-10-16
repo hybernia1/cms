@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace Cms\Domain\Services;
 
-use Core\Files\Uploader;
 use Core\Files\PathResolver;
+use Core\Files\Uploader;
 use Cms\Domain\Repositories\MediaRepository;
+use Cms\Utils\DateTimeFactory;
 
 final class MediaService
 {
@@ -30,7 +31,7 @@ final class MediaService
             'url'        => $info['url'],
             'rel_path'   => $info['relative'] ?? null,
             'meta'       => isset($info['width']) ? json_encode(['w'=>$info['width'],'h'=>$info['height']], JSON_UNESCAPED_UNICODE) : null,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => DateTimeFactory::nowString(),
         ]);
 
         return ['id'=>$id, 'url'=>$info['url'], 'mime'=>$info['mime']];

@@ -6,8 +6,9 @@ namespace Cms\Domain\Services;
 use Cms\Domain\Repositories\PostsRepository;
 use Cms\Domain\Repositories\TermsRepository;
 use Cms\Domain\Repositories\MediaRepository;
-use Cms\Validation\Validator;
+use Cms\Utils\DateTimeFactory;
 use Cms\Utils\Slugger;
+use Cms\Validation\Validator;
 
 final class PostsService
 {
@@ -40,6 +41,8 @@ final class PostsService
 
         $slug = Slugger::uniqueInPosts($data['title'], $data['type']);
 
+        $now = DateTimeFactory::now();
+
         $id = $this->posts->create([
             'title'           => (string)$data['title'],
             'slug'            => $slug,
@@ -49,8 +52,8 @@ final class PostsService
             'author_id'       => (int)$data['author_id'],
             'thumbnail_id'    => isset($data['thumbnail_id']) ? (int)$data['thumbnail_id'] : null,
             'comments_allowed'=> 1,
-            'published_at'    => $data['status']==='publish' ? date('Y-m-d H:i:s') : null,
-            'created_at'      => date('Y-m-d H:i:s'),
+            'published_at'    => $data['status']==='publish' ? DateTimeFactory::formatForStorage($now) : null,
+            'created_at'      => DateTimeFactory::formatForStorage($now),
             'updated_at'      => null,
         ]);
 
@@ -87,7 +90,7 @@ final class PostsService
             }
             $upd['status'] = $status;
             if ($status === 'publish' && empty($row['published_at'])) {
-                $upd['published_at'] = date('Y-m-d H:i:s');
+                $upd['published_at'] = DateTimeFactory::nowString();
             }
         }
         if (array_key_exists('content',$data)) $upd['content'] = (string)$data['content'];
@@ -96,7 +99,7 @@ final class PostsService
 
         if ($upd === []) return 0;
 
-        $upd['updated_at'] = date('Y-m-d H:i:s');
+        $upd['updated_at'] = DateTimeFactory::nowString();
         return $this->posts->update($id, $upd);
     }
 }

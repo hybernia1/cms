@@ -4,8 +4,9 @@ declare(strict_types=1);
 namespace Cms\Domain\Services;
 
 use Cms\Auth\Passwords;
-use Cms\Validation\Validator;
 use Cms\Domain\Repositories\UsersRepository;
+use Cms\Utils\DateTimeFactory;
+use Cms\Validation\Validator;
 
 final class UsersService
 {
@@ -29,7 +30,7 @@ final class UsersService
             'password_hash' => $hash,
             'active'        => 1,
             'role'          => 'admin',
-            'created_at'    => date('Y-m-d H:i:s'),
+            'created_at'    => DateTimeFactory::nowString(),
             'updated_at'    => null,
         ]);
     }
