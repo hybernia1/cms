@@ -1,30 +1,34 @@
 <?php
 declare(strict_types=1);
-/** @var array<int,array> $commentsTree */
+/** @var array<int,array<string,mixed>> $commentsTree */
 
-$h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 
 $renderNode = function(array $node) use (&$renderNode, $h): void {
-  ?>
-  <div class="card mb-2">
-    <div class="card-body">
-      <div class="d-flex justify-content-between">
-        <div class="fw-semibold"><?= $h((string)($node['author_name'] ?? '')) ?></div>
-        <div class="small text-secondary"><?= $h((string)$node['created_at']) ?></div>
-      </div>
-      <div class="mt-2" style="white-space:pre-wrap"><?= nl2br($h((string)$node['content'])) ?></div>
-    </div>
-  </div>
-  <?php
-  if (!empty($node['children'])) {
-    echo '<div class="ms-3">';
-    foreach ($node['children'] as $child) $renderNode($child);
-    echo '</div>';
-  }
+    ?>
+    <article class="comment">
+      <header class="comment__header">
+        <span class="comment__author"><?= $h((string)($node['author_name'] ?? '')) ?></span>
+        <span class="comment__meta"><?= $h((string)$node['created_at']) ?></span>
+      </header>
+      <div class="comment__body"><?= nl2br($h((string)($node['content'] ?? ''))) ?></div>
+      <?php if (!empty($node['children'])): ?>
+        <div class="comment__children">
+          <?php foreach ($node['children'] as $child): ?>
+            <?php $renderNode($child); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </article>
+    <?php
 };
-
-if (!$commentsTree): ?>
-  <div class="card mb-3"><div class="card-body"><span class="text-secondary">Zatím žádné komentáře.</span></div></div>
-<?php else: ?>
-  <?php foreach ($commentsTree as $n) $renderNode($n); ?>
-<?php endif; ?>
+?>
+<div class="comments">
+  <?php if (!$commentsTree): ?>
+    <p class="muted">Zatím žádné komentáře.</p>
+  <?php else: ?>
+    <?php foreach ($commentsTree as $comment): ?>
+      <?php $renderNode($comment); ?>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</div>

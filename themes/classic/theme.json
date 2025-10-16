@@ -1,8 +1,9 @@
 {
   "name": "Classic Theme",
   "slug": "classic",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "You",
+  "description": "Výchozí modernizovaná šablona s čistou typografií a podporou dědičnosti.",
   "assets": {
     "css": ["assets/css/main.css"],
     "js": ["assets/js/app.js"]

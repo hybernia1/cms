@@ -1,62 +1,54 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
-/** @var array<int,array{id:mixed,slug:string,name:string,type:string,description:?string,created_at:string,posts_count:mixed}> $terms */
-/** @var array<int,string> $availableTypes */
+/** @var array<int,array<string,mixed>> $terms */
 /** @var string|null $activeType */
+/** @var array<int,string> $availableTypes */
 /** @var \Cms\Utils\LinkGenerator $urls */
 
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($terms, $availableTypes, $activeType, $urls) {
-    $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-    $formatType = static function(string $type): string {
-        return function_exists('mb_convert_case')
-            ? mb_convert_case($type, MB_CASE_TITLE, 'UTF-8')
-            : ucfirst($type);
-    };
-    $grouped = [];
-    foreach ($terms as $term) {
-        $grouped[(string)$term['type']][] = $term;
-    }
+$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+$grouped = [];
+foreach ($terms as $term) {
+    $group = (string)($term['type'] ?? 'ostatní');
+    $grouped[$group][] = $term;
+}
+ksort($grouped);
 ?>
-  <div class="card">
-    <h2 style="margin-top:0">Štítky a kategorie</h2>
-
+<section class="card card--section">
+  <header class="card__header card__header--stacked">
+    <h1 class="card__title">Termy</h1>
     <?php if ($availableTypes): ?>
-      <nav class="term-types">
-        <a class="term-types__link<?= $activeType === null ? ' term-types__link--active' : '' ?>" href="<?= $h($urls->terms()) ?>">Vše</a>
+      <nav class="pill-nav" aria-label="Typ termu">
+        <a class="pill-nav__link<?= $activeType === null ? ' pill-nav__link--active' : '' ?>" href="<?= $h($urls->terms()) ?>">Vše</a>
         <?php foreach ($availableTypes as $type): ?>
-          <a class="term-types__link<?= $activeType === $type ? ' term-types__link--active' : '' ?>" href="<?= $h($urls->terms($type)) ?>">
-            <?= $h($formatType($type)) ?>
-          </a>
+          <a
+            class="pill-nav__link<?= $activeType === $type ? ' pill-nav__link--active' : '' ?>"
+            href="<?= $h($urls->terms($type)) ?>"
+          ><?= $h(ucfirst($type)) ?></a>
         <?php endforeach; ?>
       </nav>
     <?php endif; ?>
+  </header>
 
-    <?php if (!$terms): ?>
-      <p class="meta">Žádné termy k zobrazení.</p>
-    <?php else: ?>
-      <?php foreach ($grouped as $type => $items): ?>
-        <section class="term-group">
-          <h3 class="term-group__title"><?= $h($formatType($type)) ?></h3>
-          <ul class="term-list">
-            <?php foreach ($items as $term): ?>
-              <?php $count = (int)($term['posts_count'] ?? 0); ?>
-              <?php
-                $termUrl = $urls->term((string)$term['slug'], (string)$term['type']);
-              ?>
-              <li class="term-list__item">
-                <div class="term-list__header">
-                  <a class="term-list__name" href="<?= $h($termUrl) ?>"><?= $h((string)$term['name']) ?></a>
-                  <span class="term-list__count"><?= $count ?> <?= $count === 1 ? 'příspěvek' : 'příspěvků' ?></span>
-                </div>
-                <?php if (!empty($term['description'])): ?>
-                  <p class="term-list__description"><?= $h((string)$term['description']) ?></p>
-                <?php endif; ?>
-              </li>
-            <?php endforeach; ?>
-          </ul>
-        </section>
-      <?php endforeach; ?>
-    <?php endif; ?>
-  </div>
-<?php }); ?>
+  <?php if (!$grouped): ?>
+    <p class="muted">Žádné termy zatím nejsou vytvořeny.</p>
+  <?php else: ?>
+    <?php foreach ($grouped as $type => $items): ?>
+      <?php if ($activeType !== null && $activeType !== $type) { continue; } ?>
+      <section class="term-group">
+        <h2 class="term-group__title"><?= $h(ucfirst($type)) ?></h2>
+        <ul class="term-grid">
+          <?php foreach ($items as $item): ?>
+            <li class="term-card">
+              <a class="term-card__title" href="<?= $h($urls->term((string)$item['slug'], (string)$item['type'])) ?>">
+                <?= $h((string)($item['name'] ?? 'Bez názvu')) ?>
+              </a>
+              <?php if (!empty($item['description'])): ?>
+                <p class="term-card__description"><?= $h((string)$item['description']) ?></p>
+              <?php endif; ?>
+              <span class="term-card__meta">Příspěvků: <?= (int)($item['posts_count'] ?? 0) ?></span>
+            </li>
+          <?php endforeach; ?>
+        </ul>
+      </section>
+    <?php endforeach; ?>
+  <?php endif; ?>
+</section>

@@ -1,10 +1,16 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
 /** @var string $email */
 
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($email) {
-  $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+ob_start();
 ?>
-<div class="alert alert-success">Účet byl vytvořen. Můžete se přihlásit jako <?= $h($email) ?>.</div>
-<?php }); ?>
+<p>Děkujeme za registraci. Na adresu <strong><?= $h($email) ?></strong> jsme odeslali potvrzení.</p>
+<p class="muted">Můžete se nyní přihlásit a začít tvořit obsah.</p>
+<?php
+$body = ob_get_clean();
+$this->part('parts/auth/card', [
+    'title' => 'Registrace dokončena',
+    'type'  => 'success',
+    'msg'   => null,
+    'body'  => $body,
+]);

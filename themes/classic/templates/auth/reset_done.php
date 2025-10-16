@@ -1,8 +1,12 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
-
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() {
+ob_start();
 ?>
-<div class="alert alert-success">Heslo bylo změněno. Můžete se přihlásit.</div>
-<?php }); ?>
+<p>Heslo bylo změněno. Můžete se nyní přihlásit s novými přihlašovacími údaji.</p>
+<?php
+$body = ob_get_clean();
+$this->part('parts/auth/card', [
+    'title' => 'Heslo aktualizováno',
+    'type'  => 'success',
+    'msg'   => null,
+    'body'  => $body,
+]);

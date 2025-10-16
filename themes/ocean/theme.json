@@ -1,0 +1,12 @@
+{
+  "name": "Ocean Breeze",
+  "slug": "ocean",
+  "version": "0.1.0",
+  "author": "You",
+  "description": "Varianta s oceánskou paletou dědící šablony Classic.",
+  "parent": "classic",
+  "assets": {
+    "css": ["assets/css/main.css"],
+    "js": ["assets/js/app.js"]
+  }
+}

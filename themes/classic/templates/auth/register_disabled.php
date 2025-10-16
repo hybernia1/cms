@@ -1,8 +1,12 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
-
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() {
+ob_start();
 ?>
-<div class="alert alert-warning">Registrace je dočasně vypnutá.</div>
-<?php }); ?>
+<p class="muted">Registrace nových uživatelů je aktuálně vypnutá. Zkuste to prosím později nebo kontaktujte správce webu.</p>
+<?php
+$body = ob_get_clean();
+$this->part('parts/auth/card', [
+    'title' => 'Registrace nedostupná',
+    'type'  => 'info',
+    'msg'   => null,
+    'body'  => $body,
+]);

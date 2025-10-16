@@ -13,12 +13,16 @@ final class Assets
     ) {}
 
     private function themePath(): string { return $this->tm->activePath(); }
-    private function themeUrl(): string
+    /** @return array<int,array{slug:string,path:string}> */
+    private function themeRoots(): array { return $this->tm->themeRoots(); }
+
+    private function themeUrl(string $slug = null): string
     {
         // zjisti base URL k /themes z aktuálního requestu
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $baseScript = rtrim(str_replace('\\','/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-        return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($baseScript ? $baseScript : '') . '/themes/' . $this->tm->activeSlug();
+        $slug = $slug ?? $this->tm->activeSlug();
+        return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($baseScript ? $baseScript : '') . '/themes/' . $slug;
     }
 
     private function globalUrl(): string
@@ -31,10 +35,12 @@ final class Assets
     public function url(string $path): string
     {
         $path = ltrim($path, '/');
-        $themeFile = $this->themePath() . '/' . $path;
-        if (is_file($themeFile)) {
-            $ver = (string)@filemtime($themeFile);
-            return $this->themeUrl() . '/' . $path . ($ver ? '?v='.$ver : '');
+        foreach ($this->themeRoots() as $root) {
+            $themeFile = rtrim($root['path'], '/').'/'.$path;
+            if (is_file($themeFile)) {
+                $ver = (string)@filemtime($themeFile);
+                return $this->themeUrl($root['slug']) . '/' . $path . ($ver ? '?v='.$ver : '');
+            }
         }
         // fallback na /assets
         $globalFile = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/\\') . '/assets/' . $path;

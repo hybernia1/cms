@@ -1,11 +1,15 @@
 <?php
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
-/** @var array $page */
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($page) {
+/** @var array<string,mixed> $page */
+
+$h  = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+$cs = new \Cms\Settings\CmsSettings();
 ?>
-  <article class="card">
-    <h2 style="margin-top:0"><?= htmlspecialchars((string)$page['title'], ENT_QUOTES, 'UTF-8') ?></h2>
-    <div style="margin-top:1rem;white-space:pre-wrap"><?= nl2br(htmlspecialchars((string)($page['content'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></div>
-  </article>
-<?php }); ?>
+<article class="card card--article">
+  <header class="article__header">
+    <h1 class="article__title"><?= $h((string)($page['title'] ?? 'Stránka')) ?></h1>
+    <div class="article__meta">Aktualizováno: <?= $h($cs->formatDateTime(new \DateTimeImmutable((string)($page['updated_at'] ?? $page['created_at'] ?? 'now')))) ?></div>
+  </header>
+  <div class="article__content">
+    <?= nl2br($h((string)($page['content'] ?? ''))) ?>
+  </div>
+</article>

@@ -1,21 +1,30 @@
 <?php
-declare(strict_types=1);
-/** @var \Cms\View\Assets $assets */
-/** @var string $siteTitle */
 /** @var string $csrfPublic */
+/** @var string|null $type */
+/** @var string|null $msg */
 /** @var \Cms\Utils\LinkGenerator $urls */
 
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($csrfPublic, $urls) {
-  $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+
+ob_start();
 ?>
-<div class="card">
-  <div class="card-header">Obnova hesla</div>
-  <div class="card-body">
-    <form method="post" action="<?= $h($urls->lost()) ?>">
-      <div class="mb-3"><label class="form-label">E-mail</label><input class="form-control" type="email" name="email" required></div>
-      <input type="hidden" name="csrf" value="<?= $h($csrfPublic) ?>">
-      <button class="btn btn-primary">Odeslat odkaz</button>
-    </form>
+<form class="form-grid" method="post" action="<?= $h($urls->lost()) ?>">
+  <label class="form-field">
+    <span class="form-field__label">E-mail</span>
+    <input class="form-field__control" type="email" name="email" autocomplete="email" required>
+  </label>
+  <input type="hidden" name="csrf" value="<?= $h($csrfPublic) ?>">
+  <div class="form-actions">
+    <button class="btn btn--primary">Odeslat instrukce</button>
+    <a class="btn btn--ghost" href="<?= $h($urls->login()) ?>">Zpět na přihlášení</a>
   </div>
-</div>
-<?php }); ?>
+</form>
+<?php
+$body = ob_get_clean();
+
+$this->part('parts/auth/card', [
+    'title' => 'Zapomenuté heslo',
+    'type'  => $type ?? null,
+    'msg'   => $msg ?? null,
+    'body'  => $body,
+]);

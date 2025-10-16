@@ -32,6 +32,7 @@ final class FrontController
         $this->tm         = new ThemeManager();
         $this->resolver   = new ThemeResolver($this->tm);
         $this->view       = new ViewEngine($this->tm->templateBasePath());
+        $this->view->setBasePaths($this->tm->templateBases());
         $this->assets     = new Assets($this->tm);
         $this->settings   = new CmsSettings();
         $this->urls       = new LinkGenerator();
@@ -124,9 +125,6 @@ final class FrontController
 
     private function render(string $templateKind, array $params = [], array $data = []): void
     {
-        $file = $this->resolver->resolve($templateKind, $params);
-        $rel  = ltrim(str_replace($this->tm->templateBasePath(), '', $file), '/\\');
-
         $base = [
             'assets'      => $this->assets,
             'siteTitle'   => $this->siteTitle(),
@@ -135,7 +133,27 @@ final class FrontController
             'urls'        => $this->urls,
         ];
         $this->view->share($base);
-        $this->view->render($rel, $base + $data);
+        $template = $this->resolver->resolve($templateKind, $params);
+        $this->view->renderLayout('layouts/base', $template, $base + $data);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function withTitle(array $data, string $title): array
+    {
+        $data['pageTitle'] = $title;
+        return $data;
+    }
+
+    private function typeLabel(string $type): string
+    {
+        return match ($type) {
+            'post' => 'Příspěvky',
+            'page' => 'Stránky',
+            default => ucfirst($type),
+        };
     }
 
     private function tokenPublic(): string
@@ -166,7 +184,7 @@ final class FrontController
             ->limit(10)
             ->get();
 
-        $this->render('home', [], ['latestPosts' => $latest]);
+        $this->render('home', [], $this->withTitle(['latestPosts' => $latest], 'Poslední příspěvky'));
     }
 
     private function single(string $type, string $slug): void
@@ -209,19 +227,21 @@ final class FrontController
             }
         }
 
-        $this->render(
-            $tpl,
-            ['type' => $type],
-            [
-                $tpl === 'page' ? 'page' : 'post' => $row,
-                'commentsTree'    => $tree,
-                'commentsAllowed' => $commentsAllowed,
-                'csrfPublic'      => $this->tokenPublic(),
-                'commentFlash'    => $this->readFrontFlash(),
-                'frontUser'       => $this->frontUser,
-                'termsByType'     => $termsByType,
-            ]
-        );
+        $payload = [
+            $tpl === 'page' ? 'page' : 'post' => $row,
+            'commentsTree'    => $tree,
+            'commentsAllowed' => $commentsAllowed,
+            'csrfPublic'      => $this->tokenPublic(),
+            'commentFlash'    => $this->readFrontFlash(),
+            'frontUser'       => $this->frontUser,
+            'termsByType'     => $termsByType,
+        ];
+        $title = trim((string)($row['title'] ?? ''));
+        if ($title === '') {
+            $title = $type === 'page' ? 'Stránka' : 'Příspěvek';
+        }
+
+        $this->render($tpl, ['type' => $type], $this->withTitle($payload, $title));
     }
 
     private function archive(string $type): void
@@ -235,11 +255,12 @@ final class FrontController
             ->limit(50)
             ->get();
 
-        $this->render('archive', ['type' => $type], [
+        $title = 'Archiv – ' . $this->typeLabel($type);
+        $this->render('archive', ['type' => $type], $this->withTitle([
             'items' => $items,
             'type'  => $type,
             'term'  => null,
-        ]);
+        ], $title));
     }
 
     private function archiveByTerm(string $termSlug, ?string $type): void
@@ -274,11 +295,12 @@ final class FrontController
             default    => ucfirst((string)($term['type'] ?? 'Term')),
         };
 
-        $this->render('archive', [], [
+        $label = $typeLabel . ': ' . (string)$term['name'];
+        $this->render('archive', [], $this->withTitle([
             'items' => $items,
-            'type'  => $typeLabel . ': ' . (string)$term['name'],
+            'type'  => $label,
             'term'  => $term,
-        ]);
+        ], 'Archiv – ' . $label));
     }
 
     private function search(string $q): void
@@ -297,7 +319,8 @@ final class FrontController
                 ->get();
         }
 
-        $this->render('search', [], ['items' => $items, 'query' => $q]);
+        $title = $q === '' ? 'Hledání' : 'Hledání: ' . $q;
+        $this->render('search', [], $this->withTitle(['items' => $items, 'query' => $q], $title));
     }
 
     private function terms(string $type): void
@@ -338,17 +361,22 @@ final class FrontController
 
         $terms = $query->get();
 
-        $this->render('terms', [], [
+        $title = 'Termy';
+        if ($type !== '') {
+            $title .= ' – ' . ucfirst($type);
+        }
+
+        $this->render('terms', [], $this->withTitle([
             'terms'          => $terms,
             'activeType'     => $type !== '' ? $type : null,
             'availableTypes' => $availableTypes,
-        ]);
+        ], $title));
     }
 
     private function notFound(): void
     {
         http_response_code(404);
-        $this->render('404');
+        $this->render('404', [], ['pageTitle' => 'Stránka nenalezena']);
     }
 
     // ---------- comments helpers ----------
@@ -477,17 +505,27 @@ final class FrontController
             $email = trim((string)($_POST['email'] ?? ''));
             $pass  = (string)($_POST['password'] ?? '');
             if ($email === '' || $pass === '') {
-                $this->render('auth/login', ['type'=>'danger','msg'=>'Vyplňte e-mail i heslo.'], ['csrfPublic'=>$this->tokenPublic()]);
+                $this->render('auth/login', [], $this->withTitle([
+                    'csrfPublic' => $this->tokenPublic(),
+                    'type'       => 'danger',
+                    'msg'        => 'Vyplňte e-mail i heslo.',
+                ], 'Přihlášení'));
                 return;
             }
             if ($auth->attempt($email, $pass)) {
                 header('Location: ./'); exit;
             }
-            $this->render('auth/login', ['type'=>'danger','msg'=>'Nesprávný e-mail nebo heslo.'], ['csrfPublic'=>$this->tokenPublic()]);
+            $this->render('auth/login', [], $this->withTitle([
+                'csrfPublic' => $this->tokenPublic(),
+                'type'       => 'danger',
+                'msg'        => 'Nesprávný e-mail nebo heslo.',
+            ], 'Přihlášení'));
             return;
         }
 
-        $this->render('auth/login', [], ['csrfPublic'=>$this->tokenPublic()]);
+        $this->render('auth/login', [], $this->withTitle([
+            'csrfPublic' => $this->tokenPublic(),
+        ], 'Přihlášení'));
     }
 
     private function logout(): void
@@ -500,7 +538,10 @@ final class FrontController
     {
         // Bez volání privátní CmsSettings::row()
         $allow = (int)(DB::query()->table('settings')->select(['allow_registration'])->where('id','=',1)->value('allow_registration') ?? 1);
-        if ($allow !== 1) { $this->render('auth/register_disabled'); return; }
+        if ($allow !== 1) {
+            $this->render('auth/register_disabled', [], ['pageTitle' => 'Registrace']);
+            return;
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->assertCsrfPublic();
@@ -508,17 +549,29 @@ final class FrontController
             $email = trim((string)($_POST['email'] ?? ''));
             $pass  = (string)($_POST['password'] ?? '');
             if ($name === '' || $email === '' || $pass === '') {
-                $this->render('auth/register', ['type'=>'danger','msg'=>'Vyplňte všechna pole.'], ['csrfPublic'=>$this->tokenPublic()]);
+                $this->render('auth/register', [], $this->withTitle([
+                    'csrfPublic' => $this->tokenPublic(),
+                    'type'       => 'danger',
+                    'msg'        => 'Vyplňte všechna pole.',
+                ], 'Registrace'));
                 return;
             }
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $this->render('auth/register', ['type'=>'danger','msg'=>'Neplatný e-mail.'], ['csrfPublic'=>$this->tokenPublic()]);
+                $this->render('auth/register', [], $this->withTitle([
+                    'csrfPublic' => $this->tokenPublic(),
+                    'type'       => 'danger',
+                    'msg'        => 'Neplatný e-mail.',
+                ], 'Registrace'));
                 return;
             }
 
             $exists = DB::query()->table('users')->select(['id'])->where('email','=', $email)->first();
             if ($exists) {
-                $this->render('auth/register', ['type'=>'danger','msg'=>'Účet s tímto e-mailem už existuje.'], ['csrfPublic'=>$this->tokenPublic()]);
+                $this->render('auth/register', [], $this->withTitle([
+                    'csrfPublic' => $this->tokenPublic(),
+                    'type'       => 'danger',
+                    'msg'        => 'Účet s tímto e-mailem už existuje.',
+                ], 'Registrace'));
                 return;
             }
 
@@ -535,10 +588,14 @@ final class FrontController
                 'updated_at'    => DateTimeFactory::nowString(),
             ])->execute();
 
-            $this->render('auth/register_success', [], ['email'=>$email]);
+            $this->render('auth/register_success', [], $this->withTitle([
+                'email' => $email,
+            ], 'Registrace dokončena'));
             return;
         }
-        $this->render('auth/register', [], ['csrfPublic'=>$this->tokenPublic()]);
+        $this->render('auth/register', [], $this->withTitle([
+            'csrfPublic' => $this->tokenPublic(),
+        ], 'Registrace'));
     }
 
     private function lost(): void
@@ -547,14 +604,18 @@ final class FrontController
             $this->assertCsrfPublic();
             $email = trim((string)($_POST['email'] ?? ''));
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $this->render('auth/lost', ['type'=>'danger','msg'=>'Zadejte platný e-mail.'], ['csrfPublic'=>$this->tokenPublic()]);
+                $this->render('auth/lost', [], $this->withTitle([
+                    'csrfPublic' => $this->tokenPublic(),
+                    'type'       => 'danger',
+                    'msg'        => 'Zadejte platný e-mail.',
+                ], 'Zapomenuté heslo'));
                 return;
             }
             $user = DB::query()->table('users')->select(['id','name','email','active'])->where('email','=', $email)->first();
 
             // vždy zobraz pozitivní odpověď kvůli bezpečnosti
             if (!$user || (int)$user['active'] !== 1) {
-                $this->render('auth/lost_done', [], []);
+                $this->render('auth/lost_done', [], ['pageTitle' => 'Zapomenuté heslo']);
                 return;
             }
 
@@ -577,16 +638,18 @@ final class FrontController
             (new \Core\Mail\Mailer(from: ['email'=>$cs->siteEmail() ?: 'no-reply@localhost','name'=>$site]))
                 ->send((string)$user['email'], "{$site} – obnova hesla", $html, (string)($user['name'] ?? ''));
 
-            $this->render('auth/lost_done', [], []);
+            $this->render('auth/lost_done', [], ['pageTitle' => 'Zapomenuté heslo']);
             return;
         }
-        $this->render('auth/lost', [], ['csrfPublic'=>$this->tokenPublic()]);
+        $this->render('auth/lost', [], $this->withTitle([
+            'csrfPublic' => $this->tokenPublic(),
+        ], 'Zapomenuté heslo'));
     }
 
     private function reset(): void
     {
         $token = (string)($_GET['token'] ?? ($_POST['token'] ?? ''));
-        if ($token === '') { $this->render('auth/reset_invalid'); return; }
+        if ($token === '') { $this->render('auth/reset_invalid', [], ['pageTitle' => 'Obnova hesla']); return; }
 
         $user = DB::query()->table('users')
             ->select(['id','token','token_expire','email','name'])
@@ -594,7 +657,7 @@ final class FrontController
             ->first();
 
         if (!$user || ($user['token_expire'] && strtotime((string)$user['token_expire']) < time())) {
-            $this->render('auth/reset_invalid'); return;
+            $this->render('auth/reset_invalid', [], ['pageTitle' => 'Obnova hesla']); return;
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -602,7 +665,12 @@ final class FrontController
             $p1 = (string)($_POST['password'] ?? '');
             $p2 = (string)($_POST['password2'] ?? '');
             if ($p1 === '' || $p1 !== $p2) {
-                $this->render('auth/reset', ['type'=>'danger','msg'=>'Hesla se neshodují.'], ['csrfPublic'=>$this->tokenPublic(),'token'=>$token]);
+                $this->render('auth/reset', [], $this->withTitle([
+                    'csrfPublic' => $this->tokenPublic(),
+                    'token'      => $token,
+                    'type'       => 'danger',
+                    'msg'        => 'Hesla se neshodují.',
+                ], 'Obnova hesla'));
                 return;
             }
             $hash = password_hash($p1, PASSWORD_DEFAULT);
@@ -613,10 +681,13 @@ final class FrontController
                 'updated_at'    => DateTimeFactory::nowString(),
             ])->where('id','=', (int)$user['id'])->execute();
 
-            $this->render('auth/reset_done');
+            $this->render('auth/reset_done', [], ['pageTitle' => 'Obnova hesla']);
             return;
         }
 
-        $this->render('auth/reset', [], ['csrfPublic'=>$this->tokenPublic(),'token'=>$token]);
+        $this->render('auth/reset', [], $this->withTitle([
+            'csrfPublic' => $this->tokenPublic(),
+            'token'      => $token,
+        ], 'Obnova hesla'));
     }
 }
