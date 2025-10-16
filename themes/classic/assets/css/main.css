@@ -1,8 +1,36 @@
 :root { --fg:#eaeaea; --bg:#0f0f10; --muted:#9aa0a6; --pri:#6ea8fe; }
-html,body { background: var(--bg); color: var(--fg); }
+html,body { background: var(--bg); color: var(--fg); margin:0; }
 a { color: var(--pri); text-decoration: none; }
 .container { width: min(960px, 92vw); margin: 2rem auto; }
 .nav { display:flex; gap:1rem; margin-bottom:1.5rem; }
 .card { background:#151517; border:1px solid #23252a; border-radius:12px; padding:1rem 1.25rem; }
 .footer { margin-top:2rem; color: var(--muted); font-size: .9rem; }
 .meta { color: var(--muted); font-size:.9rem; }
+
+.user-bar { background:#1c1d21; border-bottom:1px solid #2a2c32; color:var(--fg); position:sticky; top:0; z-index:100; }
+.user-bar__inner { width:min(960px, 92vw); margin:0 auto; display:flex; justify-content:space-between; align-items:center; padding:.5rem 0; gap:1rem; }
+.user-bar__section { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; }
+.user-bar__section--right { justify-content:flex-end; }
+.user-bar__logo { font-weight:600; }
+.user-bar__link { color:var(--fg); font-size:.95rem; }
+.user-bar__link:hover { text-decoration:underline; }
+.user-bar__user { font-size:.95rem; color:var(--muted); }
+
+.term-types { display:flex; gap:.75rem; flex-wrap:wrap; margin:1rem 0; }
+.term-types__link { padding:.25rem .75rem; border-radius:999px; background:#202127; color:var(--fg); font-size:.9rem; border:1px solid transparent; }
+.term-types__link:hover { border-color:var(--pri); }
+.term-types__link--active { background:var(--pri); color:#060607; }
+.term-group { margin-bottom:1.5rem; }
+.term-group__title { font-size:1.1rem; margin:0 0 .75rem; color:var(--muted); text-transform:capitalize; }
+.term-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1rem; }
+.term-list__item { padding:1rem; background:#18191d; border:1px solid #23252a; border-radius:10px; }
+.term-list__header { display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+.term-list__name { font-size:1.05rem; font-weight:600; }
+.term-list__count { font-size:.85rem; color:var(--muted); }
+.term-list__description { margin:.5rem 0 0; color:var(--muted); font-size:.9rem; }
+
+@media (max-width: 600px) {
+  .user-bar__inner { flex-direction:column; align-items:flex-start; }
+  .user-bar__section--right { align-self:stretch; justify-content:space-between; }
+  .term-list__header { flex-direction:column; align-items:flex-start; }
+}
