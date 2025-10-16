@@ -6,8 +6,9 @@ namespace Cms\Domain\Services;
 use Cms\Domain\Repositories\PostsRepository;
 use Cms\Domain\Repositories\TermsRepository;
 use Cms\Domain\Repositories\MediaRepository;
-use Cms\Validation\Validator;
+use Cms\Utils\DateTimeFactory;
 use Cms\Utils\Slugger;
+use Cms\Validation\Validator;
 
 final class PostsService
 {
@@ -29,6 +30,11 @@ final class PostsService
         $data['type']   = $data['type']   ?? 'post';
         $data['status'] = $data['status'] ?? 'draft';
 
+        $allowedTypes = ['post', 'page'];
+        if (!in_array((string)$data['type'], $allowedTypes, true)) {
+            $data['type'] = 'post';
+        }
+
         $v = (new Validator())
             ->require($data, 'title')
             ->require($data, 'author_id')
@@ -38,7 +44,9 @@ final class PostsService
             throw new \InvalidArgumentException(json_encode($v->errors(), JSON_UNESCAPED_UNICODE));
         }
 
-        $slug = Slugger::uniqueInPosts($data['title'], $data['type']);
+        $slug = Slugger::uniqueInPosts($data['title'], (string)$data['type']);
+
+        $now = DateTimeFactory::now();
 
         $id = $this->posts->create([
             'title'           => (string)$data['title'],
@@ -49,8 +57,8 @@ final class PostsService
             'author_id'       => (int)$data['author_id'],
             'thumbnail_id'    => isset($data['thumbnail_id']) ? (int)$data['thumbnail_id'] : null,
             'comments_allowed'=> 1,
-            'published_at'    => $data['status']==='publish' ? date('Y-m-d H:i:s') : null,
-            'created_at'      => date('Y-m-d H:i:s'),
+            'published_at'    => $data['status']==='publish' ? DateTimeFactory::formatForStorage($now) : null,
+            'created_at'      => DateTimeFactory::formatForStorage($now),
             'updated_at'      => null,
         ]);
 
@@ -70,15 +78,19 @@ final class PostsService
         if (!$row) throw new \RuntimeException('Post neexistuje');
 
         $upd = [];
+        $typeForSlug = in_array((string)($row['type'] ?? ''), ['post', 'page'], true)
+            ? (string)$row['type']
+            : 'post';
+
         if (isset($data['title']) && trim((string)$data['title']) !== '') {
             $upd['title'] = (string)$data['title'];
             // pokud se mění title a slug nebyl explicitně zadán, přegeneruj (respektuj unikátnost)
             if (empty($data['slug'])) {
-                $upd['slug'] = Slugger::uniqueInPosts($data['title'], $row['type'], $id);
+                $upd['slug'] = Slugger::uniqueInPosts($data['title'], $typeForSlug, $id);
             }
         }
         if (isset($data['slug']) && trim((string)$data['slug']) !== '') {
-            $upd['slug'] = Slugger::uniqueInPosts((string)$data['slug'], $row['type'], $id);
+            $upd['slug'] = Slugger::uniqueInPosts((string)$data['slug'], $typeForSlug, $id);
         }
         if (isset($data['status'])) {
             $status = (string)$data['status'];
@@ -87,7 +99,7 @@ final class PostsService
             }
             $upd['status'] = $status;
             if ($status === 'publish' && empty($row['published_at'])) {
-                $upd['published_at'] = date('Y-m-d H:i:s');
+                $upd['published_at'] = DateTimeFactory::nowString();
             }
         }
         if (array_key_exists('content',$data)) $upd['content'] = (string)$data['content'];
@@ -96,7 +108,7 @@ final class PostsService
 
         if ($upd === []) return 0;
 
-        $upd['updated_at'] = date('Y-m-d H:i:s');
+        $upd['updated_at'] = DateTimeFactory::nowString();
         return $this->posts->update($id, $upd);
     }
 }

@@ -4,8 +4,9 @@
 /** @var array<int,array{id:mixed,slug:string,name:string,type:string,description:?string,created_at:string,posts_count:mixed}> $terms */
 /** @var array<int,string> $availableTypes */
 /** @var string|null $activeType */
+/** @var \Cms\Utils\LinkGenerator $urls */
 
-$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($terms, $availableTypes, $activeType) {
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($terms, $availableTypes, $activeType, $urls) {
     $h = static fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $formatType = static function(string $type): string {
         return function_exists('mb_convert_case')
@@ -22,9 +23,9 @@ $this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($t
 
     <?php if ($availableTypes): ?>
       <nav class="term-types">
-        <a class="term-types__link<?= $activeType === null ? ' term-types__link--active' : '' ?>" href="./terms">Vše</a>
+        <a class="term-types__link<?= $activeType === null ? ' term-types__link--active' : '' ?>" href="<?= $h($urls->terms()) ?>">Vše</a>
         <?php foreach ($availableTypes as $type): ?>
-          <a class="term-types__link<?= $activeType === $type ? ' term-types__link--active' : '' ?>" href="./terms/<?= $h($type) ?>">
+          <a class="term-types__link<?= $activeType === $type ? ' term-types__link--active' : '' ?>" href="<?= $h($urls->terms($type)) ?>">
             <?= $h($formatType($type)) ?>
           </a>
         <?php endforeach; ?>
@@ -42,7 +43,7 @@ $this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($t
               <?php $count = (int)($term['posts_count'] ?? 0); ?>
               <li class="term-list__item">
                 <div class="term-list__header">
-                  <a class="term-list__name" href="./term/<?= $h((string)$term['slug']) ?>"><?= $h((string)$term['name']) ?></a>
+                  <a class="term-list__name" href="<?= $h($urls->term((string)$term['slug'])) ?>"><?= $h((string)$term['name']) ?></a>
                   <span class="term-list__count"><?= $count ?> <?= $count === 1 ? 'příspěvek' : 'příspěvků' ?></span>
                 </div>
                 <?php if (!empty($term['description'])): ?>

@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace Cms\Http\Admin;
 
 use Core\Database\Init as DB;
+use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
 
 final class UsersController extends BaseAdminController
 {
@@ -33,6 +35,19 @@ final class UsersController extends BaseAdminController
         }
         $b->orderBy('u.created_at','DESC');
         $data = $b->paginate($page, 20);
+        $settings = new CmsSettings();
+        $items = [];
+        foreach (($data['items'] ?? []) as $row) {
+            $created = DateTimeFactory::fromStorage(isset($row['created_at']) ? (string)$row['created_at'] : null);
+            $row['created_at_raw'] = isset($row['created_at']) ? (string)$row['created_at'] : '';
+            if ($created) {
+                $row['created_at_display'] = $settings->formatDateTime($created);
+            } else {
+                $row['created_at_display'] = $row['created_at_raw'];
+            }
+            $items[] = $row;
+        }
+        $data['items'] = $items;
 
         $this->renderAdmin('users/index', [
             'pageTitle' => 'Uživatelé',
@@ -62,13 +77,21 @@ final class UsersController extends BaseAdminController
         $email  = trim((string)($_POST['email'] ?? ''));
         $role   = (string)($_POST['role'] ?? 'user');
         $active = (int)($_POST['active'] ?? 1);
-        $pass   = (string)($_POST['password'] ?? '');
+        $pass   = trim((string)($_POST['password'] ?? ''));
 
         if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->redirect(
                 'admin.php?r=users&a=edit' . ($id ? "&id={$id}" : ''),
                 'danger',
                 'Zadejte platné jméno a e-mail.'
+            );
+        }
+
+        if ($id === 0 && $pass === '') {
+            $this->redirect(
+                'admin.php?r=users&a=edit',
+                'danger',
+                'Zadejte heslo pro nového uživatele.'
             );
         }
 
@@ -89,7 +112,7 @@ final class UsersController extends BaseAdminController
             'email'      => $email,
             'role'       => in_array($role, ['admin','user'], true) ? $role : 'user',
             'active'     => $active,
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => DateTimeFactory::nowString(),
         ];
         if ($pass !== '') {
             $data['password_hash'] = password_hash($pass, PASSWORD_DEFAULT);
@@ -100,7 +123,7 @@ final class UsersController extends BaseAdminController
             $this->redirect('admin.php?r=users', 'success', 'Uživatel upraven.');
         } else {
             $data += [
-                'created_at'   => date('Y-m-d H:i:s'),
+                'created_at'   => DateTimeFactory::nowString(),
                 'token'        => null,
                 'token_expire' => null,
             ];

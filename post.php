@@ -220,7 +220,6 @@ if ($action === 'created') {
             <select class="form-select" id="type" name="type">
               <option value="post">post</option>
               <option value="page">page</option>
-              <option value="product">product</option>
             </select>
           </div>
           <div class="col-md-4">

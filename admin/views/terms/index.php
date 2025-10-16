@@ -8,35 +8,52 @@ declare(strict_types=1);
 /** @var array<int,array> $items */
 /** @var array{page:int,per_page:int,total:int,pages:int} $pagination */
 /** @var string $csrf */
+/** @var string $type */
+/** @var array $types */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+  $typeCfg = $types[$type] ?? ['create' => 'Nový term'];
+  $buildUrl = function(array $override = []) use ($type) : string {
+    $qs = $_GET ?? [];
+    unset($qs['page']);
+    $qs = array_merge(['r'=>'terms','type'=>$type], $qs, $override);
+    return 'admin.php?'.http_build_query($qs);
+  };
 ?>
-  <div class="card mb-3">
-    <div class="card-body">
-      <form class="row g-2" method="get" action="admin.php">
-        <input type="hidden" name="r" value="terms">
-        <div class="col-md-3">
-          <select class="form-select" name="type">
-            <option value="">— všechny typy —</option>
-            <?php foreach (['category','tag'] as $t): ?>
-              <option value="<?= $t ?>" <?= $filters['type']===$t?'selected':'' ?>><?= $t ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <input class="form-control" name="q" placeholder="Hledat název/slug…" value="<?= $h((string)$filters['q']) ?>">
-        </div>
-        <div class="col-md-3 d-grid">
-          <button class="btn btn-primary" type="submit">Filtrovat</button>
-        </div>
-      </form>
-    </div>
+  <div class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3 mb-3">
+    <nav aria-label="Typ termu">
+      <ul class="nav nav-pills nav-sm">
+        <?php foreach ($types as $key => $cfg): ?>
+          <li class="nav-item">
+            <a class="nav-link px-3 py-1 <?= $type === $key ? 'active' : '' ?>" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','type'=>$key])) ?>">
+              <?= $h((string)($cfg['nav'] ?? $key)) ?>
+            </a>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    </nav>
+
+    <form class="ms-lg-auto" method="get" action="admin.php" role="search">
+      <input type="hidden" name="r" value="terms">
+      <input type="hidden" name="type" value="<?= $h($type) ?>">
+      <div class="input-group input-group-sm">
+        <input class="form-control" name="q" placeholder="Hledat název/slug…" value="<?= $h((string)$filters['q']) ?>">
+        <button class="btn btn-outline-secondary" type="submit" aria-label="Hledat">
+          <i class="bi bi-search"></i>
+        </button>
+        <a class="btn btn-outline-secondary <?= ($filters['q'] ?? '') === '' ? 'disabled' : '' ?>" href="<?= $h($buildUrl(['q'=>''])) ?>" aria-label="Zrušit filtr">
+          <i class="bi bi-x-circle"></i>
+        </a>
+      </div>
+    </form>
   </div>
 
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="h5 m-0">Termy</h2>
-    <a class="btn btn-success" href="admin.php?r=terms&a=create">Nový term</a>
+    <h2 class="h5 m-0"><?= $h((string)($typeCfg['list'] ?? 'Termy')) ?></h2>
+    <a class="btn btn-success" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'create','type'=>$type])) ?>">
+      <?= $h((string)($typeCfg['create'] ?? 'Nový term')) ?>
+    </a>
   </div>
 
   <div class="card">
@@ -47,7 +64,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <th style="width:80px">ID</th>
             <th>Název</th>
             <th style="width:180px">Slug</th>
-            <th style="width:140px">Typ</th>
             <th style="width:180px">Vytvořeno</th>
             <th style="width:220px"></th>
           </tr>
@@ -58,11 +74,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
               <td>#<?= $h((string)$it['id']) ?></td>
               <td class="fw-semibold"><?= $h((string)$it['name']) ?></td>
               <td><code><?= $h((string)$it['slug']) ?></code></td>
-              <td><span class="badge text-bg-info"><?= $h((string)$it['type']) ?></span></td>
-              <td><?= $h((string)$it['created_at']) ?></td>
+              <td><?= $h((string)($it['created_at_display'] ?? ($it['created_at_raw'] ?? ''))) ?></td>
               <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary" href="admin.php?r=terms&a=edit&id=<?= $h((string)$it['id']) ?>">Upravit</a>
-                <form method="post" action="admin.php?r=terms&a=delete" style="display:inline" onsubmit="return confirm('Opravdu smazat? Bude odpojen od všech příspěvků.');">
+                <a class="btn btn-sm btn-outline-primary" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>">Upravit</a>
+                <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'delete','type'=>$type])) ?>" style="display:inline" onsubmit="return confirm('Opravdu smazat? Bude odpojen od všech příspěvků.');">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                   <button class="btn btn-sm btn-outline-danger" type="submit">Smazat</button>
@@ -83,7 +98,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <ul class="pagination">
         <?php
           $page = (int)$pagination['page']; $pages = (int)$pagination['pages'];
-          $qs = $_GET; unset($qs['page']); $base = 'admin.php?'.http_build_query(array_merge(['r'=>'terms'], $qs));
+          $qs = $_GET; unset($qs['page']); $base = 'admin.php?'.http_build_query(array_merge(['r'=>'terms','type'=>$type], $qs));
         ?>
         <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&page='.max(1,$page-1) ?>">‹</a></li>
         <?php for($i=1;$i<=$pages;$i++): ?>

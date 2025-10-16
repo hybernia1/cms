@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Auth;
 
 use Core\Database\Init as DB;
+use Cms\Utils\DateTimeFactory;
 
 final class AuthService
 {
@@ -26,7 +27,7 @@ final class AuthService
 
         if (Passwords::needsRehash((string)$user['password_hash'])) {
             DB::query()->table('users')
-                ->update(['password_hash' => Passwords::hash($password), 'updated_at' => date('Y-m-d H:i:s')])
+                ->update(['password_hash' => Passwords::hash($password), 'updated_at' => DateTimeFactory::nowString()])
                 ->where('id','=', (int)$user['id'])
                 ->execute();
         }
@@ -66,12 +67,12 @@ final class AuthService
         if (!$u) return null;
 
         $token = Passwords::token(16);
-        $expire = date('Y-m-d H:i:s', time() + 3600); // 1h
+        $expire = DateTimeFactory::now()->modify('+1 hour')->format('Y-m-d H:i:s'); // 1h
 
         DB::query()->table('users')->update([
             'token' => $token,
             'token_expire' => $expire,
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => DateTimeFactory::nowString(),
         ])->where('id','=', (int)$u['id'])->execute();
 
         return ['user_id' => (int)$u['id'], 'token' => $token, 'expires' => $expire];
@@ -90,7 +91,7 @@ final class AuthService
             'password_hash' => Passwords::hash($newPassword),
             'token' => null,
             'token_expire' => null,
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => DateTimeFactory::nowString(),
         ])->where('id','=',$userId)->execute();
 
         return true;

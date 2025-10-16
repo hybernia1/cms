@@ -6,7 +6,10 @@ namespace Cms\Http\Admin;
 use Cms\Domain\Repositories\PostsRepository;
 use Cms\Domain\Services\PostsService;
 use Cms\Domain\Services\MediaService;
+use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
+use Cms\Utils\LinkGenerator;
 use Core\Database\Init as DB;
 
 final class PostsController extends BaseAdminController
@@ -41,9 +44,20 @@ final class PostsController extends BaseAdminController
     private function typeConfig(): array
     {
         return [
-            'post'    => ['nav' => 'Příspěvky', 'list' => 'Příspěvky', 'create' => 'Nový příspěvek', 'edit' => 'Upravit příspěvek', 'label' => 'Příspěvek'],
-            'page'    => ['nav' => 'Stránky', 'list' => 'Stránky', 'create' => 'Nová stránka', 'edit' => 'Upravit stránku', 'label' => 'Stránka'],
-            'product' => ['nav' => 'Produkty', 'list' => 'Produkty', 'create' => 'Nový produkt', 'edit' => 'Upravit produkt', 'label' => 'Produkt'],
+            'post' => [
+                'nav'    => 'Příspěvky',
+                'list'   => 'Příspěvky',
+                'create' => 'Nový příspěvek',
+                'edit'   => 'Upravit příspěvek',
+                'label'  => 'Příspěvek',
+            ],
+            'page' => [
+                'nav'    => 'Stránky',
+                'list'   => 'Stránky',
+                'create' => 'Nová stránka',
+                'edit'   => 'Upravit stránku',
+                'label'  => 'Stránka',
+            ],
         ];
     }
 
@@ -96,10 +110,16 @@ final class PostsController extends BaseAdminController
         DB::query()->table('post_terms')->delete()->where('post_id','=', $postId)->execute();
 
         $ins = DB::query()->table('post_terms')->insert(['post_id','term_id']);
+        $hasRows = false;
         foreach (array_merge($cat, $tag) as $tid) {
-            if ($tid > 0) { $ins->values([$postId, $tid]); }
+            if ($tid > 0) {
+                $ins->values([$postId, $tid]);
+                $hasRows = true;
+            }
         }
-        $ins->execute();
+        if ($hasRows) {
+            $ins->execute();
+        }
     }
 
     // ---------------- Actions ----------------
@@ -120,11 +140,26 @@ final class PostsController extends BaseAdminController
 
         $pag = $repo->paginate($filters, $page, $perPage);
 
+        $settings = new CmsSettings();
+        $items = [];
+        foreach (($pag['items'] ?? []) as $row) {
+            $created = DateTimeFactory::fromStorage(isset($row['created_at']) ? (string)$row['created_at'] : null);
+            $row['created_at_raw'] = isset($row['created_at']) ? (string)$row['created_at'] : '';
+            if ($created) {
+                $row['created_at_display'] = $settings->formatDateTime($created);
+                $row['created_at_iso'] = $created->format(\DateTimeInterface::ATOM);
+            } else {
+                $row['created_at_display'] = $row['created_at_raw'];
+                $row['created_at_iso'] = $row['created_at_raw'] !== '' ? $row['created_at_raw'] : null;
+            }
+            $items[] = $row;
+        }
+
         $this->renderAdmin('posts/index', [
             'pageTitle'  => $this->typeConfig()[$type]['list'],
             'nav'        => AdminNavigation::build('posts:' . $type),
             'filters'    => $filters,
-            'items'      => $pag['items'] ?? [],
+            'items'      => $items,
             'pagination' => [
                 'page'     => $pag['page'] ?? $page,
                 'per_page' => $pag['per_page'] ?? $perPage,
@@ -133,6 +168,7 @@ final class PostsController extends BaseAdminController
             ],
             'type'       => $type,
             'types'      => $this->typeConfig(),
+            'urls'       => new LinkGenerator(),
         ]);
     }
 
