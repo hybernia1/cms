@@ -18,7 +18,7 @@ final class ThemeResolver
     {
         $base = rtrim($this->tm->templateBasePath(), '/');
         $k    = trim($kind, "/\\");                // např. "auth/login"
-        $type = (string)($params['type'] ?? '');   // např. post|page|product...
+        $type = (string)($params['type'] ?? '');   // např. post|page...
 
         $candidates = [];
 

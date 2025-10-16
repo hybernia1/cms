@@ -29,9 +29,8 @@ final class AdminNavigation
                 'href'      => 'admin.php?r=posts&type=post',
                 'icon'      => 'bi-folder2',
                 'children'  => [
-                    ['key' => 'posts:post',    'label' => 'Příspěvky', 'href' => 'admin.php?r=posts&type=post',    'icon' => 'bi-file-earmark-text'],
-                    ['key' => 'posts:page',    'label' => 'Stránky',   'href' => 'admin.php?r=posts&type=page',    'icon' => 'bi-file-earmark-richtext'],
-                    ['key' => 'posts:product', 'label' => 'Produkty',  'href' => 'admin.php?r=posts&type=product','icon' => 'bi-bag'],
+                    ['key' => 'posts:post', 'label' => 'Příspěvky', 'href' => 'admin.php?r=posts&type=post', 'icon' => 'bi-file-earmark-text'],
+                    ['key' => 'posts:page', 'label' => 'Stránky',   'href' => 'admin.php?r=posts&type=page', 'icon' => 'bi-file-earmark-richtext'],
                     ['key' => 'media',         'label' => 'Média',     'href' => 'admin.php?r=media',             'icon' => 'bi-images'],
                     ['key' => 'terms:category','label' => 'Kategorie', 'href' => 'admin.php?r=terms&type=category','icon' => 'bi-collection'],
                     ['key' => 'terms:tag',     'label' => 'Štítky',    'href' => 'admin.php?r=terms&type=tag',     'icon' => 'bi-hash'],

@@ -30,6 +30,11 @@ final class PostsService
         $data['type']   = $data['type']   ?? 'post';
         $data['status'] = $data['status'] ?? 'draft';
 
+        $allowedTypes = ['post', 'page'];
+        if (!in_array((string)$data['type'], $allowedTypes, true)) {
+            $data['type'] = 'post';
+        }
+
         $v = (new Validator())
             ->require($data, 'title')
             ->require($data, 'author_id')
@@ -39,7 +44,9 @@ final class PostsService
             throw new \InvalidArgumentException(json_encode($v->errors(), JSON_UNESCAPED_UNICODE));
         }
 
-        $slug = Slugger::uniqueInPosts($data['title'], $data['type']);
+        $slug = Slugger::uniqueInPosts($data['title'], (string)$data['type']);
+
+        $now = DateTimeFactory::now();
 
         $now = DateTimeFactory::now();
 
@@ -73,15 +80,19 @@ final class PostsService
         if (!$row) throw new \RuntimeException('Post neexistuje');
 
         $upd = [];
+        $typeForSlug = in_array((string)($row['type'] ?? ''), ['post', 'page'], true)
+            ? (string)$row['type']
+            : 'post';
+
         if (isset($data['title']) && trim((string)$data['title']) !== '') {
             $upd['title'] = (string)$data['title'];
             // pokud se mění title a slug nebyl explicitně zadán, přegeneruj (respektuj unikátnost)
             if (empty($data['slug'])) {
-                $upd['slug'] = Slugger::uniqueInPosts($data['title'], $row['type'], $id);
+                $upd['slug'] = Slugger::uniqueInPosts($data['title'], $typeForSlug, $id);
             }
         }
         if (isset($data['slug']) && trim((string)$data['slug']) !== '') {
-            $upd['slug'] = Slugger::uniqueInPosts((string)$data['slug'], $row['type'], $id);
+            $upd['slug'] = Slugger::uniqueInPosts((string)$data['slug'], $typeForSlug, $id);
         }
         if (isset($data['status'])) {
             $status = (string)$data['status'];

@@ -44,9 +44,20 @@ final class PostsController extends BaseAdminController
     private function typeConfig(): array
     {
         return [
-            'post'    => ['nav' => 'Příspěvky', 'list' => 'Příspěvky', 'create' => 'Nový příspěvek', 'edit' => 'Upravit příspěvek', 'label' => 'Příspěvek'],
-            'page'    => ['nav' => 'Stránky', 'list' => 'Stránky', 'create' => 'Nová stránka', 'edit' => 'Upravit stránku', 'label' => 'Stránka'],
-            'product' => ['nav' => 'Produkty', 'list' => 'Produkty', 'create' => 'Nový produkt', 'edit' => 'Upravit produkt', 'label' => 'Produkt'],
+            'post' => [
+                'nav'    => 'Příspěvky',
+                'list'   => 'Příspěvky',
+                'create' => 'Nový příspěvek',
+                'edit'   => 'Upravit příspěvek',
+                'label'  => 'Příspěvek',
+            ],
+            'page' => [
+                'nav'    => 'Stránky',
+                'list'   => 'Stránky',
+                'create' => 'Nová stránka',
+                'edit'   => 'Upravit stránku',
+                'label'  => 'Stránka',
+            ],
         ];
     }
 
