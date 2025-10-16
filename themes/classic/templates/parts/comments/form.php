@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** @var string $csrfPublic */
 /** @var array|null $commentFlash */
 /** @var array|null $frontUser */
+/** @var \Cms\Utils\LinkGenerator $urls */
 
 $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
@@ -14,8 +15,8 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
       <div class="alert alert-<?= $h((string)$commentFlash['type']) ?> mb-3"><?= $h((string)$commentFlash['msg']) ?></div>
     <?php endif; ?>
 
-    <!-- DŮLEŽITÉ: akce přes query router, ať to nikdy nespadne na /post/comment -->
-    <form method="post" action="./?r=comment" autocomplete="off">
+    <!-- Odesíláme přes LinkGenerator, aby fungoval fallback bez mod_rewrite -->
+    <form method="post" action="<?= $h($urls->commentAction()) ?>" autocomplete="off">
       <?php if ($frontUser): ?>
         <div class="mb-3">
           <span class="badge text-bg-success">Přihlášen jako</span>

@@ -96,10 +96,16 @@ final class PostsController extends BaseAdminController
         DB::query()->table('post_terms')->delete()->where('post_id','=', $postId)->execute();
 
         $ins = DB::query()->table('post_terms')->insert(['post_id','term_id']);
+        $hasRows = false;
         foreach (array_merge($cat, $tag) as $tid) {
-            if ($tid > 0) { $ins->values([$postId, $tid]); }
+            if ($tid > 0) {
+                $ins->values([$postId, $tid]);
+                $hasRows = true;
+            }
         }
-        $ins->execute();
+        if ($hasRows) {
+            $ins->execute();
+        }
     }
 
     // ---------------- Actions ----------------

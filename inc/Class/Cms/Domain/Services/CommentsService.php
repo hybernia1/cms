@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Domain\Services;
 
 use Cms\Domain\Repositories\CommentsRepository;
+use Cms\Utils\DateTimeFactory;
 use Cms\Validation\Validator;
 
 final class CommentsService
@@ -42,7 +43,7 @@ final class CommentsService
             'status'       => (string)$data['status'],
             'ip'           => $_SERVER['REMOTE_ADDR'] ?? null,
             'ua'           => $_SERVER['HTTP_USER_AGENT'] ?? null,
-            'created_at'   => date('Y-m-d H:i:s'),
+            'created_at'   => DateTimeFactory::nowString(),
         ]);
     }
 }
