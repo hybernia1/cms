@@ -7,16 +7,12 @@ declare(strict_types=1);
 /** @var array|null $term */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$term,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($term,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$term;
   $actionUrl = $isEdit ? ('admin.php?r=terms&a=edit&id='.$h((string)$term['id'])) : 'admin.php?r=terms&a=create';
   $selected = fn(string $val, string $cur) => $val===$cur ? 'selected' : '';
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <form class="card" method="post" action="<?= $actionUrl ?>">
     <div class="card-header"><?= $h($isEdit ? 'Upravit term #'.$term['id'] : 'Nový term') ?></div>
     <div class="card-body">

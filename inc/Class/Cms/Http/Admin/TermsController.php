@@ -9,6 +9,7 @@ use Cms\Domain\Repositories\TermsRepository;
 use Cms\Domain\Services\TermsService;
 use Core\Database\Init as DB;
 use Cms\Utils\Slugger;
+use Cms\Utils\AdminNavigation;
 
 final class TermsController
 {
@@ -45,19 +46,6 @@ final class TermsController
     }
 
     // ------------- helpers -------------
-    private function nav(): array
-    {
-        return [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post','active'=>false],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>false],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>true],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>false],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation','active'=>false],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
-        ];
-    }
     private function token(): string
     {
         if (empty($_SESSION['csrf_admin'])) $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
@@ -103,7 +91,7 @@ final class TermsController
 
         $data = [
             'pageTitle'   => 'Termy',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('terms'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'filters'     => $filters,
@@ -133,7 +121,7 @@ final class TermsController
 
         $data = [
             'pageTitle'   => $id ? 'Upravit term' : 'Nový term',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('terms'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'term'        => $row,

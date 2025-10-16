@@ -9,13 +9,9 @@ declare(strict_types=1);
 /** @var array{page:int,per_page:int,total:int,pages:int} $pagination */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$filters,$items,$pagination,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <div class="card mb-3">
     <div class="card-body">
       <form class="row g-2" method="get" action="admin.php">

@@ -8,6 +8,7 @@ use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
 use Cms\Domain\Services\MediaService;
 use Core\Files\PathResolver;
+use Cms\Utils\AdminNavigation;
 
 final class MediaController
 {
@@ -38,19 +39,6 @@ final class MediaController
     }
 
     // ---------------- helpers ----------------
-    private function nav(): array
-    {
-        return [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post','active'=>false],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>true],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>false],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>false],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation','active'=>false],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
-        ];
-    }
     private function token(): string
     {
         if (empty($_SESSION['csrf_admin'])) $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
@@ -101,7 +89,7 @@ final class MediaController
 
         $data = [
             'pageTitle'   => 'Média',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('media'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'filters'     => $filters,

@@ -8,13 +8,9 @@ declare(strict_types=1);
 /** @var string $activeSlug */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$themes,$activeSlug,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($themes,$activeSlug,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <div class="row g-3">
     <div class="col-lg-8">
       <div class="row g-3">

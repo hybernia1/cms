@@ -6,6 +6,7 @@ namespace Cms\Http\Admin;
 use Cms\View\ViewEngine;
 use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
+use Cms\Utils\AdminNavigation;
 
 final class ThemesController
 {
@@ -32,20 +33,6 @@ final class ThemesController
         }
     }
 
-    private function nav(): array
-    {
-        return [
-            ['key'=>'dashboard','label'=>'Dashboard','href'=>'admin.php?r=dashboard','active'=>false],
-            ['key'=>'posts:post','label'=>'Příspěvky','href'=>'admin.php?r=posts&type=post','active'=>false],
-            ['key'=>'media','label'=>'Média','href'=>'admin.php?r=media','active'=>false],
-            ['key'=>'terms','label'=>'Termy','href'=>'admin.php?r=terms','active'=>false],
-            ['key'=>'comments','label'=>'Komentáře','href'=>'admin.php?r=comments','active'=>false],
-            ['key'=>'users','label'=>'Uživatelé','href'=>'admin.php?r=users','active'=>false],
-            ['key'=>'themes','label'=>'Šablony','href'=>'admin.php?r=themes','active'=>true],
-            ['key'=>'navigation','label'=>'Navigace','href'=>'admin.php?r=navigation','active'=>false],
-            ['key'=>'settings','label'=>'Nastavení','href'=>'admin.php?r=settings','active'=>false],
-        ];
-    }
     private function token(): string
     {
         if (empty($_SESSION['csrf_admin'])) $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
@@ -98,7 +85,7 @@ final class ThemesController
     {
         $this->view->render('themes/index', [
             'pageTitle'   => 'Šablony',
-            'nav'         => $this->nav(),
+            'nav'         => AdminNavigation::build('themes'),
             'currentUser' => $this->auth->user(),
             'flash'       => $_SESSION['_flash'] ?? null,
             'themes'      => $this->listThemes(),

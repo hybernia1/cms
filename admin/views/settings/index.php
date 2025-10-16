@@ -9,14 +9,10 @@ declare(strict_types=1);
 /** @var array<int,string> $timezones */
 /** @var string $previewNow */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$settings,$csrf,$timezones,$previewNow) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($settings,$csrf,$timezones,$previewNow) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $sel = fn(string $a,string $b)=> $a===$b?' selected':'';
 ?>
-  <?php if ($flash): ?>
-    <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
-  <?php endif; ?>
-
   <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm">
     <div class="card-header">Základní nastavení</div>
     <div class="card-body">
