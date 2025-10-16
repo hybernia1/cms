@@ -48,6 +48,8 @@ final class PostsService
 
         $now = DateTimeFactory::now();
 
+        $now = DateTimeFactory::now();
+
         $id = $this->posts->create([
             'title'           => (string)$data['title'],
             'slug'            => $slug,
