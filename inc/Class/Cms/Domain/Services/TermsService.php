@@ -1,0 +1,33 @@
+<?php
+declare(strict_types=1);
+
+namespace Cms\Domain\Services;
+
+use Cms\Domain\Repositories\TermsRepository;
+use Cms\Validation\Validator;
+use Cms\Utils\Slugger;
+
+final class TermsService
+{
+    public function __construct(private readonly TermsRepository $repo = new TermsRepository()) {}
+
+    public function create(string $name, string $type = 'tag', ?string $slug = null, ?string $description = null): int
+    {
+        $v = (new Validator())->require(compact('name'), 'name');
+        if (!$v->ok()) throw new \InvalidArgumentException(json_encode($v->errors(), JSON_UNESCAPED_UNICODE));
+
+        $slug = $slug ?: Slugger::make($name);
+        // unikatnost slugů přes existující repo (není per-type unikátní; pokud chceš, můžeš přidat kontrolu per type)
+        if ($this->repo->findBySlug($slug)) {
+            $slug = $slug . '-' . substr(bin2hex(random_bytes(2)),0,3);
+        }
+
+        return $this->repo->create([
+            'type'        => $type,
+            'slug'        => $slug,
+            'name'        => $name,
+            'description' => $description,
+            'created_at'  => date('Y-m-d H:i:s'),
+        ]);
+    }
+}
