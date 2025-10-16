@@ -1,0 +1,8 @@
+:root { --fg:#eaeaea; --bg:#0f0f10; --muted:#9aa0a6; --pri:#6ea8fe; }
+html,body { background: var(--bg); color: var(--fg); }
+a { color: var(--pri); text-decoration: none; }
+.container { width: min(960px, 92vw); margin: 2rem auto; }
+.nav { display:flex; gap:1rem; margin-bottom:1.5rem; }
+.card { background:#151517; border:1px solid #23252a; border-radius:12px; padding:1rem 1.25rem; }
+.footer { margin-top:2rem; color: var(--muted); font-size: .9rem; }
+.meta { color: var(--muted); font-size:.9rem; }
