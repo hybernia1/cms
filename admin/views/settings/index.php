@@ -74,6 +74,25 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label">Formát data</label>
+          <?php $curDateFmt = (string)($settings['date_format'] ?? 'Y-m-d'); ?>
+          <select class="form-select" name="date_format" id="date_format">
+            <?php foreach ($datePresets as $preset): ?>
+              <?php if (!is_string($preset)) continue; ?>
+              <option value="<?= $h($preset) ?>"<?= $sel($preset, $curDateFmt) ?>><?= $h($preset) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Vyber z nabídky předpřipravených PHP formátů <code>date()</code>.</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Formát času</label>
+          <?php $curTimeFmt = (string)($settings['time_format'] ?? 'H:i'); ?>
+          <select class="form-select" name="time_format" id="time_format">
+            <?php foreach ($timePresets as $preset): ?>
+              <?php if (!is_string($preset)) continue; ?>
+              <option value="<?= $h($preset) ?>"<?= $sel($preset, $curTimeFmt) ?>><?= $h($preset) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Vyber z nabídky předpřipravených PHP formátů <code>date()</code>.</div>
           <input class="form-control" name="date_format" id="date_format" value="<?= $h((string)($settings['date_format'] ?? 'Y-m-d')) ?>" placeholder="např. Y-m-d" list="dateFormatPresets">
           <datalist id="dateFormatPresets">
             <?php foreach ($datePresets as $preset): ?>
@@ -97,6 +116,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <select class="form-select" name="timezone" id="timezone">
             <?php $curTz = (string)($settings['timezone'] ?? 'Europe/Prague'); ?>
             <?php foreach ($timezones as $tz): ?>
+              <?php if (!is_string($tz)) continue; ?>
               <option value="<?= $h($tz) ?>"<?= $sel($tz,$curTz) ?>><?= $h($tz) ?></option>
             <?php endforeach; ?>
           </select>
@@ -144,6 +164,8 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         webpCompression.disabled = webpToggle.value !== '1';
       }
 
+      if (dateI) dateI.addEventListener('change', updatePreview);
+      if (timeI) timeI.addEventListener('change', updatePreview);
       if (dateI) dateI.addEventListener('input', updatePreview);
       if (timeI) timeI.addEventListener('input', updatePreview);
       if (webpToggle) webpToggle.addEventListener('change', updateWebpState);

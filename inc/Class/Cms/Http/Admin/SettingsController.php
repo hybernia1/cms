@@ -212,19 +212,6 @@ final class SettingsController
         unset($_SESSION['_flash']);
     }
 
-    private function sanitizeFormat(string $fmt, string $default): string
-    {
-        $fmt = trim($fmt);
-        if ($fmt === '') return $default;
-        // Povolené znaky: písmena formátovacích tokenů PHP date() + separátory
-        // (nepovolujeme backticks a control chars)
-        if (!preg_match('~^[A-Za-z\-\._:/,\s\\\|]+$~', $fmt)) {
-            return $default;
-        }
-        if (strlen($fmt) > 64) $fmt = substr($fmt, 0, 64);
-        return $fmt;
-    }
-
     private function detectSiteUrl(): string
     {
         // jednoduchá autodetekce podle aktuálního requestu
@@ -258,8 +245,12 @@ final class SettingsController
         $title = trim((string)($_POST['site_title'] ?? ''));
         $email = trim((string)($_POST['site_email'] ?? ''));
 
-        $dateFormat = $this->sanitizeFormat((string)($_POST['date_format'] ?? ''), 'Y-m-d');
-        $timeFormat = $this->sanitizeFormat((string)($_POST['time_format'] ?? ''), 'H:i');
+        $formatPresets = $this->formatPresets();
+        $dateOptions = is_array($formatPresets['date'] ?? null) ? $formatPresets['date'] : [];
+        $timeOptions = is_array($formatPresets['time'] ?? null) ? $formatPresets['time'] : [];
+
+        $dateFormat = $this->pickPresetValue($dateOptions, (string)($_POST['date_format'] ?? ''), 'Y-m-d');
+        $timeFormat = $this->pickPresetValue($timeOptions, (string)($_POST['time_format'] ?? ''), 'H:i');
 
         $tz = (string)($_POST['timezone'] ?? 'Europe/Prague');
         $tzList = $this->timezones();
@@ -315,5 +306,19 @@ final class SettingsController
         $this->flash('success','Nastavení uloženo.');
         header('Location: admin.php?r=settings');
         exit;
+    }
+
+    private function pickPresetValue(array $options, string $selected, string $default): string
+    {
+        $selected = trim($selected);
+        foreach ($options as $option) {
+            if (!is_string($option)) {
+                continue;
+            }
+            if ($option === $selected) {
+                return $option;
+            }
+        }
+        return $options[0] ?? $default;
     }
 }
