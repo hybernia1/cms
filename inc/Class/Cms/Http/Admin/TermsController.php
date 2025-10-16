@@ -10,6 +10,7 @@ use Cms\Settings\CmsSettings;
 use Cms\Utils\Slugger;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
+use Cms\Utils\LinkGenerator;
 
 final class TermsController extends BaseAdminController
 {
@@ -123,6 +124,7 @@ final class TermsController extends BaseAdminController
             ],
             'type'       => $type,
             'types'      => $this->typeConfig(),
+            'urls'       => new LinkGenerator(),
         ]);
     }
 

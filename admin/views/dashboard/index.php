@@ -2,9 +2,11 @@
 declare(strict_types=1);
 /** @var string $pageTitle */
 /** @var array $nav */
+/** @var array|null $currentUser */
+/** @var array|null $flash */
 
 // pro render použijeme layout s obsahem přes slot $content()
-$this->render('layouts/base', compact('pageTitle','nav'), function () {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () {
 ?>
   <div class="card">
     <div class="card-body">
@@ -15,27 +17,27 @@ $this->render('layouts/base', compact('pageTitle','nav'), function () {
         <div class="col-md-4">
           <div class="card">
             <div class="card-body">
-              <div class="muted">Příspěvky</div>
+              <div class="text-secondary">Příspěvky</div>
               <div class="fs-4 fw-semibold">–</div>
-              <div class="small muted">Přehled doplníme v Kroku 5.</div>
+              <div class="small text-secondary">Přehled doplníme v Kroku 5.</div>
             </div>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card">
             <div class="card-body">
-              <div class="muted">Komentáře</div>
+              <div class="text-secondary">Komentáře</div>
               <div class="fs-4 fw-semibold">–</div>
-              <div class="small muted">Moderace v Kroku 8.</div>
+              <div class="small text-secondary">Moderace v Kroku 8.</div>
             </div>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card">
             <div class="card-body">
-              <div class="muted">Média</div>
+              <div class="text-secondary">Média</div>
               <div class="fs-4 fw-semibold">–</div>
-              <div class="small muted">Knihovna v Kroku 6.</div>
+              <div class="small text-secondary">Knihovna v Kroku 6.</div>
             </div>
           </div>
         </div>
