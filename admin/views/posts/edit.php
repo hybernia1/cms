@@ -8,22 +8,27 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var array{category:array<int,array{id:int,name:string,slug:string,type:string}>,tag:array<int,array{id:int,name:string,slug:string,type:string}>} $terms */
 /** @var array{category:array<int,int>,tag:array<int,int>} $selected */
+/** @var string $type */
+/** @var array $types */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$post,$csrf,$terms,$selected) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$post,$csrf,$terms,$selected,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$post;
-  $actionUrl = $isEdit ? ('admin.php?r=posts&a=edit&id='.$h((string)$post['id'])) : 'admin.php?r=posts&a=create';
+  $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek','edit'=>'Upravit příspěvek','label'=>strtoupper($type)];
+  $actionParams = $isEdit
+    ? ['r'=>'posts','a'=>'edit','id'=>(int)($post['id'] ?? 0),'type'=>$type]
+    : ['r'=>'posts','a'=>'create','type'=>$type];
+  $actionUrl = 'admin.php?'.http_build_query($actionParams);
   $selectedOpt = function(array $arr, int $id): string { return in_array($id, $arr, true) ? 'selected' : ''; };
-  $selectedVal = fn(string $val, string $cur) => $val===$cur ? 'selected' : '';
   $checked  = fn(bool $b) => $b ? 'checked' : '';
 ?>
   <?php if ($flash): ?>
     <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
   <?php endif; ?>
 
-  <form class="card" method="post" action="<?= $actionUrl ?>" enctype="multipart/form-data">
+  <form class="card" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data">
     <div class="card-header d-flex justify-content-between align-items-center">
-      <span><?= $h($isEdit ? 'Upravit příspěvek #'.$post['id'] : 'Nový příspěvek') ?></span>
+      <span><?= $h($isEdit ? ($typeCfg['edit'] ?? 'Upravit položku').' #'.($post['id'] ?? '') : ($typeCfg['create'] ?? 'Nová položka')) ?></span>
       <a class="btn btn-sm btn-outline-secondary" href="admin.php?r=terms">Správa termů</a>
     </div>
 
@@ -44,22 +49,15 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label">Typ</label>
-          <select class="form-select" name="type" <?= $isEdit ? 'disabled' : '' ?>>
-            <?php
-              $types = ['post','page','product'];
-              $curType = $isEdit ? (string)$post['type'] : 'post';
-              foreach ($types as $t): ?>
-                <option value="<?= $t ?>" <?= $selectedVal($t, $curType) ?>><?= $t ?></option>
-            <?php endforeach; ?>
-          </select>
+          <div class="form-control-plaintext fw-semibold"><?= $h((string)($typeCfg['label'] ?? strtoupper($type))) ?></div>
           <?php if ($isEdit): ?><div class="form-text">Typ nelze měnit.</div><?php endif; ?>
         </div>
         <div class="col-md-4">
           <label class="form-label">Status</label>
           <?php $curStatus = $isEdit ? (string)$post['status'] : 'draft'; ?>
           <select class="form-select" name="status">
-            <option value="draft"   <?= $selectedVal('draft', $curStatus) ?>>draft</option>
-            <option value="publish" <?= $selectedVal('publish', $curStatus) ?>>publish</option>
+            <option value="draft"   <?= $curStatus==='draft'?'selected':'' ?>>draft</option>
+            <option value="publish" <?= $curStatus==='publish'?'selected':'' ?>>publish</option>
           </select>
         </div>
         <div class="col-md-4 d-flex align-items-end">
@@ -123,7 +121,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
     </div>
     <div class="card-footer d-flex gap-2">
       <button class="btn btn-primary" type="submit"><?= $h($isEdit ? 'Uložit změny' : 'Vytvořit') ?></button>
-      <a class="btn btn-outline-secondary" href="admin.php?r=posts">Zpět na seznam</a>
+      <a class="btn btn-outline-secondary" href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','type'=>$type])) ?>">Zpět na seznam</a>
     </div>
   </form>
 <?php

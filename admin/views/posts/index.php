@@ -8,9 +8,12 @@ declare(strict_types=1);
 /** @var array<int,array> $items */
 /** @var array{page:int,per_page:int,total:int,pages:int} $pagination */
 /** @var string $csrf */
+/** @var string $type */
+/** @var array $types */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$filters,$items,$pagination,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () use ($flash,$filters,$items,$pagination,$csrf,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+  $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek'];
 ?>
   <?php if ($flash): ?>
     <div class="alert alert-<?= $h((string)$flash['type']) ?>"><?= $h((string)$flash['msg']) ?></div>
@@ -20,16 +23,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
     <div class="card-body">
       <form class="row g-2" method="get" action="admin.php">
         <input type="hidden" name="r" value="posts">
+        <input type="hidden" name="type" value="<?= $h($type) ?>">
         <div class="col-md-3">
           <input class="form-control" name="q" placeholder="Hledat název…" value="<?= $h((string)$filters['q']) ?>">
-        </div>
-        <div class="col-md-3">
-          <select class="form-select" name="type">
-            <option value="">— typ —</option>
-            <?php foreach (['post','page','product'] as $t): ?>
-              <option value="<?= $t ?>" <?= $filters['type']===$t?'selected':'' ?>><?= $t ?></option>
-            <?php endforeach; ?>
-          </select>
         </div>
         <div class="col-md-3">
           <select class="form-select" name="status">
@@ -47,8 +43,8 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
   </div>
 
   <div class="d-flex justify-content-between align-items-center mb-2">
-    <h2 class="h5 m-0">Seznam</h2>
-    <a class="btn btn-success" href="admin.php?r=posts&a=create">Nový příspěvek</a>
+    <h2 class="h5 m-0">Seznam – <?= $h((string)($typeCfg['list'] ?? 'Příspěvky')) ?></h2>
+    <a class="btn btn-success" href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'create','type'=>$type])) ?>"><?= $h((string)$typeCfg['create']) ?></a>
   </div>
 
   <div class="card">
@@ -80,9 +76,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
               </td>
               <td><?= $h((string)$it['created_at']) ?></td>
               <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary" href="admin.php?r=posts&a=edit&id=<?= $h((string)$it['id']) ?>">Upravit</a>
+                <a class="btn btn-sm btn-outline-primary" href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>">Upravit</a>
 
-                <form method="post" action="admin.php?r=posts&a=toggle" style="display:inline">
+                <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'toggle','type'=>$type])) ?>" style="display:inline">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                   <button class="btn btn-sm btn-outline-warning" type="submit">
@@ -90,7 +86,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
                   </button>
                 </form>
 
-                <form method="post" action="admin.php?r=posts&a=delete" style="display:inline" onsubmit="return confirm('Opravdu smazat?');">
+                <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>" style="display:inline" onsubmit="return confirm('Opravdu smazat?');">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                   <button class="btn btn-sm btn-outline-danger" type="submit">Smazat</button>
@@ -111,7 +107,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
       <ul class="pagination">
         <?php
           $page = (int)$pagination['page']; $pages = (int)$pagination['pages'];
-          $qs = $_GET; unset($qs['page']); $base = 'admin.php?'.http_build_query(array_merge(['r'=>'posts'], $qs));
+          $qs = $_GET; unset($qs['page']); $base = 'admin.php?'.http_build_query(array_merge(['r'=>'posts','type'=>$type], $qs));
         ?>
         <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&page='.max(1,$page-1) ?>">‹</a></li>
         <?php for($i=1;$i<=$pages;$i++): ?>
