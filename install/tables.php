@@ -163,6 +163,73 @@ CREATE TABLE IF NOT EXISTS navigation_items (
 SQL
 ,
 
+/** DEFAULT NAVIGATION MENU */
+<<<SQL
+INSERT INTO navigation_menus (slug, name, location, description, created_at)
+SELECT 'primary', 'Hlavní menu', 'primary', 'Výchozí navigace', NOW()
+WHERE NOT EXISTS (
+    SELECT 1 FROM navigation_menus WHERE slug = 'primary'
+);
+SQL
+,
+
+/** DEFAULT NAVIGATION ITEMS */
+<<<SQL
+INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Index', '/', '_self', NULL, 1, NOW()
+FROM navigation_menus m
+WHERE m.slug = 'primary'
+  AND NOT EXISTS (
+      SELECT 1 FROM navigation_items ni
+      WHERE ni.menu_id = m.id AND ni.title = 'Index' AND ni.parent_id IS NULL
+  );
+SQL
+,
+<<<SQL
+INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Admin', '/admin', '_self', NULL, 2, NOW()
+FROM navigation_menus m
+WHERE m.slug = 'primary'
+  AND NOT EXISTS (
+      SELECT 1 FROM navigation_items ni
+      WHERE ni.menu_id = m.id AND ni.title = 'Admin' AND ni.parent_id IS NULL
+  );
+SQL
+,
+<<<SQL
+INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Register', '/register', '_self', NULL, 3, NOW()
+FROM navigation_menus m
+WHERE m.slug = 'primary'
+  AND NOT EXISTS (
+      SELECT 1 FROM navigation_items ni
+      WHERE ni.menu_id = m.id AND ni.title = 'Register' AND ni.parent_id IS NULL
+  );
+SQL
+,
+<<<SQL
+INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Login', '/login', '_self', NULL, 4, NOW()
+FROM navigation_menus m
+WHERE m.slug = 'primary'
+  AND NOT EXISTS (
+      SELECT 1 FROM navigation_items ni
+      WHERE ni.menu_id = m.id AND ni.title = 'Login' AND ni.parent_id IS NULL
+  );
+SQL
+,
+<<<SQL
+INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Search', '/search', '_self', NULL, 5, NOW()
+FROM navigation_menus m
+WHERE m.slug = 'primary'
+  AND NOT EXISTS (
+      SELECT 1 FROM navigation_items ni
+      WHERE ni.menu_id = m.id AND ni.title = 'Search' AND ni.parent_id IS NULL
+  );
+SQL
+,
+
 /** COMMENTS (anonymní i registrovaní, parent pro vlákna) */
 <<<SQL
 CREATE TABLE IF NOT EXISTS comments (
