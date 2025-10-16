@@ -20,8 +20,8 @@ $isAdmin = $role === 'admin';
     </div>
     <div class="user-bar__links">
       <?php if ($isAdmin): ?>
-        <a class="user-bar__action" href="./admin.php">Administrace</a>
-        <a class="user-bar__action" href="./admin.php?r=posts&a=create">Nový příspěvek</a>
+        <a class="user-bar__action" href="<?= $h($urls->admin()) ?>">Administrace</a>
+        <a class="user-bar__action" href="<?= $h($urls->admin()) ?>?r=posts&amp;a=create">Nový příspěvek</a>
       <?php endif; ?>
       <a class="user-bar__action" href="<?= $h($urls->home()) ?>">Zobrazit web</a>
       <a class="user-bar__action" href="<?= $h($urls->logout()) ?>">Odhlásit</a>

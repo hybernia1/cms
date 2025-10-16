@@ -6,7 +6,6 @@ use Cms\Http\AdminController;
 use Cms\Http\AdminAuthController;
 use Cms\Auth\AuthService;
 use Cms\Auth\Authorization;
-use Cms\Utils\AdminNavigation;
 
 require_once __DIR__ . '/load.php';
 
@@ -34,14 +33,7 @@ if (!$user) {
 
 // >>> ROLE GUARD: pouze admin <<<
 if (!Authorization::isAdmin($user)) {
-    http_response_code(403);
-    // jednoduché zobrazení 403 v admin layoutu:
-    $view = new \Cms\View\ViewEngine(__DIR__ . '/admin/views');
-    $view->render('errors/403', [
-        'pageTitle'   => 'Přístup odepřen',
-        'nav'         => AdminNavigation::build('dashboard'),
-        'currentUser' => $user,
-    ]);
+    header('Location: ./');
     exit;
 }
 
