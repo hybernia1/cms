@@ -32,6 +32,11 @@ final class PostsController extends BaseAdminController
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') $this->update(); else $this->form();
                 return;
 
+            case 'bulk':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->bulk(); return; }
+                $this->index();
+                return;
+
             case 'delete':
                 $this->delete();
                 return;
@@ -146,6 +151,7 @@ final class PostsController extends BaseAdminController
         $perPage = 15;
 
         $pag = $repo->paginate($filters, $page, $perPage);
+        $statusCounts = $repo->countByStatus($type);
 
         $settings = new CmsSettings();
         $items = [];
@@ -176,7 +182,81 @@ final class PostsController extends BaseAdminController
             'type'       => $type,
             'types'      => $this->typeConfig(),
             'urls'       => new LinkGenerator(),
+            'statusCounts' => $statusCounts,
         ]);
+    }
+
+    private function bulk(): void
+    {
+        $this->assertCsrf();
+
+        $type = $this->requestedType();
+        $action = (string)($_POST['bulk_action'] ?? '');
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+
+        if ($ids === [] || $action === '') {
+            $this->redirect($this->listUrl($type), 'warning', 'Vyberte položky a požadovanou akci.');
+        }
+
+        $existing = DB::query()->table('posts')
+            ->select(['id'])
+            ->where('type', '=', $type)
+            ->whereIn('id', $ids)
+            ->get();
+
+        $targetIds = [];
+        foreach ($existing as $row) {
+            $targetIds[] = (int)($row['id'] ?? 0);
+        }
+        $targetIds = array_values(array_filter($targetIds, static fn (int $id): bool => $id > 0));
+
+        if ($targetIds === []) {
+            $this->redirect($this->listUrl($type), 'warning', 'Žádné platné položky pro hromadnou akci.');
+        }
+
+        $count = count($targetIds);
+        try {
+            switch ($action) {
+                case 'publish':
+                case 'draft':
+                    DB::query()->table('posts')
+                        ->update(['status' => $action])
+                        ->whereIn('id', $targetIds)
+                        ->execute();
+                    $message = $action === 'publish'
+                        ? 'Položky byly publikovány.'
+                        : 'Položky byly přepnuty na koncept.';
+                    break;
+
+                case 'delete':
+                    DB::query()->table('post_terms')
+                        ->delete()
+                        ->whereIn('post_id', $targetIds)
+                        ->execute();
+                    DB::query()->table('posts')
+                        ->delete()
+                        ->whereIn('id', $targetIds)
+                        ->execute();
+                    $message = 'Položky byly odstraněny.';
+                    break;
+
+                default:
+                    $this->redirect($this->listUrl($type), 'warning', 'Neznámá hromadná akce.');
+            }
+        } catch (\Throwable $e) {
+            $this->redirect($this->listUrl($type), 'danger', $e->getMessage());
+        }
+
+        $this->redirect(
+            $this->listUrl($type),
+            'success',
+            $message . ' (' . $count . ')'
+        );
     }
 
     private function form(): void
@@ -244,11 +324,17 @@ final class PostsController extends BaseAdminController
                 }
             }
 
+            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
+            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
             $thumbId = null;
-            if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
-                $mediaSvc = new MediaService();
-                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
-                $thumbId = (int)$up['id'];
+            if (!$removeThumb) {
+                if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
+                    $mediaSvc = new MediaService();
+                    $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
+                    $thumbId = (int)$up['id'];
+                } elseif ($selectedThumbId > 0) {
+                    $thumbId = $selectedThumbId;
+                }
             }
 
             $svc = new PostsService();
@@ -337,10 +423,19 @@ final class PostsController extends BaseAdminController
             }
 
             // případný nový thumbnail
-            if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
+            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+
+            if ($removeThumb) {
+                $upd['thumbnail_id'] = null;
+            }
+
+            if (!$removeThumb && !empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $mediaSvc = new MediaService();
                 $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
                 $upd['thumbnail_id'] = (int)$up['id'];
+            } elseif (!$removeThumb && $selectedThumbId > 0) {
+                $upd['thumbnail_id'] = $selectedThumbId;
             }
 
             (new PostsService())->update($id, $upd);
