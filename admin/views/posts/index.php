@@ -89,7 +89,15 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   </div>
 
   <!-- Tabulka bez #ID a bez status sloupce -->
-  <form id="posts-bulk-form" method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'bulk','type'=>$type])) ?>">
+  <form id="posts-bulk-form"
+        data-bulk-form
+        data-select-all="#select-all"
+        data-row-checkbox=".row-check"
+        data-action-select="#bulk-action-select"
+        data-apply-button="#bulk-apply"
+        data-counter="#bulk-selection-counter"
+        method="post"
+        action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'bulk','type'=>$type])) ?>">
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
   </form>
   <div class="card">
@@ -222,63 +230,5 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </nav>
   <?php endif; ?>
 
-  <!-- Tooltip init (BS5) -->
-  <script>
-    (function () {
-      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-      tooltipTriggerList.forEach(function (el) {
-        new bootstrap.Tooltip(el);
-      });
-
-      var selectAll = document.getElementById('select-all');
-      var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.row-check'));
-      var bulkButton = document.getElementById('bulk-apply');
-      var bulkSelect = document.getElementById('bulk-action-select');
-      var counter = document.getElementById('bulk-selection-counter');
-      var form = document.getElementById('posts-bulk-form');
-
-      function updateState() {
-        var checked = checkboxes.filter(function (cb) { return cb.checked; });
-        var count = checked.length;
-        if (selectAll) {
-          selectAll.checked = count > 0 && count === checkboxes.length;
-          selectAll.indeterminate = count > 0 && count < checkboxes.length;
-        }
-        if (bulkButton) {
-          bulkButton.disabled = count === 0 || !bulkSelect || bulkSelect.value === '';
-        }
-        if (counter) {
-          counter.textContent = count > 0 ? ('Vybráno ' + count + ' položek') : '';
-        }
-      }
-
-      if (selectAll) {
-        selectAll.addEventListener('change', function () {
-          var checked = selectAll.checked;
-          checkboxes.forEach(function (cb) { cb.checked = checked; });
-          updateState();
-        });
-      }
-
-      checkboxes.forEach(function (cb) {
-        cb.addEventListener('change', updateState);
-      });
-
-      if (bulkSelect) {
-        bulkSelect.addEventListener('change', updateState);
-      }
-
-      if (form) {
-        form.addEventListener('submit', function (evt) {
-          if (bulkButton && bulkButton.disabled) {
-            evt.preventDefault();
-            return false;
-          }
-        });
-      }
-
-      updateState();
-    })();
-  </script>
 <?php
 });

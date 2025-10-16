@@ -194,8 +194,8 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
 
         <div class="card">
           <div class="table-responsive">
-            <table class="table table-dark table-hover align-middle mb-0">
-              <thead>
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light">
                 <tr>
                   <th style="width:80px">ID</th>
                   <th>Položka</th>
@@ -231,12 +231,12 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                     <td><?= $h($targetLabels[$it['target']] ?? (string)$it['target']) ?></td>
                     <td><?= $h((string)$it['sort_order']) ?></td>
                     <td class="text-end">
-                      <a class="btn btn-sm btn-outline-primary" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form">Upravit</a>
+                      <a class="btn btn-light btn-sm border me-1" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form">Upravit</a>
                       <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" onsubmit="return confirm('Opravdu odstranit tuto položku?');">
                         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                         <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
                         <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
-                        <button class="btn btn-sm btn-outline-danger" type="submit">Smazat</button>
+                        <button class="btn btn-light btn-sm border" type="submit">Smazat</button>
                       </form>
                     </td>
                   </tr>

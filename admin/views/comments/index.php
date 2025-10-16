@@ -21,23 +21,34 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 ?>
   <div class="card mb-3">
     <div class="card-body">
-      <form class="row g-2" method="get" action="admin.php">
+      <form class="row gy-2 gx-2 align-items-end" method="get" action="admin.php">
         <input type="hidden" name="r" value="comments">
         <div class="col-md-3">
-          <select class="form-select" name="status">
-            <option value="">— všechny stavy —</option>
+          <label class="form-label" for="filter-status">Stav</label>
+          <select class="form-select form-select-sm" name="status" id="filter-status">
+            <option value="">Všechny stavy</option>
             <?php foreach (['draft'=>'Koncept','published'=>'Schválené','spam'=>'Spam'] as $val=>$lbl): ?>
-              <option value="<?= $val ?>" <?= $filters['status']===$val?'selected':'' ?>><?= $lbl ?></option>
+              <option value="<?= $h($val) ?>" <?= ($filters['status'] ?? '')===$val?'selected':'' ?>><?= $h($lbl) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="col-md-5">
-          <input class="form-control" name="q" placeholder="Hledat v textu/jménu/e-mailu…" value="<?= $h((string)$filters['q']) ?>">
+          <label class="form-label" for="filter-q">Vyhledávání</label>
+          <div class="input-group input-group-sm">
+            <input class="form-control" id="filter-q" name="q" placeholder="Text komentáře, autor, e-mail…" value="<?= $h((string)($filters['q'] ?? '')) ?>">
+            <button class="btn btn-outline-secondary" type="submit" aria-label="Hledat" data-bs-toggle="tooltip" data-bs-title="Hledat">
+              <i class="bi bi-search"></i>
+            </button>
+            <a class="btn btn-outline-secondary <?= ($filters['q'] ?? '') === '' ? 'disabled' : '' ?>" href="admin.php?r=comments" aria-label="Zrušit filtr" data-bs-toggle="tooltip" data-bs-title="Zrušit filtr">
+              <i class="bi bi-x-circle"></i>
+            </a>
+          </div>
         </div>
         <div class="col-md-4">
-          <div class="input-group">
+          <label class="form-label" for="filter-post">Příspěvek</label>
+          <div class="input-group input-group-sm">
             <span class="input-group-text">Post</span>
-            <input class="form-control" name="post" placeholder="slug nebo ID" value="<?= $h((string)$filters['post']) ?>">
+            <input class="form-control" id="filter-post" name="post" placeholder="slug nebo ID" value="<?= $h((string)($filters['post'] ?? '')) ?>">
             <button class="btn btn-primary" type="submit">Filtrovat</button>
           </div>
         </div>
@@ -47,15 +58,15 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   <div class="card">
     <div class="table-responsive">
-      <table class="table table-dark table-hover align-middle mb-0">
-        <thead>
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light">
           <tr>
             <th style="width:80px">ID</th>
             <th>Autor / E-mail</th>
             <th>Text</th>
-            <th>Post</th>
-            <th style="width:130px">Stav</th>
-            <th style="width:240px"></th>
+            <th>Příspěvek</th>
+            <th style="width:140px">Stav</th>
+            <th style="width:240px" class="text-end">Akce</th>
           </tr>
         </thead>
         <tbody>
@@ -63,56 +74,56 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <tr>
               <td>#<?= $h((string)$c['id']) ?></td>
               <td>
-                <div class="fw-semibold"><?= $h((string)($c['author_name'] ?? '')) ?></div>
-                <div class="small text-secondary"><?= $h((string)($c['author_email'] ?? '')) ?></div>
+                <div class="fw-semibold text-truncate"><?= $h((string)($c['author_name'] ?? '')) ?></div>
+                <div class="small text-secondary text-truncate"><i class="bi bi-envelope me-1"></i><?= $h((string)($c['author_email'] ?? '')) ?></div>
               </td>
               <td>
-                <div class="text-truncate" style="max-width:420px"><?= $h(mb_substr((string)$c['content'],0,160)) ?><?= mb_strlen((string)$c['content'])>160?'…':'' ?></div>
+                <div class="text-truncate" style="max-width:420px;"><?= $h(mb_substr((string)$c['content'],0,160)) ?><?= mb_strlen((string)$c['content'])>160?'…':'' ?></div>
                 <div class="small text-secondary"><?= $h((string)$c['created_at']) ?></div>
               </td>
               <td>
-                <div class="small"><span class="badge text-bg-info"><?= $h((string)$c['post_type']) ?></span></div>
+                <div class="small mb-1"><span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle"><?= $h((string)$c['post_type']) ?></span></div>
                 <a class="small" href="admin.php?r=posts&a=edit&id=<?= (int)$c['post_id'] ?>">#<?= (int)$c['post_id'] ?></a>
-                <div class="small text-secondary"><?= $h((string)$c['post_title']) ?></div>
+                <div class="small text-secondary text-truncate" style="max-width:180px;"><?= $h((string)$c['post_title']) ?></div>
               </td>
               <td>
                 <span class="badge text-bg-<?= $badge((string)$c['status']) ?>"><?= $h((string)$c['status']) ?></span>
               </td>
               <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary" href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>">Detail</a>
+                <a class="btn btn-light btn-sm border me-1" href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>">Detail</a>
 
-                <form method="post" action="admin.php?r=comments&a=approve" style="display:inline">
+                <form method="post" action="admin.php?r=comments&a=approve" class="d-inline">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-sm btn-outline-success" type="submit">Schválit</button>
+                  <button class="btn btn-light btn-sm border me-1" type="submit">Schválit</button>
                 </form>
 
-                <form method="post" action="admin.php?r=comments&a=draft" style="display:inline">
+                <form method="post" action="admin.php?r=comments&a=draft" class="d-inline">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-sm btn-outline-secondary" type="submit">Koncept</button>
+                  <button class="btn btn-light btn-sm border me-1" type="submit">Koncept</button>
                 </form>
 
-                <form method="post" action="admin.php?r=comments&a=spam" style="display:inline">
+                <form method="post" action="admin.php?r=comments&a=spam" class="d-inline">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-sm btn-outline-warning" type="submit">Spam</button>
+                  <button class="btn btn-light btn-sm border me-1" type="submit">Spam</button>
                 </form>
 
-                <form method="post" action="admin.php?r=comments&a=delete" style="display:inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');">
+                <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');">
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-sm btn-outline-danger" type="submit">Smazat</button>
+                  <button class="btn btn-light btn-sm border" type="submit">Smazat</button>
                 </form>
               </td>
             </tr>
           <?php endforeach; ?>
           <?php if (!$items): ?>
-            <tr><td colspan="6" class="text-center text-secondary py-4">Žádné komentáře</td></tr>
+            <tr><td colspan="6" class="text-center text-secondary py-4"><i class="bi bi-inbox me-1"></i>Žádné komentáře</td></tr>
           <?php endif; ?>
         </tbody>
       </table>
@@ -120,17 +131,19 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   </div>
 
   <?php if (($pagination['pages'] ?? 1) > 1): ?>
-    <nav class="mt-3">
-      <ul class="pagination">
+    <nav class="mt-3" aria-label="Stránkování">
+      <ul class="pagination pagination-sm mb-0">
         <?php
-          $page = (int)$pagination['page']; $pages = (int)$pagination['pages'];
-          $qs = $_GET; unset($qs['page']); $base = 'admin.php?'.http_build_query(array_merge(['r'=>'comments'], $qs));
+          $page = (int)($pagination['page'] ?? 1);
+          $pages = (int)($pagination['pages'] ?? 1);
+          $qs = $_GET; unset($qs['page']);
+          $base = 'admin.php?'.http_build_query(array_merge(['r'=>'comments'], $qs));
         ?>
-        <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&page='.max(1,$page-1) ?>">‹</a></li>
-        <?php for($i=1;$i<=$pages;$i++): ?>
-          <li class="page-item <?= $i===$page?'active':'' ?>"><a class="page-link" href="<?= $base.'&page='.$i ?>"><?= $i ?></a></li>
+        <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= $h($base.'&page='.max(1,$page-1)) ?>" aria-label="Předchozí">‹</a></li>
+        <?php for($i=max(1,$page-2); $i<=min($pages,$page+2); $i++): ?>
+          <li class="page-item <?= $i===$page?'active':'' ?>"><a class="page-link" href="<?= $h($base.'&page='.$i) ?>"><?= $i ?></a></li>
         <?php endfor; ?>
-        <li class="page-item <?= $page>=$pages?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&page='.min($pages,$page+1) ?>">›</a></li>
+        <li class="page-item <?= $page>=$pages?'disabled':'' ?>"><a class="page-link" href="<?= $h($base.'&page='.min($pages,$page+1)) ?>" aria-label="Další">›</a></li>
       </ul>
     </nav>
   <?php endif; ?>

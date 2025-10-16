@@ -16,7 +16,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <div class="row g-3">
         <?php foreach ($themes as $t): ?>
           <div class="col-md-6">
-            <div class="card h-100">
+            <div class="card h-100 shadow-sm">
               <?php if ($t['screenshot']): ?>
                 <img src="<?= $h($t['screenshot']) ?>" class="card-img-top" alt="screenshot" style="object-fit:cover;max-height:180px">
               <?php endif; ?>
@@ -24,18 +24,18 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <h5 class="card-title mb-1"><?= $h($t['name']) ?></h5>
                 <div class="small text-secondary mb-2">slug: <code><?= $h($t['slug']) ?></code><?php if ($t['version']): ?> • v<?= $h($t['version']) ?><?php endif; ?></div>
                 <div class="small text-secondary mb-2"><?= $t['author'] ? 'Autor: '.$h($t['author']) : '' ?></div>
-                <span class="badge text-bg-<?= $t['hasTemplates']?'success':'warning' ?>">
+                <span class="badge <?= $t['hasTemplates'] ? 'text-bg-success-subtle text-success-emphasis border border-success-subtle' : 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle' ?>">
                   <?= $t['hasTemplates'] ? 'templates/ OK' : 'chybí templates/' ?>
                 </span>
               </div>
-              <div class="card-footer d-flex gap-2">
+              <div class="card-footer d-flex align-items-center gap-2">
                 <?php if ($t['slug'] === $activeSlug): ?>
-                  <span class="badge text-bg-primary">Aktivní</span>
+                  <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle">Aktivní</span>
                 <?php else: ?>
                   <form method="post" action="admin.php?r=themes&a=activate" class="ms-auto">
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="slug" value="<?= $h($t['slug']) ?>">
-                    <button class="btn btn-sm btn-outline-primary" type="submit">Aktivovat</button>
+                    <button class="btn btn-light btn-sm border" type="submit">Aktivovat</button>
                   </form>
                 <?php endif; ?>
               </div>
@@ -49,7 +49,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
 
     <div class="col-lg-4">
-      <form class="card" method="post" action="admin.php?r=themes&a=upload" enctype="multipart/form-data">
+      <form class="card shadow-sm" method="post" action="admin.php?r=themes&a=upload" enctype="multipart/form-data">
         <div class="card-header">Nahrát šablonu (ZIP)</div>
         <div class="card-body">
           <input type="file" class="form-control" name="theme_zip" accept=".zip,application/zip" required>
@@ -59,7 +59,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         </div>
         <div class="card-footer">
           <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-          <button class="btn btn-primary" type="submit">Nahrát</button>
+          <button class="btn btn-success btn-sm" type="submit">
+            <i class="bi bi-cloud-upload me-1"></i>Nahrát
+          </button>
         </div>
       </form>
     </div>
