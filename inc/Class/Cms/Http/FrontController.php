@@ -10,6 +10,7 @@ use Cms\View\ViewEngine;
 use Cms\View\Assets;
 use Cms\Settings\CmsSettings;
 use Cms\Auth\AuthService;
+use Cms\Domain\Repositories\NavigationRepository;
 
 final class FrontController
 {
@@ -19,16 +20,19 @@ final class FrontController
     private Assets $assets;
     private CmsSettings $settings;
     private ?array $frontUser = null;
+    /** @var array<int,array<string,mixed>> */
+    private array $navigation = [];
 
     public function __construct()
     {
         if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $this->tm        = new ThemeManager();
-        $this->resolver  = new ThemeResolver($this->tm);
-        $this->view      = new ViewEngine($this->tm->templateBasePath());
-        $this->assets    = new Assets($this->tm);
-        $this->settings  = new CmsSettings();
-        $this->frontUser = (new AuthService())->user(); // sdílíme admin login i na frontendu
+        $this->tm         = new ThemeManager();
+        $this->resolver   = new ThemeResolver($this->tm);
+        $this->view       = new ViewEngine($this->tm->templateBasePath());
+        $this->assets     = new Assets($this->tm);
+        $this->settings   = new CmsSettings();
+        $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
+        $this->navigation = (new NavigationRepository())->treeByLocation('primary');
     }
 
     public function handle(): void
@@ -76,6 +80,7 @@ final class FrontController
             case 'page':     $this->single('page', (string)($_GET['slug'] ?? '')); return;
             case 'type':     $this->archive((string)($_GET['type'] ?? 'post')); return;
             case 'term':     $this->archiveByTerm((string)($_GET['slug'] ?? '')); return;
+            case 'terms':    $this->terms((string)($_GET['type'] ?? '')); return;
             case 'search':   $this->search((string)($_GET['s'] ?? '')); return;
             case 'register': $this->register(); return;
             case 'lost':     $this->lost(); return;
@@ -96,6 +101,7 @@ final class FrontController
         if ($parts[0] === 'page'   && !empty($parts[1])) { $this->single('page', $parts[1]); return; }
         if ($parts[0] === 'type'   && !empty($parts[1])) { $this->archive($parts[1]); return; }
         if ($parts[0] === 'term'   && !empty($parts[1])) { $this->archiveByTerm($parts[1]); return; }
+        if ($parts[0] === 'terms')                       { $this->terms($parts[1] ?? ''); return; }
         if ($parts[0] === 'search')                      { $this->search((string)($_GET['s'] ?? '')); return; }
         if ($parts[0] === 'register')                    { $this->register(); return; }
         if ($parts[0] === 'lost')                        { $this->lost(); return; }
@@ -114,9 +120,12 @@ final class FrontController
         $rel  = ltrim(str_replace($this->tm->templateBasePath(), '', $file), '/\\');
 
         $base = [
-            'assets'    => $this->assets,
-            'siteTitle' => $this->siteTitle(),
+            'assets'      => $this->assets,
+            'siteTitle'   => $this->siteTitle(),
+            'frontUser'   => $this->frontUser,
+            'navigation'  => $this->navigation,
         ];
+        $this->view->share($base);
         $this->view->render($rel, $base + $data);
     }
 
@@ -165,17 +174,24 @@ final class FrontController
 
         $commentsAllowed = (int)($row['comments_allowed'] ?? 1) === 1 && $type === 'post';
         $tree = [];
-        if ($commentsAllowed) $tree = $this->commentsTree((int)$row['id']);
+        if ($commentsAllowed) {
+            $tree = $this->commentsTree((int)$row['id']);
+        }
 
-$tpl = ($type === 'page') ? 'page' : 'single';
-$this->render($tpl, ['type' => $type], [
-    $tpl === 'page' ? 'page' : 'post' => $row,
-    'commentsTree'    => $tree,
-    'commentsAllowed' => $commentsAllowed,
-    'csrfPublic'      => $this->tokenPublic(),
-    'commentFlash'    => $this->readFrontFlash(),
-    'frontUser'       => $this->frontUser,
-]);
+        $tpl = $type === 'page' ? 'page' : 'single';
+
+        $this->render(
+            $tpl,
+            ['type' => $type],
+            [
+                $tpl === 'page' ? 'page' : 'post' => $row,
+                'commentsTree'    => $tree,
+                'commentsAllowed' => $commentsAllowed,
+                'csrfPublic'      => $this->tokenPublic(),
+                'commentFlash'    => $this->readFrontFlash(),
+                'frontUser'       => $this->frontUser,
+            ]
+        );
     }
 
     private function archive(string $type): void
@@ -227,6 +243,51 @@ $this->render($tpl, ['type' => $type], [
         }
 
         $this->render('search', [], ['items' => $items, 'query' => $q]);
+    }
+
+    private function terms(string $type): void
+    {
+        $type = trim($type);
+
+        $typeRows = DB::query()
+            ->table('terms')
+            ->select(["DISTINCT type AS type"])
+            ->orderBy('type')
+            ->get();
+
+        $availableTypes = array_map(static fn(array $row): string => (string)$row['type'], $typeRows);
+        if ($type !== '' && !in_array($type, $availableTypes, true)) {
+            $type = '';
+        }
+
+        $query = DB::query()
+            ->table('terms', 't')
+            ->select([
+                't.id',
+                't.slug',
+                't.name',
+                't.type',
+                't.description',
+                't.created_at',
+                "SUM(CASE WHEN p.status = 'publish' THEN 1 ELSE 0 END) AS posts_count",
+            ])
+            ->leftJoin('post_terms pt', 't.id', '=', 'pt.term_id')
+            ->leftJoin('posts p', 'pt.post_id', '=', 'p.id')
+            ->groupBy(['t.id','t.slug','t.name','t.type','t.description','t.created_at'])
+            ->orderBy('t.type')
+            ->orderBy('t.name');
+
+        if ($type !== '') {
+            $query->where('t.type', '=', $type);
+        }
+
+        $terms = $query->get();
+
+        $this->render('terms', [], [
+            'terms'          => $terms,
+            'activeType'     => $type !== '' ? $type : null,
+            'availableTypes' => $availableTypes,
+        ]);
     }
 
     private function notFound(): void

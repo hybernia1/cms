@@ -6,6 +6,8 @@ namespace Cms\View;
 final class ViewEngine
 {
     private string $basePath;
+    /** @var array<string,mixed> */
+    private array $shared = [];
 
     public function __construct(string $basePath)
     {
@@ -48,7 +50,13 @@ final class ViewEngine
         $content = function() use ($contentBlock): void {
             if ($contentBlock) { $contentBlock(); }
         };
-        extract($data, EXTR_OVERWRITE);
+        $payload = $this->shared;
+        foreach ($data as $key => $value) {
+            if (is_string($key)) {
+                $payload[$key] = $value;
+            }
+        }
+        extract($payload, EXTR_OVERWRITE);
         include $file;
     }
 
@@ -58,5 +66,14 @@ final class ViewEngine
     public function part(string $partial, array $data = []): void
     {
         $this->render($partial, $data);
+    }
+
+    public function share(array $data): void
+    {
+        foreach ($data as $key => $value) {
+            if (is_string($key)) {
+                $this->shared[$key] = $value;
+            }
+        }
     }
 }

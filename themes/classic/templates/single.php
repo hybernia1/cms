@@ -8,7 +8,7 @@
 /** @var array|null $commentFlash */
 /** @var array|null $frontUser */
 
-$this->render('layouts/base', compact('assets','siteTitle'), function() use ($post,$commentsTree,$commentsAllowed,$csrfPublic,$commentFlash,$frontUser) {
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($post,$commentsTree,$commentsAllowed,$csrfPublic,$commentFlash,$frontUser) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $cs = new \Cms\Settings\CmsSettings();
 

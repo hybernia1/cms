@@ -1,7 +1,7 @@
 <?php
 /** @var \Cms\View\Assets $assets */
 /** @var string $siteTitle */
-$this->render('layouts/base', compact('assets','siteTitle'), function() {
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() {
 ?>
   <div class="card">
     <h2 style="margin-top:0">404 – Stránka nenalezena</h2>

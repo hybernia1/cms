@@ -3,7 +3,7 @@
 /** @var string $siteTitle */
 /** @var array<int,array{id:int,title:string,slug:string,created_at:string,type:string}> $items */
 /** @var string $query */
-$this->render('layouts/base', compact('assets','siteTitle'), function() use ($items, $query) {
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($items, $query) {
 ?>
   <div class="card">
     <h2 style="margin-top:0">Hledání</h2>

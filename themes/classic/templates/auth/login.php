@@ -6,8 +6,11 @@ declare(strict_types=1);
 /** @var string|null $type */
 /** @var string|null $msg */
 
-$this->render('layouts/base', compact('assets','siteTitle'), function() use ($csrfPublic,$type,$msg) {
-  $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
+$type = $type ?? null;
+$msg  = $msg ?? null;
+
+$this->render('layouts/base', compact('assets', 'siteTitle'), function() use ($csrfPublic, $type, $msg) {
+  $h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
 ?>
 <div class="card">
   <div class="card-header">Přihlášení</div>
