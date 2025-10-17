@@ -124,6 +124,55 @@ abstract class BaseAdminController
         $this->view->render($template, $payload);
     }
 
+    /**
+     * Normalize pagination data to common shape used in admin listings.
+     *
+     * @param array<string,mixed> $paginated
+     * @return array{page:int,per_page:int,total:int,pages:int}
+     */
+    final protected function paginationData(array $paginated, int $page, int $perPage): array
+    {
+        return [
+            'page'     => (int)($paginated['page'] ?? $page),
+            'per_page' => (int)($paginated['per_page'] ?? $perPage),
+            'total'    => (int)($paginated['total'] ?? 0),
+            'pages'    => (int)($paginated['pages'] ?? 1),
+        ];
+    }
+
+    /**
+     * Build closure for creating listing URLs with preserved filters.
+     *
+     * @param array<string,scalar|null> $baseQuery
+     * @return callable(array<string,scalar|null>): string
+     */
+    final protected function listingUrlBuilder(array $baseQuery, string $route = 'admin.php'): callable
+    {
+        $normalized = $baseQuery;
+        unset($normalized['page']);
+
+        return static function (array $override = []) use ($route, $normalized): string {
+            $query = array_merge($normalized, $override);
+
+            if (!array_key_exists('page', $override)) {
+                unset($query['page']);
+            }
+
+            $query = array_filter(
+                $query,
+                static fn($value): bool => $value !== null,
+            );
+
+            $qs = http_build_query($query);
+
+            if ($qs === '') {
+                return $route;
+            }
+
+            return $route . '?' . $qs;
+        };
+    }
+
     private function captureView(string $template, array $payload): string
     {
         ob_start();

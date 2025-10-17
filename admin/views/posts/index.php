@@ -12,18 +12,11 @@ declare(strict_types=1);
 /** @var array $types */
 /** @var \Cms\Utils\LinkGenerator $urls */
 /** @var array<string,int> $statusCounts */
+/** @var callable $buildUrl */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts,$buildUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek'];
-
-  // helper: postav URL s přepsanými parametry (např. status), resetuje page
-  $buildUrl = function(array $override = [] ) use ($type) : string {
-    $qs = $_GET ?? [];
-    unset($qs['page']);
-    $qs = array_merge(['r'=>'posts','type'=>$type], $qs, $override);
-    return 'admin.php?'.http_build_query($qs);
-  };
 
   $status = (string)($filters['status'] ?? '');
   $q = (string)($filters['q'] ?? '');
@@ -46,76 +39,64 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     return (int)($statusCounts[$value] ?? 0);
   };
 ?>
-  <!-- Horní lišta: přepínače + minimalistický search + "Nový" -->
-  <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 mb-3">
-    <!-- Status tabs -->
-    <nav aria-label="Filtr statusu" class="order-2 order-md-1">
-      <ul class="nav nav-pills nav-sm">
-        <?php foreach ($statusTabs as $value => $label): ?>
-          <?php $count = $statusCountFor($value); ?>
-          <li class="nav-item">
-            <a class="nav-link px-3 py-1 <?= $status===$value ? 'active' : '' ?>"
-               href="<?= $h($buildUrl(['status'=>$value])) ?>">
-               <?= $h($label) ?><?php if ($count >= 0): ?><span class="ms-1 badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><?= $count ?></span><?php endif; ?>
-            </a>
-          </li>
-        <?php endforeach; ?>
-      </ul>
-    </nav>
+  <?php
+    $tabLinks = [];
+    foreach ($statusTabs as $value => $label) {
+      $tabLinks[] = [
+        'label'  => $label,
+        'href'   => $buildUrl(['status' => $value]),
+        'active' => $status === $value,
+        'count'  => $statusCountFor($value),
+      ];
+    }
 
-    <!-- Minimal search (ikonka) -->
-    <form class="order-1 order-md-2 ms-md-auto" method="get" action="admin.php" role="search" data-ajax>
-      <input type="hidden" name="r" value="posts">
-      <input type="hidden" name="type" value="<?= $h($type) ?>">
-      <input type="hidden" name="status" value="<?= $h($status) ?>">
-
-      <div class="input-group input-group-sm" style="min-width:260px;">
-        <input class="form-control" name="q" placeholder="Hledat…" value="<?= $h($q) ?>">
-        <button class="btn btn-outline-secondary" type="submit" aria-label="Hledat" data-bs-toggle="tooltip" data-bs-title="Hledat">
-          <i class="bi bi-search"></i>
-        </button>
-        <a class="btn btn-outline-secondary <?= $q === '' ? 'disabled' : '' ?>"
-           href="<?= $h($buildUrl(['q'=>''])) ?>"
-           aria-label="Zrušit filtr" data-bs-toggle="tooltip" data-bs-title="Zrušit filtr">
-          <i class="bi bi-x-circle"></i>
-        </a>
-      </div>
-    </form>
-
-    <!-- New button -->
-    <a class="btn btn-success btn-sm order-3" href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'create','type'=>$type])) ?>">
-      <i class="bi bi-plus-lg me-1"></i><?= $h((string)($typeCfg['create'] ?? 'Nový záznam')) ?>
-    </a>
-  </div>
+    $this->part('listing/toolbar', [
+      'tabs'    => $tabLinks,
+      'tabsClass' => 'order-2 order-md-1',
+      'search'  => [
+        'action'        => 'admin.php',
+        'wrapperClass'  => 'order-1 order-md-2 ms-md-auto',
+        'hidden'        => ['r' => 'posts', 'type' => $type, 'status' => $status],
+        'value'         => $q,
+        'placeholder'   => 'Hledat…',
+        'resetHref'     => $buildUrl(['q' => '']),
+        'resetDisabled' => $q === '',
+        'searchTooltip' => 'Hledat',
+        'clearTooltip'  => 'Zrušit filtr',
+      ],
+      'button' => [
+        'href'  => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'create', 'type' => $type]),
+        'label' => (string)($typeCfg['create'] ?? 'Nový záznam'),
+        'icon'  => 'bi bi-plus-lg',
+        'class' => 'btn btn-success btn-sm order-3',
+      ],
+    ]);
+  ?>
 
   <!-- Tabulka bez #ID a bez status sloupce -->
-  <form id="posts-bulk-form"
-        data-bulk-form
-        data-select-all="#select-all"
-        data-row-checkbox=".row-check"
-        data-action-select="#bulk-action-select"
-        data-apply-button="#bulk-apply"
-        data-counter="#bulk-selection-counter"
-        method="post"
-        data-ajax
-        action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'bulk','type'=>$type])) ?>">
-    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-  </form>
+  <?php $this->part('listing/bulk-form', [
+    'formId'       => 'posts-bulk-form',
+    'action'       => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'bulk', 'type' => $type]),
+    'csrf'         => $csrf,
+    'selectAll'    => '#select-all',
+    'rowSelector'  => '.row-check',
+    'actionSelect' => '#bulk-action-select',
+    'applyButton'  => '#bulk-apply',
+    'counter'      => '#bulk-selection-counter',
+  ]); ?>
   <div class="card">
-    <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <select class="form-select form-select-sm" name="bulk_action" id="bulk-action-select" form="posts-bulk-form">
-          <option value="">Hromadná akce…</option>
-          <option value="publish">Publikovat</option>
-          <option value="draft">Přepnout na koncept</option>
-          <option value="delete">Smazat</option>
-        </select>
-        <button class="btn btn-primary btn-sm" type="submit" id="bulk-apply" form="posts-bulk-form" disabled>
-          <i class="bi bi-arrow-repeat me-1"></i>Provést
-        </button>
-      </div>
-      <div class="ms-md-auto small text-secondary" id="bulk-selection-counter" aria-live="polite"></div>
-    </div>
+    <?php $this->part('listing/bulk-header', [
+      'formId'         => 'posts-bulk-form',
+      'actionSelectId' => 'bulk-action-select',
+      'applyButtonId'  => 'bulk-apply',
+      'options'        => [
+        ['value' => 'publish', 'label' => 'Publikovat'],
+        ['value' => 'draft',   'label' => 'Přepnout na koncept'],
+        ['value' => 'delete',  'label' => 'Smazat'],
+      ],
+      'counterId'      => 'bulk-selection-counter',
+      'applyIcon'      => 'bi bi-arrow-repeat',
+    ]); ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
@@ -208,28 +189,12 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
 
   <!-- Stránkování -->
-  <?php if (($pagination['pages'] ?? 1) > 1): ?>
-    <nav class="mt-3" aria-label="Stránkování">
-      <ul class="pagination pagination-sm mb-0">
-        <?php
-          $page  = (int)($pagination['page']  ?? 1);
-          $pages = (int)($pagination['pages'] ?? 1);
-          $base = $buildUrl();
-        ?>
-        <li class="page-item <?= $page<=1?'disabled':'' ?>">
-          <a class="page-link" href="<?= $h($base.'&page='.max(1,$page-1)) ?>" aria-label="Předchozí">‹</a>
-        </li>
-        <?php for($i=max(1,$page-2); $i<=min($pages,$page+2); $i++): ?>
-          <li class="page-item <?= $i===$page?'active':'' ?>">
-            <a class="page-link" href="<?= $h($base.'&page='.$i) ?>"><?= $i ?></a>
-          </li>
-        <?php endfor; ?>
-        <li class="page-item <?= $page>=$pages?'disabled':'' ?>">
-          <a class="page-link" href="<?= $h($base.'&page='.min($pages,$page+1)) ?>" aria-label="Další">›</a>
-        </li>
-      </ul>
-    </nav>
-  <?php endif; ?>
+  <?php $this->part('listing/pagination', [
+    'page'      => (int)($pagination['page'] ?? 1),
+    'pages'     => (int)($pagination['pages'] ?? 1),
+    'buildUrl'  => $buildUrl,
+    'ariaLabel' => 'Stránkování',
+  ]); ?>
 
 <?php
 });

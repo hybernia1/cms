@@ -34,10 +34,17 @@ final class UsersController extends BaseAdminController
             });
         }
         $b->orderBy('u.created_at','DESC');
-        $data = $b->paginate($page, 20);
+        $paginated = $b->paginate($page, 20);
+
+        $pagination = $this->paginationData($paginated, $page, 20);
+        $buildUrl = $this->listingUrlBuilder([
+            'r' => 'users',
+            'q' => $q,
+        ]);
+
         $settings = new CmsSettings();
         $items = [];
-        foreach (($data['items'] ?? []) as $row) {
+        foreach (($paginated['items'] ?? []) as $row) {
             $created = DateTimeFactory::fromStorage(isset($row['created_at']) ? (string)$row['created_at'] : null);
             $row['created_at_raw'] = isset($row['created_at']) ? (string)$row['created_at'] : '';
             if ($created) {
@@ -47,13 +54,14 @@ final class UsersController extends BaseAdminController
             }
             $items[] = $row;
         }
-        $data['items'] = $items;
 
         $this->renderAdmin('users/index', [
             'pageTitle' => 'Uživatelé',
             'nav'       => AdminNavigation::build('users'),
-            'data'      => $data,
-            'q'         => $q,
+            'items'     => $items,
+            'pagination'=> $pagination,
+            'searchQuery' => $q,
+            'buildUrl'  => $buildUrl,
         ]);
     }
 

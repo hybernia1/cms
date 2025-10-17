@@ -177,6 +177,15 @@ final class PostsController extends BaseAdminController
         $pag = $repo->paginate($filters, $page, $perPage);
         $statusCounts = $repo->countByStatus($type);
 
+        $pagination = $this->paginationData($pag, $page, $perPage);
+        $buildUrl = $this->listingUrlBuilder([
+            'r'      => 'posts',
+            'type'   => $type,
+            'status' => $filters['status'],
+            'author' => $filters['author'],
+            'q'      => $filters['q'],
+        ]);
+
         $settings = new CmsSettings();
         $items = [];
         foreach (($pag['items'] ?? []) as $row) {
@@ -197,16 +206,12 @@ final class PostsController extends BaseAdminController
             'nav'        => AdminNavigation::build('posts:' . $type),
             'filters'    => $filters,
             'items'      => $items,
-            'pagination' => [
-                'page'     => $pag['page'] ?? $page,
-                'per_page' => $pag['per_page'] ?? $perPage,
-                'total'    => $pag['total'] ?? 0,
-                'pages'    => $pag['pages'] ?? 1,
-            ],
+            'pagination' => $pagination,
             'type'       => $type,
             'types'      => $this->typeConfig(),
             'urls'       => new LinkGenerator(),
             'statusCounts' => $statusCounts,
+            'buildUrl'   => $buildUrl,
         ]);
     }
 

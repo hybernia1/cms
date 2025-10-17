@@ -11,62 +11,56 @@ declare(strict_types=1);
 /** @var string $type */
 /** @var array $types */
 /** @var \Cms\Utils\LinkGenerator $urls */
+/** @var callable $buildUrl */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$buildUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $typeCfg = $types[$type] ?? ['create' => 'Nový term'];
-  $buildUrl = function(array $override = []) use ($type) : string {
-    $qs = $_GET ?? [];
-    unset($qs['page']);
-    $qs = array_merge(['r'=>'terms','type'=>$type], $qs, $override);
-    return 'admin.php?'.http_build_query($qs);
-  };
 ?>
-  <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 mb-3">
-    <form class="order-1 flex-grow-1" method="get" action="admin.php" role="search" data-ajax>
-      <input type="hidden" name="r" value="terms">
-      <input type="hidden" name="type" value="<?= $h($type) ?>">
-      <div class="input-group input-group-sm" style="min-width:260px;">
-        <input class="form-control" name="q" placeholder="Hledat…" value="<?= $h((string)($filters['q'] ?? '')) ?>">
-        <button class="btn btn-outline-secondary" type="submit" aria-label="Hledat" data-bs-toggle="tooltip" data-bs-title="Hledat">
-          <i class="bi bi-search"></i>
-        </button>
-        <a class="btn btn-outline-secondary <?= ($filters['q'] ?? '') === '' ? 'disabled' : '' ?>" href="<?= $h($buildUrl(['q'=>''])) ?>" aria-label="Zrušit filtr" data-bs-toggle="tooltip" data-bs-title="Zrušit filtr">
-          <i class="bi bi-x-circle"></i>
-        </a>
-      </div>
-    </form>
+  <?php
+    $queryValue = (string)($filters['q'] ?? '');
+    $this->part('listing/toolbar', [
+      'search' => [
+        'action'        => 'admin.php',
+        'wrapperClass'  => 'order-1 flex-grow-1',
+        'hidden'        => ['r' => 'terms', 'type' => $type],
+        'value'         => $queryValue,
+        'placeholder'   => 'Hledat…',
+        'resetHref'     => $buildUrl(['q' => '']),
+        'resetDisabled' => $queryValue === '',
+        'searchTooltip' => 'Hledat',
+        'clearTooltip'  => 'Zrušit filtr',
+      ],
+      'button' => [
+        'href'  => 'admin.php?' . http_build_query(['r' => 'terms', 'a' => 'create', 'type' => $type]),
+        'label' => (string)($typeCfg['create'] ?? 'Nový term'),
+        'icon'  => 'bi bi-plus-lg',
+        'class' => 'btn btn-success btn-sm order-2 order-md-2 ms-md-auto',
+      ],
+    ]);
+  ?>
 
-    <a class="btn btn-success btn-sm order-2 order-md-2 ms-md-auto" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'create','type'=>$type])) ?>">
-      <i class="bi bi-plus-lg me-1"></i><?= $h((string)($typeCfg['create'] ?? 'Nový term')) ?>
-    </a>
-  </div>
-
-  <form id="terms-bulk-form"
-        data-bulk-form
-        data-select-all="#terms-select-all"
-        data-row-checkbox=".term-row-check"
-        data-action-select="#terms-bulk-action"
-        data-apply-button="#terms-bulk-apply"
-        data-counter="#terms-bulk-counter"
-        method="post"
-        data-ajax
-        action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'bulk','type'=>$type])) ?>">
-    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-  </form>
+  <?php $this->part('listing/bulk-form', [
+    'formId'       => 'terms-bulk-form',
+    'action'       => 'admin.php?' . http_build_query(['r' => 'terms', 'a' => 'bulk', 'type' => $type]),
+    'csrf'         => $csrf,
+    'selectAll'    => '#terms-select-all',
+    'rowSelector'  => '.term-row-check',
+    'actionSelect' => '#terms-bulk-action',
+    'applyButton'  => '#terms-bulk-apply',
+    'counter'      => '#terms-bulk-counter',
+  ]); ?>
   <div class="card">
-    <div class="card-header d-flex flex-column flex-md-row gap-2 align-items-start align-items-md-center">
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <select class="form-select form-select-sm" name="bulk_action" id="terms-bulk-action" form="terms-bulk-form">
-          <option value="">Hromadná akce…</option>
-          <option value="delete">Smazat</option>
-        </select>
-        <button class="btn btn-primary btn-sm" type="submit" id="terms-bulk-apply" form="terms-bulk-form" disabled>
-          <i class="bi bi-trash3 me-1"></i>Provést
-        </button>
-      </div>
-      <div class="ms-md-auto small text-secondary" id="terms-bulk-counter" aria-live="polite"></div>
-    </div>
+    <?php $this->part('listing/bulk-header', [
+      'formId'         => 'terms-bulk-form',
+      'actionSelectId' => 'terms-bulk-action',
+      'applyButtonId'  => 'terms-bulk-apply',
+      'options'        => [
+        ['value' => 'delete', 'label' => 'Smazat'],
+      ],
+      'counterId'      => 'terms-bulk-counter',
+      'applyIcon'      => 'bi bi-trash3',
+    ]); ?>
     <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
@@ -124,28 +118,12 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       </div>
     </div>
 
-  <?php if (($pagination['pages'] ?? 1) > 1): ?>
-    <nav class="mt-3" aria-label="Stránkování">
-      <ul class="pagination pagination-sm mb-0">
-        <?php
-          $page  = (int)($pagination['page'] ?? 1);
-          $pages = (int)($pagination['pages'] ?? 1);
-          $base = $buildUrl();
-        ?>
-        <li class="page-item <?= $page<=1?'disabled':'' ?>">
-          <a class="page-link" href="<?= $h($base.'&page='.max(1,$page-1)) ?>" aria-label="Předchozí">‹</a>
-        </li>
-        <?php for($i=max(1,$page-2); $i<=min($pages,$page+2); $i++): ?>
-          <li class="page-item <?= $i===$page?'active':'' ?>">
-            <a class="page-link" href="<?= $h($base.'&page='.$i) ?>"><?= $i ?></a>
-          </li>
-        <?php endfor; ?>
-        <li class="page-item <?= $page>=$pages?'disabled':'' ?>">
-          <a class="page-link" href="<?= $h($base.'&page='.min($pages,$page+1)) ?>" aria-label="Další">›</a>
-        </li>
-      </ul>
-    </nav>
-  <?php endif; ?>
+  <?php $this->part('listing/pagination', [
+    'page'      => (int)($pagination['page'] ?? 1),
+    'pages'     => (int)($pagination['pages'] ?? 1),
+    'buildUrl'  => $buildUrl,
+    'ariaLabel' => 'Stránkování',
+  ]); ?>
 
 <?php
 });
