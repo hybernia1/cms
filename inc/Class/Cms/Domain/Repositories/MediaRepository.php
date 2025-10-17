@@ -22,6 +22,11 @@ final class MediaRepository
         return DB::query()->table('media')->delete()->where('id','=',$id)->execute();
     }
 
+    public function update(int $id, array $data): int
+    {
+        return DB::query()->table('media')->update($data)->where('id','=',$id)->execute();
+    }
+
     public function attachToPost(int $postId, int $mediaId, string $role = 'attachment'): void
     {
         DB::query()->table('post_media')->insert([

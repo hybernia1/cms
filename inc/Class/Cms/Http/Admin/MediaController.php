@@ -5,7 +5,9 @@ namespace Cms\Http\Admin;
 
 use Core\Database\Init as DB;
 use Cms\Domain\Services\MediaService;
+use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
+use Core\Files\PathResolver;
 
 final class MediaController extends BaseAdminController
 {
@@ -17,6 +19,9 @@ final class MediaController extends BaseAdminController
                 // fallthrough na index
             case 'delete':
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->delete(); return; }
+                // fallthrough na index
+            case 'optimize':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->optimize(); return; }
                 // fallthrough na index
             case 'library':
                 $this->library();
@@ -40,7 +45,11 @@ final class MediaController extends BaseAdminController
         $perPage = 30;
 
         $q = DB::query()->table('media','m')
-            ->select(['m.id','m.user_id','m.type','m.mime','m.url','m.rel_path','m.created_at'])
+            ->select([
+                'm.id','m.user_id','m.type','m.mime','m.url','m.rel_path','m.created_at','m.meta',
+                'u.name AS author_name','u.email AS author_email'
+            ])
+            ->leftJoin('users u', 'u.id', '=', 'm.user_id')
             ->orderBy('m.created_at','DESC');
 
         if ($filters['type'] !== '') $q->where('m.type','=', $filters['type']);
@@ -53,17 +62,22 @@ final class MediaController extends BaseAdminController
 
         $pag = $q->paginate($page, $perPage);
 
+        $paths = $this->uploadPaths();
+        $settings = new CmsSettings();
+        $items = array_map(fn(array $row) => $this->prepareItem($row, $paths), $pag['items'] ?? []);
+
         $this->renderAdmin('media/index', [
             'pageTitle'  => 'Média',
             'nav'        => AdminNavigation::build('media'),
             'filters'    => $filters,
-            'items'      => $pag['items'] ?? [],
+            'items'      => $items,
             'pagination' => [
                 'page'     => $pag['page'] ?? $page,
                 'per_page' => $pag['per_page'] ?? $perPage,
                 'total'    => $pag['total'] ?? 0,
                 'pages'    => $pag['pages'] ?? 1,
             ],
+            'webpEnabled'=> $settings->webpEnabled(),
         ]);
     }
 
@@ -139,6 +153,26 @@ final class MediaController extends BaseAdminController
         $this->redirect('admin.php?r=media', 'success', 'Soubor odstraněn.');
     }
 
+    private function optimize(): void
+    {
+        $this->assertCsrf();
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            $this->redirect('admin.php?r=media', 'danger', 'Chybí ID.');
+        }
+
+        try {
+            $svc = new MediaService();
+            $created = $svc->optimizeWebp($id, $this->uploadPaths());
+            if ($created) {
+                $this->redirect('admin.php?r=media', 'success', 'WebP varianta byla vytvořena.');
+            }
+            $this->redirect('admin.php?r=media', 'info', 'WebP varianta již existuje.');
+        } catch (\Throwable $e) {
+            $this->redirect('admin.php?r=media', 'danger', $e->getMessage());
+        }
+    }
+
     private function library(): void
     {
         $limit = max(1, min(100, (int)($_GET['limit'] ?? 60)));
@@ -174,5 +208,111 @@ final class MediaController extends BaseAdminController
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['items' => $items], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private function prepareItem(array $row, PathResolver $paths): array
+    {
+        $meta = $this->decodeMeta($row['meta'] ?? null);
+        $webpRel = isset($meta['webp']) && is_string($meta['webp']) && $meta['webp'] !== '' ? (string)$meta['webp'] : null;
+        $webpUrl = null;
+        if ($webpRel !== null) {
+            try {
+                $webpUrl = $paths->publicUrl($webpRel);
+            } catch (\Throwable) {
+                $webpUrl = null;
+            }
+        }
+
+        $displayUrl = $webpUrl ?? (string)($row['url'] ?? '');
+        $relPath = (string)($row['rel_path'] ?? '');
+
+        $sizeBytes = null;
+        if ($relPath !== '') {
+            try {
+                $abs = $paths->absoluteFromRelative($relPath);
+                if (is_file($abs)) {
+                    $size = @filesize($abs);
+                    if ($size !== false) {
+                        $sizeBytes = (int)$size;
+                    }
+                    if ((!isset($meta['w']) || !isset($meta['h'])) && str_starts_with((string)($row['mime'] ?? ''), 'image/')) {
+                        $dim = @getimagesize($abs);
+                        if ($dim) {
+                            $meta['w'] = (int)$dim[0];
+                            $meta['h'] = (int)$dim[1];
+                        }
+                    }
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        $createdAt = (string)($row['created_at'] ?? '');
+        $createdDisplay = '';
+        $createdIso = '';
+        if ($createdAt !== '') {
+            try {
+                $dt = new \DateTimeImmutable($createdAt);
+                $createdDisplay = $dt->format('Y-m-d H:i');
+                $createdIso = $dt->format(DATE_ATOM);
+            } catch (\Throwable) {
+                $createdDisplay = '';
+                $createdIso = '';
+            }
+        }
+
+        return [
+            'id'              => (int)($row['id'] ?? 0),
+            'user_id'         => (int)($row['user_id'] ?? 0),
+            'type'            => (string)($row['type'] ?? ''),
+            'mime'            => (string)($row['mime'] ?? ''),
+            'url'             => (string)($row['url'] ?? ''),
+            'rel_path'        => $relPath,
+            'created_at'      => $createdAt,
+            'created_display' => $createdDisplay,
+            'created_iso'     => $createdIso,
+            'author_name'     => (string)($row['author_name'] ?? ''),
+            'author_email'    => (string)($row['author_email'] ?? ''),
+            'meta'            => $meta,
+            'webp_url'        => $webpUrl,
+            'display_url'     => $displayUrl,
+            'has_webp'        => $webpUrl !== null,
+            'size_bytes'      => $sizeBytes,
+            'size_human'      => $sizeBytes !== null ? $this->formatBytes($sizeBytes) : null,
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function decodeMeta(mixed $raw): array
+    {
+        if (!is_string($raw) || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B','KB','MB','GB','TB'];
+        $i = 0;
+        $value = (float)$bytes;
+        while ($value >= 1024 && $i < count($units) - 1) {
+            $value /= 1024;
+            $i++;
+        }
+
+        if ($i === 0) {
+            return sprintf('%d %s', (int)$value, $units[$i]);
+        }
+
+        return sprintf('%.1f %s', $value, $units[$i]);
     }
 }

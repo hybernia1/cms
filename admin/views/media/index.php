@@ -5,12 +5,38 @@ declare(strict_types=1);
 /** @var array|null $currentUser */
 /** @var array|null $flash */
 /** @var array $filters */
-/** @var array<int,array{id:int,user_id:int,type:string,mime:string,url:string,rel_path:?string,created_at:string}> $items */
+/** @var array<int,array{
+ *   id:int,
+ *   user_id:int,
+ *   type:string,
+ *   mime:string,
+ *   url:string,
+ *   rel_path:string,
+ *   created_at:string,
+ *   created_display:string,
+ *   created_iso:string,
+ *   author_name:string,
+ *   author_email:string,
+ *   meta:array<string,mixed>,
+ *   webp_url:?string,
+ *   display_url:string,
+ *   has_webp:bool,
+ *   size_bytes:?int,
+ *   size_human:?string
+ * }> $items */
 /** @var array{page:int,per_page:int,total:int,pages:int} $pagination */
 /** @var string $csrf */
+/** @var bool $webpEnabled */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$webpEnabled) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+  $jsonAttr = static function(array $data) use ($h): string {
+    $encoded = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($encoded === false) {
+      return $h('{}');
+    }
+    return $h($encoded);
+  };
 ?>
   <div class="card mb-3">
     <div class="card-body">
@@ -71,13 +97,34 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         <div class="row g-3">
           <?php foreach ($items as $m):
             $isImg = str_starts_with((string)$m['mime'], 'image/');
+            $meta = is_array($m['meta'] ?? null) ? $m['meta'] : [];
+            $modalData = [
+              'id'          => $m['id'] ?? null,
+              'type'        => $m['type'] ?? '',
+              'typeLabel'   => ($m['type'] ?? '') === 'image' ? 'Obrázek' : 'Soubor',
+              'mime'        => $m['mime'] ?? '',
+              'url'         => $m['url'] ?? '',
+              'displayUrl'  => $m['display_url'] ?? ($m['url'] ?? ''),
+              'webpUrl'     => $m['webp_url'] ?? null,
+              'hasWebp'     => $m['has_webp'] ?? false,
+              'width'       => $meta['w'] ?? null,
+              'height'      => $meta['h'] ?? null,
+              'sizeHuman'   => $m['size_human'] ?? null,
+              'sizeBytes'   => $m['size_bytes'] ?? null,
+              'created'     => $m['created_display'] ?? '',
+              'createdIso'  => $m['created_iso'] ?? '',
+              'authorName'  => $m['author_name'] ?? '',
+              'authorEmail' => $m['author_email'] ?? '',
+            ];
           ?>
             <div class="col-12 col-sm-6 col-md-4 col-lg-3">
               <div class="card h-100 shadow-sm">
                 <div class="card-body">
                   <div class="mb-2 d-flex justify-content-center align-items-center bg-body-tertiary rounded" style="min-height:140px; overflow:hidden;">
                     <?php if ($isImg): ?>
-                      <img src="<?= $h((string)$m['url']) ?>" alt="media" style="max-height:140px;max-width:100%;object-fit:contain;">
+                      <button type="button" class="btn p-0 border-0 bg-transparent media-thumb" data-media="<?= $jsonAttr($modalData) ?>" style="max-height:140px;max-width:100%;">
+                        <img src="<?= $h((string)($m['display_url'] ?? $m['url'])) ?>" alt="media" style="max-height:140px;max-width:100%;object-fit:contain;">
+                      </button>
                     <?php else: ?>
                       <div class="text-center text-secondary small">
                         <div class="mb-2">Soubor</div>
@@ -91,13 +138,22 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                     <button class="btn btn-light btn-sm border" type="button" onclick="navigator.clipboard.writeText('<?= $h((string)$m['url']) ?>').then(()=>this.textContent='Zkopírováno');">Kopírovat URL</button>
                   </div>
                 </div>
-                <div class="card-footer d-flex justify-content-between align-items-center">
-                  <span class="small text-secondary">#<?= $h((string)$m['id']) ?> • <?= $h(date('Y-m-d', strtotime($m['created_at']))) ?></span>
-                  <form method="post" action="admin.php?r=media&a=delete" onsubmit="return confirm('Opravdu odstranit?');">
-                    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                    <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
-                    <button class="btn btn-light btn-sm border" type="submit">Smazat</button>
-                  </form>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <span class="small text-secondary">#<?= $h((string)$m['id']) ?> • <?= $h($m['created_display'] !== '' ? $m['created_display'] : date('Y-m-d', strtotime((string)$m['created_at']))) ?></span>
+                  <div class="d-flex gap-2">
+                    <?php if (!empty($webpEnabled) && $isImg && empty($m['has_webp'])): ?>
+                      <form method="post" action="admin.php?r=media&a=optimize" onsubmit="return confirm('Vytvořit WebP variantu?');">
+                        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+                        <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
+                        <button class="btn btn-outline-success btn-sm" type="submit">Optimalizovat</button>
+                      </form>
+                    <?php endif; ?>
+                    <form method="post" action="admin.php?r=media&a=delete" onsubmit="return confirm('Opravdu odstranit?');">
+                      <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+                      <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
+                      <button class="btn btn-light btn-sm border" type="submit">Smazat</button>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>
@@ -124,5 +180,134 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <?php endif; ?>
     </div>
   </div>
+
+  <div class="modal fade" id="mediaDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Detail média</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+        </div>
+        <div class="modal-body">
+          <div class="text-center mb-3" data-role="preview"></div>
+          <dl class="row small mb-0">
+            <dt class="col-sm-4">ID</dt>
+            <dd class="col-sm-8" data-field="id">—</dd>
+            <dt class="col-sm-4">Typ</dt>
+            <dd class="col-sm-8" data-field="type">—</dd>
+            <dt class="col-sm-4">MIME</dt>
+            <dd class="col-sm-8" data-field="mime">—</dd>
+            <dt class="col-sm-4">Rozměry</dt>
+            <dd class="col-sm-8" data-field="dimensions">—</dd>
+            <dt class="col-sm-4">Velikost</dt>
+            <dd class="col-sm-8" data-field="size">—</dd>
+            <dt class="col-sm-4">Nahráno</dt>
+            <dd class="col-sm-8" data-field="created">—</dd>
+            <dt class="col-sm-4">Autor</dt>
+            <dd class="col-sm-8" data-field="author">—</dd>
+          </dl>
+        </div>
+        <div class="modal-footer flex-wrap gap-2">
+          <a class="btn btn-light btn-sm border" target="_blank" rel="noopener" data-link="original">Otevřít originál</a>
+          <a class="btn btn-light btn-sm border d-none" target="_blank" rel="noopener" data-link="webp">Otevřít WebP</a>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Zavřít</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    const modalEl = document.getElementById('mediaDetailModal');
+    if (!modalEl || typeof window.bootstrap === 'undefined' || !window.bootstrap.Modal) {
+      return;
+    }
+    const modal = new window.bootstrap.Modal(modalEl);
+    const preview = modalEl.querySelector('[data-role="preview"]');
+    const fields = {
+      id: modalEl.querySelector('[data-field="id"]'),
+      type: modalEl.querySelector('[data-field="type"]'),
+      mime: modalEl.querySelector('[data-field="mime"]'),
+      dimensions: modalEl.querySelector('[data-field="dimensions"]'),
+      size: modalEl.querySelector('[data-field="size"]'),
+      created: modalEl.querySelector('[data-field="created"]'),
+      author: modalEl.querySelector('[data-field="author"]'),
+    };
+    const links = {
+      original: modalEl.querySelector('[data-link="original"]'),
+      webp: modalEl.querySelector('[data-link="webp"]'),
+    };
+
+    const updateField = (key, value) => {
+      if (!fields[key]) return;
+      fields[key].textContent = value && value !== '' ? value : '—';
+    };
+
+    const updateLink = (key, url, hiddenClass) => {
+      const el = links[key];
+      if (!el) return;
+      if (url) {
+        el.href = url;
+        el.removeAttribute('aria-disabled');
+        if (hiddenClass) {
+          el.classList.remove(hiddenClass);
+        }
+      } else {
+        el.removeAttribute('href');
+        el.setAttribute('aria-disabled', 'true');
+        if (hiddenClass) {
+          el.classList.add(hiddenClass);
+        }
+      }
+    };
+
+    document.querySelectorAll('.media-thumb').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        let data = {};
+        try {
+          data = JSON.parse(btn.getAttribute('data-media') || '{}');
+        } catch (e) {
+          data = {};
+        }
+
+        if (preview) {
+          preview.innerHTML = '';
+          if (data.displayUrl) {
+            const img = document.createElement('img');
+            img.src = data.displayUrl;
+            img.alt = 'media detail';
+            img.style.maxWidth = '100%';
+            img.style.maxHeight = '320px';
+            img.style.objectFit = 'contain';
+            preview.appendChild(img);
+          } else {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'text-secondary';
+            placeholder.textContent = 'Náhled není k dispozici.';
+            preview.appendChild(placeholder);
+          }
+        }
+
+        const dimensions = data.width && data.height ? `${data.width} × ${data.height}px` : '';
+        const authorParts = [];
+        if (data.authorName) authorParts.push(data.authorName);
+        if (data.authorEmail) authorParts.push(`(${data.authorEmail})`);
+
+        updateField('id', data.id ? `#${data.id}` : '');
+        updateField('type', data.typeLabel || data.type || '');
+        updateField('mime', data.mime || '');
+        updateField('dimensions', dimensions);
+        updateField('size', data.sizeHuman || (data.sizeBytes ? `${data.sizeBytes} B` : ''));
+        updateField('created', data.created || '');
+        updateField('author', authorParts.length ? authorParts.join(' ') : '');
+
+        updateLink('original', data.url || '', 'disabled');
+        updateLink('webp', data.webpUrl || '', 'd-none');
+
+        modal.show();
+      });
+    });
+  })();
+  </script>
 <?php
 });
