@@ -18,8 +18,7 @@ use Core\Database\Init as DB;
 
 require_once __DIR__ . '/load.php';
 
-$config = require __DIR__ . '/config.php';
-DB::boot($config);
+cms_bootstrap_config_or_redirect();
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
