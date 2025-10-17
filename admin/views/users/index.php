@@ -4,38 +4,36 @@ declare(strict_types=1);
 /** @var array $nav */
 /** @var array|null $currentUser */
 /** @var array|null $flash */
-/** @var array $data */
-/** @var string $q */
+/** @var array<int,array> $items */
+/** @var array{page:int,per_page:int,total:int,pages:int} $pagination */
+/** @var string $searchQuery */
+/** @var callable $buildUrl */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function() use ($data,$q,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function() use ($items,$pagination,$searchQuery,$buildUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-  $items = $data['items'] ?? [];
-  $buildUrl = function(array $override = []) use ($q): string {
-    $qs = $_GET ?? [];
-    unset($qs['page']);
-    $qs = array_merge(['r' => 'users'], $qs, ['q' => $q], $override);
-    return 'admin.php?' . http_build_query($qs);
-  };
 ?>
-  <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 mb-3">
-    <form class="order-1 order-md-1" method="get" action="admin.php" role="search" data-ajax>
-      <input type="hidden" name="r" value="users">
-      <div class="input-group input-group-sm" style="min-width:260px;">
-        <input class="form-control" name="q" placeholder="Hledat jméno nebo e-mail…" value="<?= $h($q) ?>">
-        <button class="btn btn-outline-secondary" type="submit" aria-label="Hledat" data-bs-toggle="tooltip" data-bs-title="Hledat">
-          <i class="bi bi-search"></i>
-        </button>
-        <a class="btn btn-outline-secondary <?= $q === '' ? 'disabled' : '' ?>" href="<?= $h($buildUrl(['q'=>''])) ?>" aria-label="Zrušit filtr" data-bs-toggle="tooltip" data-bs-title="Zrušit filtr">
-          <i class="bi bi-x-circle"></i>
-        </a>
-      </div>
-    </form>
-
-    <a class="btn btn-success btn-sm order-2" href="admin.php?r=users&a=edit">
-      <i class="bi bi-plus-lg me-1"></i>Nový uživatel
-    </a>
-  </div>
+  <?php
+    $this->part('listing/toolbar', [
+      'search' => [
+        'action'        => 'admin.php',
+        'wrapperClass'  => 'order-1 order-md-1',
+        'hidden'        => ['r' => 'users'],
+        'value'         => $searchQuery,
+        'placeholder'   => 'Hledat jméno nebo e-mail…',
+        'resetHref'     => $buildUrl(['q' => '']),
+        'resetDisabled' => $searchQuery === '',
+        'searchTooltip' => 'Hledat',
+        'clearTooltip'  => 'Zrušit filtr',
+      ],
+      'button' => [
+        'href'  => 'admin.php?r=users&a=edit',
+        'label' => 'Nový uživatel',
+        'icon'  => 'bi bi-plus-lg',
+        'class' => 'btn btn-success btn-sm order-2',
+      ],
+    ]);
+  ?>
 
   <div class="card">
     <div class="table-responsive">
@@ -94,26 +92,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
-  <?php if (($data['pages'] ?? 1) > 1): ?>
-    <nav class="mt-3" aria-label="Stránkování">
-      <ul class="pagination pagination-sm mb-0">
-        <?php
-          $page  = (int)($data['page'] ?? 1);
-          $pages = (int)($data['pages'] ?? 1);
-          $base  = $buildUrl();
-        ?>
-        <li class="page-item <?= $page<=1?'disabled':'' ?>">
-          <a class="page-link" href="<?= $h($base.'&page='.max(1,$page-1)) ?>" aria-label="Předchozí">‹</a>
-        </li>
-        <?php for($i=max(1,$page-2); $i<=min($pages,$page+2); $i++): ?>
-          <li class="page-item <?= $i===$page?'active':'' ?>">
-            <a class="page-link" href="<?= $h($base.'&page='.$i) ?>"><?= $i ?></a>
-          </li>
-        <?php endfor; ?>
-        <li class="page-item <?= $page>=$pages?'disabled':'' ?>">
-          <a class="page-link" href="<?= $h($base.'&page='.min($pages,$page+1)) ?>" aria-label="Další">›</a>
-        </li>
-      </ul>
-    </nav>
-  <?php endif; ?>
+  <?php $this->part('listing/pagination', [
+    'page'      => (int)($pagination['page'] ?? 1),
+    'pages'     => (int)($pagination['pages'] ?? 1),
+    'buildUrl'  => $buildUrl,
+    'ariaLabel' => 'Stránkování',
+  ]); ?>
 <?php }); ?>

@@ -98,6 +98,13 @@ final class TermsController extends BaseAdminController
 
         $pag = $q->paginate($page, $perPage);
 
+        $pagination = $this->paginationData($pag, $page, $perPage);
+        $buildUrl = $this->listingUrlBuilder([
+            'r'    => 'terms',
+            'type' => $type,
+            'q'    => $filters['q'],
+        ]);
+
         $settings = new CmsSettings();
         $items = [];
         foreach (($pag['items'] ?? []) as $row) {
@@ -116,15 +123,11 @@ final class TermsController extends BaseAdminController
             'nav'        => AdminNavigation::build('terms:' . $type),
             'filters'    => $filters,
             'items'      => $items,
-            'pagination' => [
-                'page'     => $pag['page'] ?? $page,
-                'per_page' => $pag['per_page'] ?? $perPage,
-                'total'    => $pag['total'] ?? 0,
-                'pages'    => $pag['pages'] ?? 1,
-            ],
+            'pagination' => $pagination,
             'type'       => $type,
             'types'      => $this->typeConfig(),
             'urls'       => new LinkGenerator(),
+            'buildUrl'   => $buildUrl,
         ]);
     }
 

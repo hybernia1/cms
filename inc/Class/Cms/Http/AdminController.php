@@ -5,11 +5,33 @@ namespace Cms\Http;
 
 use Cms\Utils\AdminNavigation;
 use Cms\View\ViewEngine;
+use Cms\Http\Admin\CommentsController;
+use Cms\Http\Admin\MediaController;
+use Cms\Http\Admin\MigrationsController;
+use Cms\Http\Admin\NavigationController;
+use Cms\Http\Admin\PostsController;
+use Cms\Http\Admin\SettingsController;
+use Cms\Http\Admin\TermsController;
+use Cms\Http\Admin\ThemesController;
+use Cms\Http\Admin\UsersController;
 
 final class AdminController
 {
     private ViewEngine $view;
     private string $baseViewsPath;
+
+    /** @var array<string,class-string> */
+    private const ROUTE_MAP = [
+        'posts'      => PostsController::class,
+        'media'      => MediaController::class,
+        'terms'      => TermsController::class,
+        'comments'   => CommentsController::class,
+        'themes'     => ThemesController::class,
+        'navigation' => NavigationController::class,
+        'settings'   => SettingsController::class,
+        'migrations' => MigrationsController::class,
+        'users'      => UsersController::class,
+    ];
 
     public function __construct(string $baseViewsPath)
     {
@@ -19,19 +41,19 @@ final class AdminController
 
 public function handle(string $route, string $action): void
 {
-    switch ($route) {
-        case 'posts':       (new \Cms\Http\Admin\PostsController($this->baseViewsPath))->handle($action); return;
-        case 'media':       (new \Cms\Http\Admin\MediaController($this->baseViewsPath))->handle($action); return;
-        case 'terms':       (new \Cms\Http\Admin\TermsController($this->baseViewsPath))->handle($action); return;
-        case 'comments':    (new \Cms\Http\Admin\CommentsController($this->baseViewsPath))->handle($action); return;
-        case 'themes':      (new \Cms\Http\Admin\ThemesController($this->baseViewsPath))->handle($action); return;
-        case 'navigation':  (new \Cms\Http\Admin\NavigationController($this->baseViewsPath))->handle($action); return;
-        case 'settings':    (new \Cms\Http\Admin\SettingsController($this->baseViewsPath))->handle($action); return;
-        case 'migrations':  (new \Cms\Http\Admin\MigrationsController($this->baseViewsPath))->handle($action); return;
-        case 'users': (new \Cms\Http\Admin\UsersController($this->baseViewsPath))->handle($action); return;
-        case 'dashboard':
-        default: $this->dashboardIndex(); return;
+    if (isset(self::ROUTE_MAP[$route])) {
+        $class = self::ROUTE_MAP[$route];
+        $controller = new $class($this->baseViewsPath);
+        $controller->handle($action);
+        return;
     }
+
+    if ($route === 'dashboard') {
+        $this->dashboardIndex();
+        return;
+    }
+
+    $this->dashboardIndex();
 }
 
     private function dashboardIndex(): void
