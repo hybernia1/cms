@@ -38,7 +38,7 @@ $tags       = $termsByType['tag'] ?? [];
     <header class="card__header">
       <h2 class="card__title">Diskuse</h2>
     </header>
-    <?php $this->part('parts/comments/list', [
+    <?php $this->part('comments', 'list', [
       'commentsTree' => $commentsTree,
       'threadId'     => 'post-' . (int)($post['id'] ?? 0),
       'classes'      => [
@@ -47,7 +47,7 @@ $tags       = $termsByType['tag'] ?? [];
       ],
     ]); ?>
   </section>
-  <?php $this->part('parts/comments/form', [
+  <?php $this->part('comments', 'form', [
     'postId'       => (int)($post['id'] ?? 0),
     'csrfPublic'   => $csrfPublic,
     'commentFlash' => $commentFlash,

@@ -560,7 +560,7 @@ final class FrontController
             $email = trim((string)($_POST['email'] ?? ''));
             $pass  = (string)($_POST['password'] ?? '');
             if ($email === '' || $pass === '') {
-                $this->render('auth/login', [], $this->withTitle([
+                $this->render('login', [], $this->withTitle([
                     'csrfPublic' => $this->tokenPublic(),
                     'type'       => 'danger',
                     'msg'        => 'Vyplňte e-mail i heslo.',
@@ -570,7 +570,7 @@ final class FrontController
             if ($auth->attempt($email, $pass)) {
                 header('Location: ./'); exit;
             }
-            $this->render('auth/login', [], $this->withTitle([
+            $this->render('login', [], $this->withTitle([
                 'csrfPublic' => $this->tokenPublic(),
                 'type'       => 'danger',
                 'msg'        => 'Nesprávný e-mail nebo heslo.',
@@ -578,7 +578,7 @@ final class FrontController
             return;
         }
 
-        $this->render('auth/login', [], $this->withTitle([
+        $this->render('login', [], $this->withTitle([
             'csrfPublic' => $this->tokenPublic(),
         ], 'Přihlášení'));
     }
@@ -594,7 +594,7 @@ final class FrontController
         // Bez volání privátní CmsSettings::row()
         $allow = (int)(DB::query()->table('settings')->select(['allow_registration'])->where('id','=',1)->value('allow_registration') ?? 1);
         if ($allow !== 1) {
-            $this->render('auth/register_disabled', [], ['pageTitle' => 'Registrace']);
+            $this->render('register-disabled', [], ['pageTitle' => 'Registrace']);
             return;
         }
 
@@ -604,7 +604,7 @@ final class FrontController
             $email = trim((string)($_POST['email'] ?? ''));
             $pass  = (string)($_POST['password'] ?? '');
             if ($name === '' || $email === '' || $pass === '') {
-                $this->render('auth/register', [], $this->withTitle([
+                $this->render('register', [], $this->withTitle([
                     'csrfPublic' => $this->tokenPublic(),
                     'type'       => 'danger',
                     'msg'        => 'Vyplňte všechna pole.',
@@ -612,7 +612,7 @@ final class FrontController
                 return;
             }
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $this->render('auth/register', [], $this->withTitle([
+                $this->render('register', [], $this->withTitle([
                     'csrfPublic' => $this->tokenPublic(),
                     'type'       => 'danger',
                     'msg'        => 'Neplatný e-mail.',
@@ -622,7 +622,7 @@ final class FrontController
 
             $exists = DB::query()->table('users')->select(['id'])->where('email','=', $email)->first();
             if ($exists) {
-                $this->render('auth/register', [], $this->withTitle([
+                $this->render('register', [], $this->withTitle([
                     'csrfPublic' => $this->tokenPublic(),
                     'type'       => 'danger',
                     'msg'        => 'Účet s tímto e-mailem už existuje.',
@@ -643,12 +643,12 @@ final class FrontController
                 'updated_at'    => DateTimeFactory::nowString(),
             ])->execute();
 
-            $this->render('auth/register_success', [], $this->withTitle([
+            $this->render('register-success', [], $this->withTitle([
                 'email' => $email,
             ], 'Registrace dokončena'));
             return;
         }
-        $this->render('auth/register', [], $this->withTitle([
+        $this->render('register', [], $this->withTitle([
             'csrfPublic' => $this->tokenPublic(),
         ], 'Registrace'));
     }
@@ -659,7 +659,7 @@ final class FrontController
             $this->assertCsrfPublic();
             $email = trim((string)($_POST['email'] ?? ''));
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $this->render('auth/lost', [], $this->withTitle([
+                $this->render('lost', [], $this->withTitle([
                     'csrfPublic' => $this->tokenPublic(),
                     'type'       => 'danger',
                     'msg'        => 'Zadejte platný e-mail.',
@@ -670,7 +670,7 @@ final class FrontController
 
             // vždy zobraz pozitivní odpověď kvůli bezpečnosti
             if (!$user || (int)$user['active'] !== 1) {
-                $this->render('auth/lost_done', [], ['pageTitle' => 'Zapomenuté heslo']);
+                $this->render('lost-done', [], ['pageTitle' => 'Zapomenuté heslo']);
                 return;
             }
 
@@ -693,10 +693,10 @@ final class FrontController
             (new \Core\Mail\Mailer(from: ['email'=>$cs->siteEmail() ?: 'no-reply@localhost','name'=>$site]))
                 ->send((string)$user['email'], "{$site} – obnova hesla", $html, (string)($user['name'] ?? ''));
 
-            $this->render('auth/lost_done', [], ['pageTitle' => 'Zapomenuté heslo']);
+            $this->render('lost-done', [], ['pageTitle' => 'Zapomenuté heslo']);
             return;
         }
-        $this->render('auth/lost', [], $this->withTitle([
+        $this->render('lost', [], $this->withTitle([
             'csrfPublic' => $this->tokenPublic(),
         ], 'Zapomenuté heslo'));
     }
@@ -704,7 +704,7 @@ final class FrontController
     private function reset(): void
     {
         $token = (string)($_GET['token'] ?? ($_POST['token'] ?? ''));
-        if ($token === '') { $this->render('auth/reset_invalid', [], ['pageTitle' => 'Obnova hesla']); return; }
+        if ($token === '') { $this->render('reset-invalid', [], ['pageTitle' => 'Obnova hesla']); return; }
 
         $user = DB::query()->table('users')
             ->select(['id','token','token_expire','email','name'])
@@ -712,7 +712,7 @@ final class FrontController
             ->first();
 
         if (!$user || ($user['token_expire'] && strtotime((string)$user['token_expire']) < time())) {
-            $this->render('auth/reset_invalid', [], ['pageTitle' => 'Obnova hesla']); return;
+            $this->render('reset-invalid', [], ['pageTitle' => 'Obnova hesla']); return;
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -720,7 +720,7 @@ final class FrontController
             $p1 = (string)($_POST['password'] ?? '');
             $p2 = (string)($_POST['password2'] ?? '');
             if ($p1 === '' || $p1 !== $p2) {
-                $this->render('auth/reset', [], $this->withTitle([
+                $this->render('reset', [], $this->withTitle([
                     'csrfPublic' => $this->tokenPublic(),
                     'token'      => $token,
                     'type'       => 'danger',
@@ -736,11 +736,11 @@ final class FrontController
                 'updated_at'    => DateTimeFactory::nowString(),
             ])->where('id','=', (int)$user['id'])->execute();
 
-            $this->render('auth/reset_done', [], ['pageTitle' => 'Obnova hesla']);
+            $this->render('reset-done', [], ['pageTitle' => 'Obnova hesla']);
             return;
         }
 
-        $this->render('auth/reset', [], $this->withTitle([
+        $this->render('reset', [], $this->withTitle([
             'csrfPublic' => $this->tokenPublic(),
             'token'      => $token,
         ], 'Obnova hesla'));

@@ -8,7 +8,7 @@ ob_start();
 <p class="muted">Můžete se nyní přihlásit a začít tvořit obsah.</p>
 <?php
 $body = ob_get_clean();
-$this->part('parts/auth/card', [
+$this->part('auth', 'card', [
     'title' => 'Registrace dokončena',
     'type'  => 'success',
     'msg'   => null,

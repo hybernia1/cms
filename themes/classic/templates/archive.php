@@ -14,7 +14,7 @@ $title = $type !== '' ? $type : 'Archiv';
       <span class="card__chip">Slovník: <?= $h((string)($term['slug'] ?? '')) ?></span>
     <?php endif; ?>
   </header>
-  <?php $this->part('parts/post-list', [
+  <?php $this->part('post-list', [
     'posts'        => $items,
     'emptyMessage' => 'V tomto archivu zatím nic není.',
     'urls'         => $urls,

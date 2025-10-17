@@ -22,9 +22,9 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
   <?= $assets->css(['assets/css/main.css']) ?>
 </head>
 <body>
-  <?php $this->part('parts/user-bar', ['frontUser' => $frontUser ?? null, 'urls' => $urls]); ?>
+  <?php $this->part('user-bar', ['frontUser' => $frontUser ?? null, 'urls' => $urls]); ?>
   <div class="shell">
-    <?php $this->part('parts/header', [
+    <?php $this->part('header', [
       'siteTitle'  => $site,
       'navigation' => $navigation ?? [],
       'urls'       => $urls,
@@ -32,7 +32,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
     <main class="shell__main">
       <?php $content(); ?>
     </main>
-    <?php $this->part('parts/footer', ['siteTitle' => $site, 'urls' => $urls]); ?>
+    <?php $this->part('footer', ['siteTitle' => $site, 'urls' => $urls]); ?>
   </div>
   <?= $assets->js(['assets/js/app.js']) ?>
 </body>
