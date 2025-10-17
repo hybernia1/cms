@@ -63,6 +63,16 @@ final class SettingsController extends BaseAdminController
         $row['webp_enabled'] = !empty($media['webp_enabled']) ? 1 : 0;
         $row['webp_compression'] = $this->normalizeWebpCompression((string)($media['webp_compression'] ?? ''));
 
+        [$normalizedTz, $tzAdjusted] = $this->sanitizeTimezone((string)($row['timezone'] ?? ''));
+        $row['timezone'] = $normalizedTz;
+
+        if ($tzAdjusted) {
+            DB::query()->table('settings')->update([
+                'timezone'   => $normalizedTz,
+                'updated_at' => DateTimeFactory::nowString(),
+            ])->where('id','=',1)->execute();
+        }
+
         return $row ?? [];
     }
 
@@ -79,6 +89,24 @@ final class SettingsController extends BaseAdminController
             'time'     => SettingsPresets::timeFormats(),
             'datetime' => SettingsPresets::dateTimeFormats(),
         ];
+    }
+
+    /**
+     * @return array{0:string,1:bool} [normalized timezone, wasAdjusted]
+     */
+    private function sanitizeTimezone(string $timezone): array
+    {
+        $tz = trim($timezone);
+        if ($tz === '') {
+            return ['Europe/Prague', true];
+        }
+
+        try {
+            new \DateTimeZone($tz);
+            return [$tz, false];
+        } catch (\Throwable) {
+            return ['Europe/Prague', true];
+        }
     }
 
     private function decodeSettingsData($raw): array

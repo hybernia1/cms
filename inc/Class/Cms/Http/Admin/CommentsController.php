@@ -6,6 +6,7 @@ namespace Cms\Http\Admin;
 use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
+use Cms\Settings\CmsSettings;
 
 final class CommentsController extends BaseAdminController
 {
@@ -72,11 +73,27 @@ final class CommentsController extends BaseAdminController
 
         $pag = $q->paginate($page, $perPage);
 
+        $settings = new CmsSettings();
+        $items = [];
+        foreach (($pag['items'] ?? []) as $row) {
+            $createdAt = isset($row['created_at']) ? (string)$row['created_at'] : null;
+            $row['created_at_raw'] = $createdAt ?? '';
+            $created = DateTimeFactory::fromStorage($createdAt);
+            if ($created) {
+                $row['created_at_display'] = $settings->formatDateTime($created);
+                $row['created_at_iso'] = $created->format(\DateTimeInterface::ATOM);
+            } else {
+                $row['created_at_display'] = $createdAt ?? '';
+                $row['created_at_iso'] = $createdAt ?? null;
+            }
+            $items[] = $row;
+        }
+
         $this->renderAdmin('comments/index', [
             'pageTitle'  => 'Komentáře',
             'nav'        => AdminNavigation::build('comments'),
             'filters'    => $filters,
-            'items'      => $pag['items'] ?? [],
+            'items'      => $items,
             'pagination' => [
                 'page'     => $pag['page'] ?? $page,
                 'per_page' => $pag['per_page'] ?? $perPage,

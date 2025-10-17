@@ -18,6 +18,55 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       default     => 'secondary'
     };
   };
+  $statusLabels = [
+    'published' => 'Schváleno',
+    'draft'     => 'Koncept',
+    'spam'      => 'Spam',
+  ];
+  $statusActionOrder = ['approve','draft','spam'];
+  $statusActions = [
+    'draft'     => ['approve','spam'],
+    'published' => ['draft','spam'],
+    'spam'      => ['approve','draft'],
+  ];
+  $actionDefinitions = [
+    'approve' => ['route' => 'approve', 'icon' => 'bi-check-lg', 'title' => 'Schválit komentář'],
+    'draft'   => ['route' => 'draft',   'icon' => 'bi-file-earmark', 'title' => 'Uložit jako koncept'],
+    'spam'    => ['route' => 'spam',    'icon' => 'bi-slash-circle', 'title' => 'Označit jako spam'],
+  ];
+  $backUrl = $_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments';
+  $renderStatusAction = function(string $key, array $comment) use ($actionDefinitions, $h, $csrf, $backUrl): string {
+    if (!isset($actionDefinitions[$key])) {
+      return '';
+    }
+    $def = $actionDefinitions[$key];
+    ob_start();
+    ?>
+    <form method="post" action="admin.php?r=comments&a=<?= $h($def['route']) ?>" class="d-inline" data-ajax>
+      <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= (int)($comment['id'] ?? 0) ?>">
+      <input type="hidden" name="_back" value="<?= $h($backUrl) ?>">
+      <button class="btn btn-light btn-sm border px-2" type="submit" aria-label="<?= $h($def['title']) ?>" data-bs-toggle="tooltip" data-bs-title="<?= $h($def['title']) ?>">
+        <i class="<?= $h($def['icon']) ?>"></i>
+      </button>
+    </form>
+    <?php
+    return trim((string)ob_get_clean());
+  };
+  $renderDeleteAction = function(array $comment) use ($h, $csrf, $backUrl): string {
+    ob_start();
+    ?>
+    <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');" data-ajax>
+      <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= (int)($comment['id'] ?? 0) ?>">
+      <input type="hidden" name="_back" value="<?= $h($backUrl) ?>">
+      <button class="btn btn-light btn-sm border px-2 text-danger" type="submit" aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">
+        <i class="bi bi-trash"></i>
+      </button>
+    </form>
+    <?php
+    return trim((string)ob_get_clean());
+  };
 ?>
   <div class="card mb-3">
     <div class="card-body">
@@ -65,12 +114,16 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <th>Autor / E-mail</th>
             <th>Text</th>
             <th>Příspěvek</th>
-            <th style="width:140px">Stav</th>
-            <th style="width:190px" class="text-end">Akce</th>
+            <th style="width:220px" class="text-end">Akce</th>
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($items as $c): ?>
+          <?php foreach ($items as $c):
+            $status = (string)($c['status'] ?? '');
+            $statusLabel = $statusLabels[$status] ?? $status;
+            $createdDisplay = (string)($c['created_at_display'] ?? ($c['created_at_raw'] ?? ''));
+            $createdIso = (string)($c['created_at_iso'] ?? '');
+          ?>
             <tr>
               <td>#<?= $h((string)$c['id']) ?></td>
               <td>
@@ -79,68 +132,38 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
               </td>
               <td>
                 <div class="text-truncate" style="max-width:420px;"><?= $h(mb_substr((string)$c['content'],0,160)) ?><?= mb_strlen((string)$c['content'])>160?'…':'' ?></div>
-                <div class="small text-secondary"><?= $h((string)$c['created_at']) ?></div>
+                <div class="small text-secondary d-flex align-items-center gap-2 flex-wrap mt-1">
+                  <?php if ($createdDisplay !== ''): ?>
+                    <?php if ($createdIso !== ''): ?>
+                      <time datetime="<?= $h($createdIso) ?>"><?= $h($createdDisplay) ?></time>
+                    <?php else: ?>
+                      <span><?= $h($createdDisplay) ?></span>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                  <span class="badge rounded-pill text-bg-<?= $badge($status) ?>"><?= $h($statusLabel) ?></span>
+                </div>
               </td>
               <td>
-                <div class="small mb-1"><span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle"><?= $h((string)$c['post_type']) ?></span></div>
                 <a class="small" href="admin.php?r=posts&a=edit&id=<?= (int)$c['post_id'] ?>">#<?= (int)$c['post_id'] ?></a>
                 <div class="small text-secondary text-truncate" style="max-width:180px;"><?= $h((string)$c['post_title']) ?></div>
               </td>
-              <td>
-                <span class="badge text-bg-<?= $badge((string)$c['status']) ?>"><?= $h((string)$c['status']) ?></span>
-              </td>
               <td class="text-end">
-                <a class="btn btn-light btn-sm border me-1"
-                   href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>"
-                   aria-label="Detail"
-                   data-bs-toggle="tooltip" data-bs-title="Detail">
-                  <i class="bi bi-eye"></i>
-                </a>
-
-                <form method="post" action="admin.php?r=comments&a=approve" class="d-inline" data-ajax>
-                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                  <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                  <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit"
-                          aria-label="Schválit" data-bs-toggle="tooltip" data-bs-title="Schválit">
-                    <i class="bi bi-check-lg"></i>
-                  </button>
-                </form>
-
-                <form method="post" action="admin.php?r=comments&a=draft" class="d-inline" data-ajax>
-                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                  <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                  <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit"
-                          aria-label="Přepnout na koncept" data-bs-toggle="tooltip" data-bs-title="Přepnout na koncept">
-                    <i class="bi bi-file-earmark"></i>
-                  </button>
-                </form>
-
-                <form method="post" action="admin.php?r=comments&a=spam" class="d-inline" data-ajax>
-                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                  <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                  <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit"
-                          aria-label="Označit jako spam" data-bs-toggle="tooltip" data-bs-title="Označit jako spam">
-                    <i class="bi bi-slash-circle"></i>
-                  </button>
-                </form>
-
-                <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');" data-ajax>
-                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                  <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
-                  <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border" type="submit"
-                          aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </form>
+                <div class="d-flex justify-content-end flex-wrap gap-1">
+                  <a class="btn btn-light btn-sm border px-2" href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>" aria-label="Detail" data-bs-toggle="tooltip" data-bs-title="Detail">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  <?php foreach ($statusActionOrder as $actionKey): ?>
+                    <?php if (in_array($actionKey, $statusActions[$status] ?? [], true)): ?>
+                      <?= $renderStatusAction($actionKey, $c) ?>
+                    <?php endif; ?>
+                  <?php endforeach; ?>
+                  <?= $renderDeleteAction($c) ?>
+                </div>
               </td>
             </tr>
           <?php endforeach; ?>
           <?php if (!$items): ?>
-            <tr><td colspan="6" class="text-center text-secondary py-4"><i class="bi bi-inbox me-1"></i>Žádné komentáře</td></tr>
+            <tr><td colspan="5" class="text-center text-secondary py-4"><i class="bi bi-inbox me-1"></i>Žádné komentáře</td></tr>
           <?php endif; ?>
         </tbody>
       </table>
