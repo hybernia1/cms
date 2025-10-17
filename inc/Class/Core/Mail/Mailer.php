@@ -19,6 +19,14 @@ final class Mailer
         if (class_exists(\PHPMailer\PHPMailer\PHPMailer::class)) {
             return $this->sendViaPHPMailer($toEmail, $subject, $htmlBody, $toName, $textAlt);
         }
+
+        if ($this->smtp) {
+            $sent = $this->sendViaSmtp($toEmail, $subject, $htmlBody, $toName, $textAlt);
+            if ($sent !== null) {
+                return $sent;
+            }
+        }
+
         return $this->sendViaMail($toEmail, $subject, $htmlBody, $toName, $textAlt);
     }
 
@@ -71,6 +79,47 @@ final class Mailer
         $headers[] = 'X-Mailer: PHP/' . phpversion();
 
         return @mail($to, '=?UTF-8?B?'.base64_encode($subject).'?=', $htmlBody, implode("\r\n",$headers));
+    }
+
+    private function sendViaSmtp(string $toEmail, string $subject, string $htmlBody, ?string $toName, ?string $textAlt): ?bool
+    {
+        if (!$this->smtp) {
+            return null;
+        }
+
+        $fromConfig = $this->smtp['from'] ?? $this->from ?? [
+            'email' => ini_get('sendmail_from') ?: 'no-reply@localhost',
+            'name'  => 'Website',
+        ];
+
+        $host = trim((string)($this->smtp['host'] ?? ''));
+        if ($host === '') {
+            return null;
+        }
+
+        $client = new SmtpClient(
+            $host,
+            (int)($this->smtp['port'] ?? 587),
+            (string)($this->smtp['secure'] ?? ''),
+            (string)($this->smtp['username'] ?? ''),
+            (string)($this->smtp['password'] ?? '')
+        );
+
+        $from = [
+            'email' => (string)($fromConfig['email'] ?? ''),
+            'name'  => (string)($fromConfig['name'] ?? ''),
+        ];
+
+        $to = [
+            'email' => $toEmail,
+            'name'  => (string)($toName ?? ''),
+        ];
+
+        $textBody = $textAlt ?? strip_tags($htmlBody);
+
+        $result = $client->send($from, $to, $subject, $htmlBody, $textBody);
+
+        return $result;
     }
 
     private function q(string $s): string
