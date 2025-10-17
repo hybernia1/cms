@@ -1,0 +1,17 @@
+# Zabraň spuštění skriptů v /uploads
+Options -ExecCGI
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .cgi .pl
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .cgi .pl
+
+# Pokud by server i tak posílal PHP do interpretru, vynutíme stahování
+<FilesMatch "\.(php|phtml|php[0-9]|phar|cgi|pl)$">
+  ForceType application/octet-stream
+</FilesMatch>
+
+# Dovol prohlížet obrázky/CSS/JS normálně (hlavně když je RemoveType aktivní)
+AddType image/jpeg .jpg .jpeg
+AddType image/png  .png
+AddType image/webp .webp
+AddType image/gif  .gif
+AddType text/css   .css
+AddType application/javascript .js
