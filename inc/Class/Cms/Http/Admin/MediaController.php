@@ -26,6 +26,11 @@ final class MediaController extends BaseAdminController
             case 'library':
                 $this->library();
                 return;
+            case 'upload-editor':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->uploadFromEditor(); return; }
+                http_response_code(405);
+                echo 'Method Not Allowed';
+                return;
             case 'index':
             default:
                 $this->index();
@@ -151,6 +156,58 @@ final class MediaController extends BaseAdminController
         }
 
         $this->redirect('admin.php?r=media', 'success', 'Soubor odstraněn.');
+    }
+
+    private function uploadFromEditor(): void
+    {
+        $this->assertCsrf();
+
+        header('Content-Type: application/json; charset=utf-8');
+
+        try {
+            $user = $this->auth->user();
+            if (!$user) {
+                throw new \RuntimeException('Nejste přihlášeni.');
+            }
+
+            if (empty($_FILES['file']) || !is_array($_FILES['file'])) {
+                throw new \RuntimeException('Nebyl vybrán žádný soubor.');
+            }
+
+            if ((int)$_FILES['file']['error'] === UPLOAD_ERR_NO_FILE) {
+                throw new \RuntimeException('Nebyl vybrán žádný soubor.');
+            }
+
+            if ((int)$_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                throw new \RuntimeException('Soubor se nepodařilo nahrát.');
+            }
+
+            $postId = isset($_POST['post_id']) ? (int)$_POST['post_id'] : 0;
+
+            $svc   = new MediaService();
+            $paths = $this->uploadPaths();
+
+            $created = $svc->uploadAndCreate(
+                $_FILES['file'],
+                (int)$user['id'],
+                $paths,
+                'posts',
+                $postId > 0 ? $postId : null
+            );
+
+            http_response_code(201);
+            echo json_encode([
+                'success' => true,
+                'item'    => $created,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'error'   => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+        exit;
     }
 
     private function optimize(): void

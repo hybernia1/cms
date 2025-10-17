@@ -29,6 +29,8 @@ final class MediaRepository
 
     public function attachToPost(int $postId, int $mediaId, string $role = 'attachment'): void
     {
+        $this->detachFromPost($postId, $mediaId);
+
         DB::query()->table('post_media')->insert([
             'post_id' => $postId,
             'media_id'=> $mediaId,

@@ -112,6 +112,30 @@ final class PostsController extends BaseAdminController
         return ['byType'=>$byType, 'selected'=>$selected];
     }
 
+    /**
+     * @return array<int>
+     */
+    private function attachedMediaIds(int $postId): array
+    {
+        if ($postId <= 0) {
+            return [];
+        }
+
+        $rows = DB::query()->table('post_media', 'pm')
+            ->select(['pm.media_id'])
+            ->join('media m', 'pm.media_id', '=', 'm.id')
+            ->where('pm.post_id', '=', $postId)
+            ->orderBy('m.created_at', 'ASC')
+            ->get();
+
+        $ids = [];
+        foreach ($rows as $row) {
+            $ids[] = (int)($row['media_id'] ?? 0);
+        }
+
+        return array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+    }
+
     /** Uloží vazby post↔terms (přepíše existující). */
     private function syncTerms(int $postId, array $categoryIds, array $tagIds): void
     {
@@ -238,6 +262,10 @@ final class PostsController extends BaseAdminController
                         ->delete()
                         ->whereIn('post_id', $targetIds)
                         ->execute();
+                    DB::query()->table('post_media')
+                        ->delete()
+                        ->whereIn('post_id', $targetIds)
+                        ->execute();
                     DB::query()->table('posts')
                         ->delete()
                         ->whereIn('id', $targetIds)
@@ -278,13 +306,14 @@ final class PostsController extends BaseAdminController
         $terms = $this->termsData($id ?: null, $type);
 
         $this->renderAdmin('posts/edit', [
-            'pageTitle' => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
-            'nav'       => AdminNavigation::build('posts:' . $type),
-            'post'      => $row,
-            'terms'     => $terms['byType'],
-            'selected'  => $terms['selected'],
-            'type'      => $type,
-            'types'     => $this->typeConfig(),
+            'pageTitle'      => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
+            'nav'            => AdminNavigation::build('posts:' . $type),
+            'post'           => $row,
+            'terms'          => $terms['byType'],
+            'selected'       => $terms['selected'],
+            'type'           => $type,
+            'types'          => $this->typeConfig(),
+            'attachedMedia'  => $this->attachedMediaIds($id),
         ]);
     }
 
@@ -350,6 +379,8 @@ final class PostsController extends BaseAdminController
             if ($commentsAllowed === 0) {
                 $svc->update($postId, ['comments_allowed'=>0]);
             }
+
+            $this->syncPostMedia($postId, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
 
             // ulož vazby termů
             if ($type === 'post') {
@@ -440,6 +471,8 @@ final class PostsController extends BaseAdminController
 
             (new PostsService())->update($id, $upd);
 
+            $this->syncPostMedia($id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
+
             // ulož vazby termů (přepíše existující)
             if ($type === 'post') {
                 $this->syncTerms($id, $catIds, $tagIds);
@@ -503,6 +536,57 @@ final class PostsController extends BaseAdminController
         return $ids;
     }
 
+    /**
+     * @return array<int>
+     */
+    private function parseAttachedMedia(string $raw): array
+    {
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded)) {
+            $values = $decoded;
+        } else {
+            $values = array_map('trim', explode(',', $raw));
+        }
+
+        $ids = [];
+        foreach ($values as $value) {
+            $id = (int)$value;
+            if ($id > 0) {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function syncPostMedia(int $postId, array $mediaIds): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $mediaIds), static fn (int $id): bool => $id > 0)));
+
+        DB::query()->table('post_media')
+            ->delete()
+            ->where('post_id', '=', $postId)
+            ->execute();
+
+        if ($ids === []) {
+            return;
+        }
+
+        $ins = DB::query()->table('post_media')->insert(['post_id', 'media_id']);
+        $hasRows = false;
+        foreach ($ids as $mediaId) {
+            $ins->values([$postId, $mediaId]);
+            $hasRows = true;
+        }
+        if ($hasRows) {
+            $ins->execute();
+        }
+    }
+
     private function delete(): void
     {
         $this->assertCsrf();
@@ -522,6 +606,7 @@ final class PostsController extends BaseAdminController
 
         // smaž vazby i post
         DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
+        DB::query()->table('post_media')->delete()->where('post_id','=', $id)->execute();
         (new PostsRepository())->delete($id);
 
         $this->redirect($this->listUrl($type), 'success', 'Příspěvek byl odstraněn.');
