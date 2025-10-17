@@ -101,13 +101,14 @@ function cms_bootstrap_config_or_redirect(): array
         cms_redirect_to_install();
     }
 
+    /** @var array<string,mixed> $config */
     $config = require $configFile;
-    if (!is_array($config) || !isset($config['db'])) {
+
+    try {
+        \Core\Database\Init::boot($config);
+    } catch (\Throwable) {
         cms_redirect_to_install();
     }
-
-    /** @var array<string,mixed> $config */
-    \Core\Database\Init::boot($config);
 
     return $config;
 }
