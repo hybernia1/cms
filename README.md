@@ -10,9 +10,6 @@ Tento projekt je modulární PHP CMS. Níže najdeš rychlou orientaci v důlež
 | `admin.php` | Bootstrap administrace. Po načtení prostředí kontroluje přihlášení uživatele a role a směruje požadavky na `Cms\Http\AdminController` nebo `AdminAuthController`. |
 | `load.php` | Jediný autoloader projektu (PSR‑4 + fallback na názvy s podtržítky). Zajišťuje načtení tříd z `inc/Class` a připojení helperů. |
 | `config.php` | Konfigurační pole pro běh aplikace, především přístup k databázi a flag ladicího režimu. |
-| `login.php` | Samostatná ukázková stránka s formulářem pro přihlášení přes `Cms\Auth\AuthService`, slouží i k testování CSRF ochran. |
-| `post.php` | Jednoduchý CRUD formulář pro vytvoření příspěvku přihlášeným uživatelem. Využívá služby domény (např. `PostsService`, `MediaService`) a správu uploadů z `Core\Files`. |
-| `test.php` | Integrační test jádra – kombinuje databázovou vrstvu a správu souborů, včetně fallbacku na vytvoření potřebných tabulek. |
 
 ## Adresáře
 

@@ -118,7 +118,7 @@ function cms_bootstrap_config_or_redirect(): array
  */
 function cms_redirect_to_front_login(bool $success = false): never
 {
-    $target = 'login.php';
+    $target = 'admin.php?r=auth&a=login';
     $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
     if (!$isAjax) {

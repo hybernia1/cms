@@ -18,7 +18,7 @@ $route  = (string)($_GET['r'] ?? 'dashboard');
 $action = (string)($_GET['a'] ?? 'index');
 
 if ($route === 'auth') {
-    (new AdminAuthController())->handle($action);
+    (new AdminAuthController(baseViewsPath: __DIR__ . '/admin/views'))->handle($action);
     exit;
 }
 
