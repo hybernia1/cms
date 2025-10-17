@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 1) {
             throw new RuntimeException('Nepodařilo se serializovat konfiguraci.');
         }
 
-        $cfg = "<?php\ndeclare(strict_types=1);\n\nreturn " . $exported;
+        $cfg = "<?php\ndeclare(strict_types=1);\n\nreturn " . $exported . ";\n";
         if (!str_ends_with($cfg, "\n")) {
             $cfg .= "\n";
         }
