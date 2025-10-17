@@ -7,6 +7,7 @@ use Core\Database\Init as DB;
 use Cms\Auth\AuthService;
 use Cms\Auth\Authorization;
 use Cms\Domain\Repositories\NavigationRepository;
+use Cms\Mail\MailService;
 use Cms\Settings\CmsSettings;
 use Cms\Theming\ThemeManager;
 use Cms\Theming\ThemeResolver;
@@ -690,7 +691,7 @@ final class FrontController
 
             $html = "<p>Dobrý den,</p><p>pro reset hesla klikněte na odkaz: <a href=\"{$resetUrl}\">{$resetUrl}</a></p><p>Odkaz platí 1 hodinu.</p><p>{$site}</p>";
 
-            (new \Core\Mail\Mailer(from: ['email'=>$cs->siteEmail() ?: 'no-reply@localhost','name'=>$site]))
+            (new MailService($cs))
                 ->send((string)$user['email'], "{$site} – obnova hesla", $html, (string)($user['name'] ?? ''));
 
             $this->render('lost-done', [], ['pageTitle' => 'Zapomenuté heslo']);

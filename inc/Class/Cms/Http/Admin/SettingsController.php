@@ -6,6 +6,7 @@ namespace Cms\Http\Admin;
 use Cms\View\ViewEngine;
 use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
+use Cms\Mail\MailService;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
@@ -26,6 +27,13 @@ final class SettingsController
     public function handle(string $action): void
     {
         switch ($action) {
+            case 'mail':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                    $intent = (string)($_POST['intent'] ?? 'save');
+                    if ($intent === 'test') { $this->sendTestMail(); return; }
+                    $this->saveMail(); return;
+                }
+                $this->mail(); return;
             case 'index':
             default:
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->save(); return; }
@@ -124,6 +132,46 @@ final class SettingsController
         return $this->decodeSettingsData($raw);
     }
 
+    private function loadMailSettings(): array
+    {
+        $data = $this->readSettingsData();
+        $mail = is_array($data['mail'] ?? null) ? $data['mail'] : [];
+        $from = is_array($mail['from'] ?? null) ? $mail['from'] : [];
+        $smtp = is_array($mail['smtp'] ?? null) ? $mail['smtp'] : [];
+
+        $driver = $this->normalizeMailDriver((string)($mail['driver'] ?? 'php'));
+        $signature = (string)($mail['signature'] ?? '');
+
+        $port = isset($smtp['port']) ? (int)$smtp['port'] : 587;
+        if ($port <= 0 || $port > 65535) {
+            $port = 587;
+        }
+
+        return [
+            'driver'        => $driver,
+            'from_email'    => (string)($from['email'] ?? ''),
+            'from_name'     => (string)($from['name'] ?? ''),
+            'signature'     => $signature,
+            'smtp_host'     => (string)($smtp['host'] ?? ''),
+            'smtp_port'     => $port,
+            'smtp_username' => (string)($smtp['username'] ?? ''),
+            'smtp_password' => (string)($smtp['password'] ?? ''),
+            'smtp_secure'   => $this->normalizeMailSecure((string)($smtp['secure'] ?? '')),
+        ];
+    }
+
+    private function normalizeMailDriver(string $driver): string
+    {
+        $driver = strtolower(trim($driver));
+        return in_array($driver, ['php','smtp'], true) ? $driver : 'php';
+    }
+
+    private function normalizeMailSecure(string $secure): string
+    {
+        $secure = strtolower(trim($secure));
+        return in_array($secure, ['tls','ssl'], true) ? $secure : '';
+    }
+
     private function normalizeWebpCompression(string $value): string
     {
         $value = strtolower(trim($value));
@@ -149,6 +197,30 @@ final class SettingsController
             'previewNow'  => $now->format($dateFmt.' '.$timeFmt),
             'formatPresets' => $this->formatPresets(),
         ]);
+        unset($_SESSION['_flash']);
+    }
+
+    private function mail(): void
+    {
+        $mailSettings = $this->loadMailSettings();
+
+        $generalSettings = $this->loadSettings();
+
+        $this->view->render('settings/mail', [
+            'pageTitle'   => 'Nastavení e-mailu',
+            'nav'         => AdminNavigation::build('settings:mail'),
+            'currentUser' => $this->auth->user(),
+            'flash'       => $_SESSION['_flash'] ?? null,
+            'csrf'        => $this->token(),
+            'mail'        => $mailSettings,
+            'drivers'     => [
+                'php'  => 'PHP mail()',
+                'smtp' => 'SMTP server',
+            ],
+            'siteEmail'   => (string)($generalSettings['site_email'] ?? ''),
+            'siteName'    => (string)($generalSettings['site_title'] ?? ''),
+        ]);
+
         unset($_SESSION['_flash']);
     }
 
@@ -245,6 +317,89 @@ final class SettingsController
 
         $this->flash('success','Nastavení uloženo.');
         header('Location: admin.php?r=settings');
+        exit;
+    }
+
+    private function saveMail(): void
+    {
+        $this->assertCsrf();
+
+        $driver = $this->normalizeMailDriver((string)($_POST['mail_driver'] ?? 'php'));
+        $fromEmail = trim((string)($_POST['mail_from_email'] ?? ''));
+        if ($fromEmail !== '' && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            $fromEmail = '';
+        }
+        $fromName = trim((string)($_POST['mail_from_name'] ?? ''));
+        $signature = trim((string)($_POST['mail_signature'] ?? ''));
+
+        $smtpHost = trim((string)($_POST['mail_smtp_host'] ?? ''));
+        $smtpPort = (int)($_POST['mail_smtp_port'] ?? 587);
+        if ($smtpPort <= 0 || $smtpPort > 65535) {
+            $smtpPort = 587;
+        }
+        $smtpUsername = trim((string)($_POST['mail_smtp_username'] ?? ''));
+        $smtpPassword = (string)($_POST['mail_smtp_password'] ?? '');
+        $smtpSecure = $this->normalizeMailSecure((string)($_POST['mail_smtp_secure'] ?? ''));
+
+        $data = $this->readSettingsData();
+        if (!isset($data['mail']) || !is_array($data['mail'])) {
+            $data['mail'] = [];
+        }
+
+        $data['mail']['driver'] = $driver;
+        $data['mail']['signature'] = $signature;
+        $data['mail']['from'] = [
+            'email' => $fromEmail,
+            'name'  => $fromName,
+        ];
+        $data['mail']['smtp'] = [
+            'host'     => $smtpHost,
+            'port'     => $smtpPort,
+            'username' => $smtpUsername,
+            'password' => $smtpPassword,
+            'secure'   => $smtpSecure,
+        ];
+
+        $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($dataJson === false) {
+            $dataJson = '{}';
+        }
+
+        DB::query()->table('settings')->update([
+            'data'       => $dataJson,
+            'updated_at' => DateTimeFactory::nowString(),
+        ])->where('id','=',1)->execute();
+
+        CmsSettings::refresh();
+
+        $this->flash('success','E-mailové nastavení bylo uloženo.');
+        header('Location: admin.php?r=settings&a=mail');
+        exit;
+    }
+
+    private function sendTestMail(): void
+    {
+        $this->assertCsrf();
+
+        $email = trim((string)($_POST['test_email'] ?? ''));
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->flash('danger','Zadejte platnou e-mailovou adresu pro test.');
+            header('Location: admin.php?r=settings&a=mail');
+            exit;
+        }
+
+        $mailService = new MailService(new CmsSettings());
+        $subject = 'Testovací e-mail';
+        $body = '<p>Toto je testovací e-mail z redakčního systému.</p>';
+        $ok = $mailService->send($email, $subject, $body);
+
+        if ($ok) {
+            $this->flash('success', sprintf('Testovací e-mail byl odeslán na %s.', $email));
+        } else {
+            $this->flash('danger','Testovací e-mail se nepodařilo odeslat. Zkontrolujte nastavení serveru.');
+        }
+
+        header('Location: admin.php?r=settings&a=mail');
         exit;
     }
 

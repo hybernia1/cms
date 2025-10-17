@@ -55,6 +55,13 @@ final class CmsSettings
         return is_array($media) ? $media : [];
     }
 
+    private static function mailSettings(): array
+    {
+        $data = self::data();
+        $mail = $data['mail'] ?? [];
+        return is_array($mail) ? $mail : [];
+    }
+
     /** Vyvolat po uložení nastavení, aby se promazal cache. */
     public static function refresh(): void
     {
@@ -80,6 +87,67 @@ final class CmsSettings
         $media = self::mediaSettings();
         $value = isset($media['webp_compression']) ? (string)$media['webp_compression'] : 'medium';
         return in_array($value, ['high','medium','low'], true) ? $value : 'medium';
+    }
+
+    public function mailDriver(): string
+    {
+        $mail = self::mailSettings();
+        $driver = is_string($mail['driver'] ?? null) ? strtolower((string)$mail['driver']) : 'php';
+        return in_array($driver, ['php', 'smtp'], true) ? $driver : 'php';
+    }
+
+    public function mailFromEmail(): string
+    {
+        $mail = self::mailSettings();
+        $from = $mail['from'] ?? [];
+        if (is_array($from)) {
+            $email = trim((string)($from['email'] ?? ''));
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return $email;
+            }
+        }
+        return '';
+    }
+
+    public function mailFromName(): string
+    {
+        $mail = self::mailSettings();
+        $from = $mail['from'] ?? [];
+        $name = is_array($from) ? (string)($from['name'] ?? '') : '';
+        return trim($name);
+    }
+
+    public function mailSignature(): string
+    {
+        $mail = self::mailSettings();
+        return trim((string)($mail['signature'] ?? ''));
+    }
+
+    /**
+     * @return array{host:string,port:int,username:string,password:string,secure:string}
+     */
+    public function mailSmtp(): array
+    {
+        $mail = self::mailSettings();
+        $smtp = is_array($mail['smtp'] ?? null) ? $mail['smtp'] : [];
+
+        $port = isset($smtp['port']) ? (int)$smtp['port'] : 587;
+        if ($port <= 0 || $port > 65535) {
+            $port = 587;
+        }
+
+        $secure = strtolower(trim((string)($smtp['secure'] ?? '')));
+        if (!in_array($secure, ['tls', 'ssl'], true)) {
+            $secure = '';
+        }
+
+        return [
+            'host'     => (string)($smtp['host'] ?? ''),
+            'port'     => $port,
+            'username' => (string)($smtp['username'] ?? ''),
+            'password' => (string)($smtp['password'] ?? ''),
+            'secure'   => $secure,
+        ];
     }
 
     public function formatDate(\DateTimeInterface $dt): string
