@@ -82,6 +82,10 @@ final class ThemeManager
                 $bases[] = $candidate;
             }
         }
+        $sharedTemplates = dirname(__DIR__, 3) . '/templates';
+        if (is_dir($sharedTemplates)) {
+            $bases[] = $sharedTemplates;
+        }
         return $bases;
     }
 

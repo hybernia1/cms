@@ -38,7 +38,14 @@ $tags       = $termsByType['tag'] ?? [];
     <header class="card__header">
       <h2 class="card__title">Diskuse</h2>
     </header>
-    <?php $this->part('parts/comments/list', ['commentsTree' => $commentsTree]); ?>
+    <?php $this->part('parts/comments/list', [
+      'commentsTree' => $commentsTree,
+      'threadId'     => 'post-' . (int)($post['id'] ?? 0),
+      'classes'      => [
+        'empty'       => 'muted',
+        'replyButton' => 'comment__reply btn btn--link',
+      ],
+    ]); ?>
   </section>
   <?php $this->part('parts/comments/form', [
     'postId'       => (int)($post['id'] ?? 0),
@@ -46,5 +53,12 @@ $tags       = $termsByType['tag'] ?? [];
     'commentFlash' => $commentFlash,
     'frontUser'    => $frontUser,
     'urls'         => $urls,
+    'threadId'     => 'post-' . (int)($post['id'] ?? 0),
+    'classes'      => [
+      'replyInfo'   => 'comment-form__reply-info alert alert--info',
+      'replyLabel'  => 'comment-form__reply-label',
+      'replyTarget' => 'comment-form__reply-target',
+      'replyCancel' => 'comment-form__reply-cancel btn btn--link',
+    ],
   ]); ?>
 <?php endif; ?>
