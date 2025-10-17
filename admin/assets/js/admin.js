@@ -81,6 +81,84 @@
     return state;
   }
 
+  function parseHtmlDocument(html) {
+    if (typeof html !== 'string') {
+      return null;
+    }
+    try {
+      if (typeof DOMParser === 'function') {
+        return new DOMParser().parseFromString(html, 'text/html');
+      }
+    } catch (err) {
+      /* ignore */
+    }
+    if (document.implementation && document.implementation.createHTMLDocument) {
+      var doc = document.implementation.createHTMLDocument('');
+      try {
+        doc.documentElement.innerHTML = html;
+      } catch (e) {
+        doc.body.innerHTML = html;
+      }
+      return doc;
+    }
+    return null;
+  }
+
+  function applyAdminHtml(html) {
+    if (typeof html !== 'string' || html.trim() === '') {
+      return false;
+    }
+    var doc = parseHtmlDocument(html);
+    if (!doc) {
+      return false;
+    }
+    if (!replaceAdminShell(doc)) {
+      return false;
+    }
+    syncDocumentMeta(doc);
+    refreshDynamicUI(document);
+    return true;
+  }
+
+  function readResponsePayload(response) {
+    return response.text().then(function (text) {
+      var contentType = response.headers ? (response.headers.get('Content-Type') || '') : '';
+      var isJson = contentType.toLowerCase().indexOf('application/json') !== -1;
+      var data;
+      if (isJson) {
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch (err) {
+            data = { raw: text };
+          }
+        } else {
+          data = {};
+        }
+      } else {
+        data = { raw: text };
+      }
+      return { response: response, text: text, data: data, isJson: isJson };
+    });
+  }
+
+  function extractMessageFromData(data, fallback) {
+    var message = fallback || '';
+    if (!data || typeof data !== 'object') {
+      return message;
+    }
+    if (typeof data.error === 'string' && data.error.trim() !== '') {
+      return data.error.trim();
+    }
+    if (typeof data.message === 'string' && data.message.trim() !== '') {
+      return data.message.trim();
+    }
+    if (typeof data.raw === 'string' && data.raw.trim() !== '') {
+      return data.raw.trim();
+    }
+    return message;
+  }
+
   function dispatchNavigated(url, options) {
     var detail = {
       url: url,
@@ -170,25 +248,37 @@
       credentials: 'same-origin',
       headers: {
         'X-Requested-With': 'XMLHttpRequest',
-        'Accept': 'text/html,application/xhtml+xml'
+        'Accept': 'text/html,application/xhtml+xml,application/json'
       },
       signal: controller.signal
-    }).then(function (response) {
+    }).then(readResponsePayload).then(function (payload) {
+      var response = payload.response;
+      var data = payload.data;
+
       if (!response.ok) {
-        var error = new Error('Nepodařilo se načíst stránku (' + response.status + ').');
+        var message = extractMessageFromData(data, 'Nepodařilo se načíst stránku (' + response.status + ').');
+        var error = new Error(message);
         error.status = response.status;
         throw error;
       }
-      return response.text();
-    }).then(function (html) {
-      var parser = new DOMParser();
-      var doc = parser.parseFromString(html, 'text/html');
-      if (!replaceAdminShell(doc)) {
+
+      if (payload.isJson && data && typeof data === 'object') {
+        if (typeof data.redirect === 'string' && data.redirect !== '') {
+          return loadAdminPage(data.redirect, { pushState: true });
+        }
+        if (typeof data.reload === 'boolean' && data.reload) {
+          return loadAdminPage(targetUrl, { replaceHistory: true });
+        }
+      }
+
+      var html = payload.isJson
+        ? (data && typeof data.html === 'string' ? data.html : (data && typeof data.raw === 'string' ? data.raw : ''))
+        : payload.text;
+
+      if (!applyAdminHtml(html)) {
         window.location.href = targetUrl;
         return;
       }
-      syncDocumentMeta(doc);
-      refreshDynamicUI(document);
 
       if (options.replaceHistory) {
         window.history.replaceState(buildHistoryState(), '', targetUrl);
@@ -272,53 +362,57 @@
       headers: {
         'X-Requested-With': 'XMLHttpRequest'
       }
-    }).then(function (response) {
-      return response.text().then(function (text) {
-        var data = {};
-        if (text) {
-          try {
-            data = JSON.parse(text);
-          } catch (err) {
-            data = { raw: text };
-          }
-        }
+    }).then(readResponsePayload).then(function (payload) {
+      var response = payload.response;
+      var data = payload.data;
 
-        if (!response.ok) {
-          var message = 'Došlo k chybě (' + response.status + ')';
-          if (data && typeof data === 'object') {
-            if (data.error) {
-              message = data.error;
-            } else if (data.message) {
-              message = data.message;
-            } else if (data.raw) {
-              message = String(data.raw).trim() || message;
-            }
-          }
-          var error = new Error(message);
-          error.__handled = true;
-          showFlashMessage('danger', message, form);
-          throw error;
-        }
+      if (!response.ok) {
+        var message = extractMessageFromData(data, 'Došlo k chybě (' + response.status + ')');
+        var error = new Error(message);
+        error.__handled = true;
+        showFlashMessage('danger', message, form);
+        throw error;
+      }
 
-        return data;
-      });
-    }).then(function (data) {
+      if (payload.isJson && data && typeof data === 'object') {
+        if (typeof data.html === 'string' && data.html !== '') {
+          if (!applyAdminHtml(data.html)) {
+            window.location.reload();
+            return Promise.resolve();
+          }
+          window.history.replaceState(buildHistoryState(window.history.state), '', window.location.href);
+          dispatchNavigated(window.location.href, { source: 'form' });
+          return Promise.resolve();
+        }
+      } else if (typeof payload.text === 'string' && payload.text.trim() !== '') {
+        var trimmed = payload.text.trim();
+        if (trimmed.charAt(0) === '<' && applyAdminHtml(payload.text)) {
+          window.history.replaceState(buildHistoryState(window.history.state), '', window.location.href);
+          dispatchNavigated(window.location.href, { source: 'form' });
+          return Promise.resolve();
+        }
+      }
+
       var flash = data && typeof data === 'object' ? data.flash : null;
       if (flash && typeof flash === 'object') {
         showFlashMessage(flash.type, flash.msg, form);
       }
 
-      var followUp = Promise.resolve();
-
-      if (data && typeof data.redirect === 'string' && data.redirect !== '') {
-        followUp = loadAdminPage(data.redirect, { pushState: true });
-      } else if (data && typeof data.reload === 'boolean' && data.reload) {
-        followUp = loadAdminPage(window.location.href, { replaceHistory: true });
-      } else if (!flash && data && data.message) {
-        showFlashMessage(data.success === false ? 'danger' : 'info', data.message, form);
+      if (payload.isJson && data && typeof data === 'object') {
+        if (typeof data.redirect === 'string' && data.redirect !== '') {
+          return loadAdminPage(data.redirect, { pushState: true });
+        }
+        if (typeof data.reload === 'boolean' && data.reload) {
+          return loadAdminPage(window.location.href, { replaceHistory: true });
+        }
+        if (!flash && typeof data.message === 'string' && data.message) {
+          showFlashMessage(data.success === false ? 'danger' : 'info', data.message, form);
+        }
+      } else if (!flash && typeof payload.text === 'string' && payload.text.trim() !== '') {
+        showFlashMessage('info', payload.text.trim(), form);
       }
 
-      return followUp;
+      return Promise.resolve();
     }).catch(function (error) {
       if (!error || !error.__handled) {
         if (error && error.name === 'AbortError') {
