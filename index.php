@@ -1,13 +1,11 @@
 <?php
 declare(strict_types=1);
 
-use Core\Database\Init as DB;
 use Cms\Http\FrontController;
 
 require_once __DIR__ . '/load.php';
 
-$config = require __DIR__ . '/config.php';
-DB::boot($config);
+cms_bootstrap_config_or_redirect();
 
 $fc = new FrontController();
 $fc->handle();

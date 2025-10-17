@@ -17,8 +17,7 @@ use Core\Files\Uploader;
 require_once __DIR__ . '/load.php';
 
 // --- boot DB ---
-$config = require __DIR__ . '/config.php';
-DB::boot($config);
+cms_bootstrap_config_or_redirect();
 
 // --- Files core (baseDir + baseUrl autodetekce) ---
 $scheme  = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
