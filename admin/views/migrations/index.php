@@ -12,13 +12,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 mb-3">
-    <form method="post" action="admin.php?r=migrations&a=run" class="order-1">
+    <form method="post" action="admin.php?r=migrations&a=run" class="order-1" data-ajax>
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
       <button class="btn btn-success btn-sm" type="submit">
         <i class="bi bi-play-circle me-1"></i>Spustit čekající migrace
       </button>
     </form>
-    <form method="post" action="admin.php?r=migrations&a=rollback" class="order-2" onsubmit="return confirm('Rollback posledního batchu – pokračovat?');">
+    <form method="post" action="admin.php?r=migrations&a=rollback" class="order-2" onsubmit="return confirm('Rollback posledního batchu – pokračovat?');" data-ajax>
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
       <button class="btn btn-outline-warning btn-sm" type="submit">
         <i class="bi bi-arrow-counterclockwise me-1"></i>Rollback posledního batchu

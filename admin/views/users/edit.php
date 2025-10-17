@@ -6,7 +6,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
   $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
   $sel = fn($a,$b)=>$a===$b?' selected':'';
 ?>
-<form class="card" method="post" action="admin.php?r=users&a=save">
+<form class="card" method="post" action="admin.php?r=users&a=save" data-ajax>
   <div class="card-header"><?= $user?'Upravit':'Nový' ?> uživatel</div>
   <div class="card-body">
     <div class="row g-3">

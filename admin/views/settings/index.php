@@ -19,7 +19,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $webpEnabled = (int)($settings['webp_enabled'] ?? 0) === 1;
   $webpCompression = (string)($settings['webp_compression'] ?? 'medium');
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm">
+  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax>
     <div class="card-body">
       <div class="mb-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Základní informace</h2>

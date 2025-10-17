@@ -62,6 +62,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         data-apply-button="#terms-bulk-apply"
         data-counter="#terms-bulk-counter"
         method="post"
+        data-ajax
         action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'bulk','type'=>$type])) ?>">
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
   </form>
@@ -119,7 +120,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                   <a class="btn btn-light btn-sm border me-1" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>" aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
                     <i class="bi bi-pencil"></i>
                   </a>
-                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat? Bude odpojen od všech příspěvků.');">
+                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat? Bude odpojen od všech příspěvků.');" data-ajax>
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                     <button class="btn btn-light btn-sm border" type="submit" aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">

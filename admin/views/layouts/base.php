@@ -83,7 +83,7 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         <a class="btn btn-danger btn-sm" href="admin.php?r=auth&a=logout">Odhlásit</a>
       </div>
     </header>
-    <main class="admin-content">
+    <main class="admin-content" data-flash-container>
       <?php if (!empty($pageTitle)): ?>
         <div class="admin-page-heading">
           <h1 class="admin-page-title"><?= $h((string)$pageTitle) ?></h1>

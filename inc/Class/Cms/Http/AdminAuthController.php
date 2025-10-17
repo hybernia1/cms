@@ -32,9 +32,24 @@ final class AdminAuthController
 
             case 'logout':
                 $this->auth->logout();
+                if ($this->isAjax()) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['success' => true, 'redirect' => 'admin.php?r=auth&a=login'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
                 header('Location: admin.php?r=auth&a=login');
                 exit;
         }
+    }
+
+    private function isAjax(): bool
+    {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return true;
+        }
+
+        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
+        return str_contains($accept, 'application/json');
     }
 
     private function token(): string
@@ -79,10 +94,31 @@ final class AdminAuthController
                 throw new \RuntimeException('Neplatné přihlašovací údaje nebo účet není aktivní.');
             }
 
+            if ($this->isAjax()) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => true, 'redirect' => 'admin.php'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
             header('Location: admin.php');
             exit;
 
         } catch (\Throwable $e) {
+            if ($this->isAjax()) {
+                http_response_code(400);
+                $payload = [
+                    'success' => false,
+                    'error'   => $e->getMessage(),
+                    'flash'   => [
+                        'type' => 'danger',
+                        'msg'  => $e->getMessage(),
+                    ],
+                ];
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
             $this->showLogin($e->getMessage());
         }
     }

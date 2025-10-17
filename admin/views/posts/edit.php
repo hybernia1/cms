@@ -87,7 +87,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     }
   }
 ?>
-  <form id="post-edit-form" class="post-edit-form" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data">
+  <form id="post-edit-form" class="post-edit-form" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data" data-ajax>
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
     <input type="hidden" name="status" id="status-input" value="<?= $h($currentStatus) ?>">
     <div class="row g-4 align-items-start">

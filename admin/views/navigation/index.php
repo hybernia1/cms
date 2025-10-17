@@ -57,7 +57,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
         <div class="card mb-3">
           <div class="card-header">Upravit menu</div>
           <div class="card-body">
-            <form method="post" action="admin.php?r=navigation&a=update-menu" class="mb-3">
+            <form method="post" action="admin.php?r=navigation&a=update-menu" class="mb-3" data-ajax>
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="id" value="<?= $h((string)$menu['id']) ?>">
               <div class="mb-3">
@@ -80,7 +80,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                 <button class="btn btn-primary" type="submit">Uložit změny</button>
               </div>
             </form>
-            <form method="post" action="admin.php?r=navigation&a=delete-menu" onsubmit="return confirm('Opravdu smazat toto menu včetně všech položek?');">
+            <form method="post" action="admin.php?r=navigation&a=delete-menu" onsubmit="return confirm('Opravdu smazat toto menu včetně všech položek?');" data-ajax>
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="id" value="<?= $h((string)$menu['id']) ?>">
               <button class="btn btn-outline-danger w-100" type="submit">Smazat menu</button>
@@ -95,7 +95,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
           <?php if (!$tablesReady): ?>
             <p class="text-secondary small mb-0">Nejprve dokončete migrace databáze, poté bude možné menu vytvořit.</p>
           <?php else: ?>
-            <form method="post" action="admin.php?r=navigation&a=create-menu">
+            <form method="post" action="admin.php?r=navigation&a=create-menu" data-ajax>
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <div class="mb-3">
                 <label class="form-label">Název</label>
@@ -138,7 +138,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
         <div class="card mb-3" id="item-form">
           <div class="card-header"><?= $editingItem ? 'Upravit položku' : 'Přidat položku' ?></div>
           <div class="card-body">
-            <form method="post" action="admin.php?r=navigation&a=<?= $editingItem ? 'update-item' : 'create-item' ?>">
+            <form method="post" action="admin.php?r=navigation&a=<?= $editingItem ? 'update-item' : 'create-item' ?>" data-ajax>
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
               <?php if ($editingItem): ?>
@@ -232,7 +232,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                     <td><?= $h((string)$it['sort_order']) ?></td>
                     <td class="text-end">
                       <a class="btn btn-light btn-sm border me-1" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form">Upravit</a>
-                      <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" onsubmit="return confirm('Opravdu odstranit tuto položku?');">
+                      <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" onsubmit="return confirm('Opravdu odstranit tuto položku?');" data-ajax>
                         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                         <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
                         <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">

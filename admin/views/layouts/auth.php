@@ -16,10 +16,11 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   </style>
 </head>
 <body>
-  <main class="auth-card p-4">
+  <main class="auth-card p-4" data-flash-container>
     <h1 class="h4 mb-3"><?= $h($pageTitle ?? 'Přihlášení') ?></h1>
     <?php $content(); ?>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="admin/assets/js/admin.js" defer></script>
 </body>
 </html>
