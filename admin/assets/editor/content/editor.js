@@ -143,8 +143,19 @@
     restoreInitialContent();
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    var editors = document.querySelectorAll('textarea[data-content-editor]');
+  function scanEditors(root) {
+    var scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+    var editors = scope.querySelectorAll ? scope.querySelectorAll('textarea[data-content-editor]') : [];
     editors.forEach(initEditor);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    scanEditors(document);
+  });
+
+  document.addEventListener('cms:admin:navigated', function (event) {
+    var detail = event && event.detail ? event.detail : {};
+    var root = detail.root && typeof detail.root.querySelectorAll === 'function' ? detail.root : document;
+    scanEditors(root);
   });
 })();

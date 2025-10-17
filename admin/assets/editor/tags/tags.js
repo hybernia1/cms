@@ -348,8 +348,19 @@
     updateHiddenInputs();
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    var fields = document.querySelectorAll('[data-tag-field]');
+  function scanTagFields(root) {
+    var scope = root && typeof root.querySelectorAll === 'function' ? root : document;
+    var fields = scope.querySelectorAll ? scope.querySelectorAll('[data-tag-field]') : [];
     fields.forEach(initTagField);
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    scanTagFields(document);
+  });
+
+  document.addEventListener('cms:admin:navigated', function (event) {
+    var detail = event && event.detail ? event.detail : {};
+    var root = detail.root && typeof detail.root.querySelectorAll === 'function' ? detail.root : document;
+    scanTagFields(root);
   });
 })();

@@ -79,8 +79,8 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
             <span><?= $h((string)($currentUser['email'] ?? '')) ?></span>
           </span>
         <?php endif; ?>
-        <a class="btn btn-outline-secondary btn-sm" href="./">Frontend</a>
-        <a class="btn btn-danger btn-sm" href="admin.php?r=auth&a=logout">Odhlásit</a>
+        <a class="btn btn-outline-secondary btn-sm" href="./" data-no-ajax>Frontend</a>
+        <a class="btn btn-danger btn-sm" href="admin.php?r=auth&a=logout" data-no-ajax>Odhlásit</a>
       </div>
     </header>
     <main class="admin-content" data-flash-container>

@@ -64,7 +64,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </nav>
 
     <!-- Minimal search (ikonka) -->
-    <form class="order-1 order-md-2 ms-md-auto" method="get" action="admin.php" role="search">
+    <form class="order-1 order-md-2 ms-md-auto" method="get" action="admin.php" role="search" data-ajax>
       <input type="hidden" name="r" value="posts">
       <input type="hidden" name="type" value="<?= $h($type) ?>">
       <input type="hidden" name="status" value="<?= $h($status) ?>">

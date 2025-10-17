@@ -40,7 +40,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 ?>
   <div class="card mb-3">
     <div class="card-body">
-      <form class="row gy-2 gx-2 align-items-end" method="get" action="admin.php">
+      <form class="row gy-2 gx-2 align-items-end" method="get" action="admin.php" data-ajax>
         <input type="hidden" name="r" value="media">
         <div class="col-md-3">
           <label class="form-label" for="media-type">Typ</label>

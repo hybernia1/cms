@@ -19,7 +19,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   };
 ?>
   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 mb-3">
-    <form class="order-1 order-md-1" method="get" action="admin.php" role="search">
+    <form class="order-1 order-md-1" method="get" action="admin.php" role="search" data-ajax>
       <input type="hidden" name="r" value="users">
       <div class="input-group input-group-sm" style="min-width:260px;">
         <input class="form-control" name="q" placeholder="Hledat jméno nebo e-mail…" value="<?= $h($q) ?>">
