@@ -69,24 +69,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 1) {
         DB::pdo()->query('SELECT 1');
 
         // vygeneruj config.php
-        $cfg = <<<PHP
-<?php
-declare(strict_types=1);
+        $configData = [
+            'debug' => $debug,
+            'db' => [
+                'driver'   => 'mysql',
+                'host'     => $db['host'],
+                'port'     => $db['port'],
+                'database' => $db['database'],
+                'user'     => $db['user'],
+                'password' => $db['password'],
+                'charset'  => 'utf8mb4',
+            ],
+        ];
 
-return [
-    'debug' => {$debug},
+        $exported = var_export($configData, true);
+        if (!is_string($exported)) {
+            throw new RuntimeException('Nepodařilo se serializovat konfiguraci.');
+        }
 
-    'db' => [
-        'driver'   => 'mysql',
-        'host'     => '{$db['host']}',
-        'port'     => {$db['port']},
-        'database' => '{$db['database']}',
-        'user'     => '{$db['user']}',
-        'password' => '{$db['password']}',
-        'charset'  => 'utf8mb4',
-    ],
-];
-PHP;
+        $cfg = "<?php\ndeclare(strict_types=1);\n\nreturn " . $exported;
+        if (!str_ends_with($cfg, "\n")) {
+            $cfg .= "\n";
+        }
 
         if (file_put_contents($CONFIG_FILE, $cfg) === false) {
             throw new RuntimeException('Nelze zapsat config.php (oprávnění?).');
@@ -346,7 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
           <li>Tabulky existují.</li>
           <li>Admin účet byl založen.</li>
         </ul>
-        <a class="btn btn-primary" href="../test.php">Otevřít test stránku</a>
+        <a class="btn btn-primary" href="../">Přejít na homepage</a>
       </div>
     </div>
   <?php endif; ?>

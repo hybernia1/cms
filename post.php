@@ -202,7 +202,7 @@ if ($action === 'created') {
       </div>
     </div>
     <a class="btn btn-primary" href="<?=h($_SERVER['PHP_SELF'] ?? 'post.php')?>">Vytvořit další</a>
-    <a class="btn btn-outline-secondary" href="test.php">Zpět na test stránku</a>
+    <a class="btn btn-outline-secondary" href="index.php">Zpět na homepage</a>
 
   <?php else: // formulář ?>
     <form class="card" method="post" enctype="multipart/form-data" action="<?=h($_SERVER['PHP_SELF'] ?? 'post.php')?>?action=create" autocomplete="off">
