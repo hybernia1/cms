@@ -1,6 +1,7 @@
 (function () {
   var HISTORY_STATE_KEY = 'cmsAdminAjax';
   var activeNavigation = null;
+  var adminMenuMediaQuery = null;
 
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
@@ -222,9 +223,95 @@
     return true;
   }
 
+  function setSidebarOpen(open) {
+    if (open) {
+      document.body.classList.add('admin-sidebar-open');
+    } else {
+      document.body.classList.remove('admin-sidebar-open');
+    }
+    var toggles = [].slice.call(document.querySelectorAll('[data-admin-menu-toggle]'));
+    toggles.forEach(function (btn) {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  function bindSidebarMediaQuery() {
+    if (adminMenuMediaQuery) {
+      return;
+    }
+    if (typeof window.matchMedia !== 'function') {
+      return;
+    }
+    var mq = window.matchMedia('(min-width: 993px)');
+    var handler = function (event) {
+      if (event && event.matches) {
+        setSidebarOpen(false);
+      }
+    };
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', handler);
+    } else if (typeof mq.addListener === 'function') {
+      mq.addListener(handler);
+    }
+    adminMenuMediaQuery = { mq: mq, handler: handler };
+  }
+
+  function initAdminMenuToggle(root) {
+    var scope = root || document;
+    var toggles = [].slice.call(scope.querySelectorAll('[data-admin-menu-toggle]'));
+    if (toggles.length) {
+      bindSidebarMediaQuery();
+    }
+    toggles.forEach(function (btn) {
+      if (btn.dataset.adminMenuToggle === '1') {
+        return;
+      }
+      btn.dataset.adminMenuToggle = '1';
+      btn.addEventListener('click', function (event) {
+        event.preventDefault();
+        var isOpen = document.body.classList.contains('admin-sidebar-open');
+        setSidebarOpen(!isOpen);
+      });
+    });
+
+    var backdrop = document.querySelector('[data-admin-menu-backdrop]');
+    if (backdrop && backdrop.dataset.adminMenuBackdrop !== '1') {
+      backdrop.dataset.adminMenuBackdrop = '1';
+      backdrop.addEventListener('click', function () {
+        setSidebarOpen(false);
+      });
+    }
+
+    var sidebar = document.querySelector('.admin-sidebar');
+    if (sidebar && sidebar.dataset.adminMenuSidebar !== '1') {
+      sidebar.dataset.adminMenuSidebar = '1';
+      sidebar.addEventListener('click', function (evt) {
+        var link = evt.target && evt.target.closest ? evt.target.closest('a') : null;
+        if (link) {
+          setSidebarOpen(false);
+        }
+      });
+    }
+
+    if (!document.documentElement.dataset.adminMenuGlobalBound) {
+      document.documentElement.dataset.adminMenuGlobalBound = '1';
+      document.addEventListener('keydown', function (evt) {
+        if (evt.key === 'Escape') {
+          setSidebarOpen(false);
+        }
+      });
+      document.addEventListener('cms:admin:navigated', function () {
+        setSidebarOpen(false);
+      });
+    }
+
+    setSidebarOpen(document.body.classList.contains('admin-sidebar-open'));
+  }
+
   function refreshDynamicUI(root) {
     initTooltips(root);
     initBulkForms(root);
+    initAdminMenuToggle(root);
   }
 
   function loadAdminPage(url, options) {

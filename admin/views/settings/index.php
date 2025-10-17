@@ -39,12 +39,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Registrace &amp; URL</h2>
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label" for="allow_registration">Veřejná registrace</label>
             <?php $ar = (int)($settings['allow_registration'] ?? 1); ?>
-            <select class="form-select" name="allow_registration" id="allow_registration">
-              <option value="1"<?= $ar===1?' selected':''; ?>>Povoleno</option>
-              <option value="0"<?= $ar===0?' selected':''; ?>>Zakázáno</option>
-            </select>
+            <input type="hidden" name="allow_registration" value="0">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="allow_registration" name="allow_registration" value="1" <?= $ar===1 ? 'checked' : '' ?>>
+              <label class="form-check-label" for="allow_registration">Veřejná registrace</label>
+            </div>
+            <div class="form-text">Noví uživatelé se mohou registrovat přes frontend formulář.</div>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="site_url">Site URL</label>
@@ -58,11 +59,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Média</h2>
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label" for="webp_enabled">Podpora WebP</label>
-            <select class="form-select" name="webp_enabled" id="webp_enabled">
-              <option value="0"<?= $webpEnabled ? '' : ' selected' ?>>Vypnuto</option>
-              <option value="1"<?= $webpEnabled ? ' selected' : '' ?>>Zapnuto</option>
-            </select>
+            <input type="hidden" name="webp_enabled" value="0">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="webp_enabled" name="webp_enabled" value="1" <?= $webpEnabled ? 'checked' : '' ?>>
+              <label class="form-check-label" for="webp_enabled">Podpora WebP</label>
+            </div>
             <div class="form-text">Při zapnutí se budou z nahraných obrázků vytvářet také WebP soubory (pokud to server umožní).</div>
           </div>
           <div class="col-md-6">
@@ -156,7 +157,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
       function updateWebpState() {
         if (!webpToggle || !webpCompression) return;
-        webpCompression.disabled = webpToggle.value !== '1';
+        webpCompression.disabled = !webpToggle.checked;
       }
 
       if (dateInput) {

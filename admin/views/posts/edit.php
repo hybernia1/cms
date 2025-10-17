@@ -258,6 +258,8 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <p class="mb-2">Přetáhni soubor sem nebo klikni pro výběr.</p>
                 <p class="text-secondary small mb-3">Podporované formáty: JPG, PNG, GIF, WEBP, PDF.</p>
                 <input type="file" id="media-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" class="form-control" style="max-width:320px;margin:0 auto;">
+                <p class="text-secondary small mt-3 mb-0">Po výběru potvrď tlačítkem <strong>Použít</strong>.</p>
+                <div id="media-upload-preview" class="text-secondary small mt-2 d-none"></div>
               </div>
             </div>
             <div class="tab-pane fade" id="media-library-pane" role="tabpanel" aria-labelledby="media-library-tab">
@@ -271,6 +273,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           </div>
         </div>
         <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="media-apply-btn" disabled data-default-label="Použít">
+            <i class="bi bi-check2-circle me-1"></i><span data-label>Použít</span>
+          </button>
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
         </div>
       </div>
@@ -324,6 +329,91 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       var libraryError = document.getElementById('media-library-error');
       var libraryEmpty = document.getElementById('media-library-empty');
       var libraryLoaded = false;
+      var uploadPreview = document.getElementById('media-upload-preview');
+      var applyBtn = document.getElementById('media-apply-btn');
+      var applyBtnLabel = applyBtn ? applyBtn.querySelector('[data-label]') : null;
+      var defaultApplyLabel = applyBtn ? (applyBtn.getAttribute('data-default-label') || (applyBtnLabel ? applyBtnLabel.textContent : 'Použít')) : 'Použít';
+      var pendingFile = null;
+      var pendingLibraryItem = null;
+
+      function updateApplyButton(label, enabled) {
+        if (!applyBtn) return;
+        var text = label || defaultApplyLabel;
+        if (applyBtnLabel) {
+          applyBtnLabel.textContent = text;
+        } else {
+          applyBtn.textContent = text;
+        }
+        applyBtn.disabled = !enabled;
+      }
+
+      function clearLibrarySelection() {
+        if (!libraryGrid) return;
+        var activeButtons = libraryGrid.querySelectorAll('button.active');
+        activeButtons.forEach(function (btn) {
+          btn.classList.remove('active');
+          btn.removeAttribute('aria-pressed');
+        });
+      }
+
+      function resetPendingSelection() {
+        pendingFile = null;
+        pendingLibraryItem = null;
+        updateApplyButton(defaultApplyLabel, false);
+        clearLibrarySelection();
+        if (uploadPreview) {
+          uploadPreview.textContent = '';
+          uploadPreview.classList.add('d-none');
+        }
+        if (modalFileInput) {
+          modalFileInput.value = '';
+        }
+      }
+
+      function prepareExistingSelection(item, button) {
+        if (!item) return;
+        pendingLibraryItem = item;
+        pendingFile = null;
+        clearLibrarySelection();
+        if (button) {
+          button.classList.add('active');
+          button.setAttribute('aria-pressed', 'true');
+        }
+        if (uploadPreview) {
+          uploadPreview.textContent = '';
+          uploadPreview.classList.add('d-none');
+        }
+        updateApplyButton('Vybrat z knihovny', true);
+      }
+
+      function prepareFileSelection(file) {
+        if (!file) return;
+        pendingFile = file;
+        pendingLibraryItem = null;
+        clearLibrarySelection();
+        if (modalFileInput) {
+          try { modalFileInput.value = ''; } catch (err) {}
+        }
+        if (uploadPreview) {
+          var summary = file.name || 'Soubor';
+          if (file.type) {
+            summary += ' (' + file.type + ')';
+          }
+          uploadPreview.textContent = summary;
+          uploadPreview.classList.remove('d-none');
+        }
+        updateApplyButton('Použít nahraný soubor', true);
+      }
+
+      function commitPendingSelection() {
+        if (pendingFile) {
+          applyFile(pendingFile);
+          resetPendingSelection();
+        } else if (pendingLibraryItem) {
+          selectExisting(pendingLibraryItem);
+          resetPendingSelection();
+        }
+      }
 
       function setRemoveEnabled(enable) {
         if (!removeBtn) return;
@@ -395,7 +485,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           previewInner.appendChild(meta);
         }
         if (uploadInfo) {
-          uploadInfo.textContent = file ? ('Připravený soubor: ' + file.name) : '';
+          uploadInfo.textContent = file ? ('Vybraný soubor bude nahrán po uložení: ' + file.name) : '';
           uploadInfo.classList.toggle('d-none', !file);
         }
       }
@@ -425,6 +515,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         if (removeFlagInput) removeFlagInput.value = '0';
         setPreviewFromFile(file);
         setRemoveEnabled(true);
+        if (modalFileInput) {
+          modalFileInput.value = '';
+        }
         if (modalEl) {
           var modal = bootstrap.Modal.getInstance(modalEl);
           if (modal) { modal.hide(); }
@@ -451,13 +544,14 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           if (removeFlagInput) removeFlagInput.value = '1';
           setPreviewPlaceholder();
           setRemoveEnabled(false);
+          resetPendingSelection();
         });
       }
 
       if (modalFileInput) {
         modalFileInput.addEventListener('change', function () {
           if (modalFileInput.files && modalFileInput.files[0]) {
-            applyFile(modalFileInput.files[0]);
+            prepareFileSelection(modalFileInput.files[0]);
           }
         });
       }
@@ -474,7 +568,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           evt.preventDefault();
           dropzone.classList.remove('border-primary');
           if (evt.dataTransfer && evt.dataTransfer.files && evt.dataTransfer.files[0]) {
-            applyFile(evt.dataTransfer.files[0]);
+            prepareFileSelection(evt.dataTransfer.files[0]);
           }
         });
         dropzone.addEventListener('click', function () {
@@ -518,8 +612,14 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             label.textContent = item.name || item.url || 'Soubor';
             btn.appendChild(label);
           }
-          btn.addEventListener('click', function () {
-            selectExisting(item);
+          btn.addEventListener('click', function (evt) {
+            evt.preventDefault();
+            prepareExistingSelection(item, btn);
+          });
+          btn.addEventListener('dblclick', function (evt) {
+            evt.preventDefault();
+            prepareExistingSelection(item, btn);
+            commitPendingSelection();
           });
           col.appendChild(btn);
           libraryGrid.appendChild(col);
@@ -557,6 +657,22 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         libraryTab.addEventListener('shown.bs.tab', loadLibrary);
       }
 
+      if (applyBtn) {
+        applyBtn.addEventListener('click', function (evt) {
+          evt.preventDefault();
+          commitPendingSelection();
+        });
+      }
+
+      if (modalEl) {
+        modalEl.addEventListener('show.bs.modal', function () {
+          resetPendingSelection();
+        });
+        modalEl.addEventListener('hidden.bs.modal', function () {
+          resetPendingSelection();
+        });
+      }
+
       // nastav výchozí stav remove tlačítka
       var hasInitial = selectedInput && selectedInput.value !== '';
       if (!hasInitial && previewWrapper) {
@@ -566,6 +682,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         }
       }
       setRemoveEnabled(hasInitial);
+      resetPendingSelection();
     })();
   </script>
 <?php
