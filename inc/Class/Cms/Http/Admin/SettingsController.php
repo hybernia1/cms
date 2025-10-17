@@ -58,14 +58,14 @@ final class SettingsController extends BaseAdminController
             $row['site_url']           = ($row['site_url'] ?? '') !== '' ? (string)$row['site_url'] : $this->detectSiteUrl();
         }
 
-        $row['timezone'] = SettingsPresets::normalizeTimezone((string)($row['timezone'] ?? 'UTC+01:00'));
+        $storedTimezone = (string)($row['timezone'] ?? '');
 
         $data = $this->decodeSettingsData($row['data'] ?? null);
         $media = is_array($data['media'] ?? null) ? $data['media'] : [];
         $row['webp_enabled'] = !empty($media['webp_enabled']) ? 1 : 0;
         $row['webp_compression'] = $this->normalizeWebpCompression((string)($media['webp_compression'] ?? ''));
 
-        [$normalizedTz, $tzAdjusted] = $this->sanitizeTimezone((string)($row['timezone'] ?? ''));
+        [$normalizedTz, $tzAdjusted] = $this->sanitizeTimezone($storedTimezone);
         $row['timezone'] = $normalizedTz;
 
         if ($tzAdjusted) {
@@ -99,14 +99,19 @@ final class SettingsController extends BaseAdminController
     {
         $tz = trim($timezone);
         if ($tz === '') {
-            return ['Europe/Prague', true];
+            $default = 'UTC+01:00';
+            return [$default, true];
         }
 
+        $normalized = SettingsPresets::normalizeTimezone($tz);
+
         try {
-            new \DateTimeZone($tz);
-            return [$tz, false];
+            $phpTimezone = SettingsPresets::toPhpTimezone($normalized);
+            new \DateTimeZone($phpTimezone);
+            return [$normalized, $normalized !== $tz];
         } catch (\Throwable) {
-            return ['Europe/Prague', true];
+            $default = 'UTC+01:00';
+            return [$default, true];
         }
     }
 
@@ -181,7 +186,8 @@ final class SettingsController extends BaseAdminController
         $settings = $this->loadSettings();
         $timezone = SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
         $settings['timezone'] = $timezone;
-        $tz = new \DateTimeZone($timezone);
+        $phpTimezone = SettingsPresets::toPhpTimezone($timezone);
+        $tz = new \DateTimeZone($phpTimezone);
         $now = (new \DateTimeImmutable('now', $tz));
         $dateFmt = (string)($settings['date_format'] ?? 'Y-m-d');
         $timeFmt = (string)($settings['time_format'] ?? 'H:i');

@@ -20,11 +20,13 @@ final class DateTimeFactory
 
         if (self::$timezone === null || self::$timezoneName !== $name) {
             try {
-                self::$timezone = new DateTimeZone($name);
+                $phpTimezone = SettingsPresets::toPhpTimezone($name);
+                self::$timezone = new DateTimeZone($phpTimezone);
                 self::$timezoneName = $name;
             } catch (\Throwable) {
-                self::$timezone = new DateTimeZone('Europe/Prague');
-                self::$timezoneName = 'Europe/Prague';
+                $fallback = 'UTC+01:00';
+                self::$timezone = new DateTimeZone(SettingsPresets::toPhpTimezone($fallback));
+                self::$timezoneName = $fallback;
             }
         }
         return self::$timezone;

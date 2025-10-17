@@ -79,6 +79,22 @@ final class SettingsPresets
         return 'UTC+00:00';
     }
 
+    /**
+     * Converts a normalized timezone value into a representation accepted by PHP's DateTimeZone.
+     *
+     * @param string $value Normalized timezone (e.g. "UTC+02:00").
+     */
+    public static function toPhpTimezone(string $value): string
+    {
+        $normalized = self::normalizeTimezone($value);
+        if (preg_match('/^UTC([+-])(\d{2}):(\d{2})$/', $normalized, $m)) {
+            $sign = $m[1] === '-' ? '-' : '+';
+            return sprintf('%s%s:%s', $sign, $m[2], $m[3]);
+        }
+
+        return $normalized;
+    }
+
     private static function formatTimezoneOffset(int $minutes): string
     {
         $sign = $minutes >= 0 ? '+' : '-';
