@@ -23,6 +23,17 @@ a { text-decoration: none; }
   flex-direction: column;
   padding: 1.5rem 0 2rem;
 }
+.admin-sidebar-backdrop {
+  display: none;
+}
+.admin-menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.admin-menu-toggle i {
+  font-size: 1.1rem;
+}
 .admin-brand {
   padding: 0 1.5rem 1.25rem;
   font-size: 1.1rem;
@@ -115,6 +126,9 @@ a { text-decoration: none; }
 html.is-admin-loading .admin-main {
   opacity: 0.6;
 }
+body.admin-sidebar-open {
+  overflow: hidden;
+}
 .admin-topbar {
   display: flex;
   align-items: center;
@@ -201,12 +215,67 @@ html.is-admin-loading .admin-main {
   background: #f6f7f7;
 }
 @media (max-width: 992px) {
-  .admin-wrapper { flex-direction: column; }
-  .admin-sidebar { width: 100%; }
-  .admin-topbar { position: static; padding: 1rem 1.5rem; }
-  .admin-content { padding: 1.5rem; }
-  .admin-menu-link { padding: 0.75rem 1.25rem; }
-  .admin-submenu-link { padding-left: 2.25rem; }
-  .admin-submenu-link.is-active::before { left: 1.6rem; }
-  .admin-topbar-right { flex-wrap: wrap; justify-content: flex-end; }
+  .admin-wrapper {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .admin-sidebar {
+    width: 280px;
+    max-width: 85vw;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    overflow-y: auto;
+    transform: translateX(-100%);
+    transition: transform .3s ease;
+    z-index: 200;
+    box-shadow: 4px 0 18px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+  }
+  body.admin-sidebar-open .admin-sidebar {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  .admin-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(29, 35, 39, 0.55);
+    z-index: 150;
+  }
+  body.admin-sidebar-open .admin-sidebar-backdrop {
+    display: block;
+  }
+  .admin-menu-toggle {
+    display: inline-flex;
+  }
+  .admin-topbar {
+    position: sticky;
+    top: 0;
+    padding: 1rem 1.5rem;
+    z-index: 120;
+  }
+  .admin-content {
+    padding: 1.5rem;
+  }
+  .admin-menu-link {
+    padding: 0.75rem 1.25rem;
+  }
+  .admin-submenu-link {
+    padding-left: 2.25rem;
+  }
+  .admin-submenu-link.is-active::before {
+    left: 1.6rem;
+  }
+  .admin-topbar-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+#media-library-grid .btn.active {
+  border-color: #0d6efd;
+  background: #e7f1ff;
+  color: #0d6efd;
 }

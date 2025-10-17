@@ -66,7 +66,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <th>Text</th>
             <th>Příspěvek</th>
             <th style="width:140px">Stav</th>
-            <th style="width:240px" class="text-end">Akce</th>
+            <th style="width:190px" class="text-end">Akce</th>
           </tr>
         </thead>
         <tbody>
@@ -90,34 +90,51 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <span class="badge text-bg-<?= $badge((string)$c['status']) ?>"><?= $h((string)$c['status']) ?></span>
               </td>
               <td class="text-end">
-                <a class="btn btn-light btn-sm border me-1" href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>">Detail</a>
+                <a class="btn btn-light btn-sm border me-1"
+                   href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>"
+                   aria-label="Detail"
+                   data-bs-toggle="tooltip" data-bs-title="Detail">
+                  <i class="bi bi-eye"></i>
+                </a>
 
                 <form method="post" action="admin.php?r=comments&a=approve" class="d-inline" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit">Schválit</button>
+                  <button class="btn btn-light btn-sm border me-1" type="submit"
+                          aria-label="Schválit" data-bs-toggle="tooltip" data-bs-title="Schválit">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
                 </form>
 
                 <form method="post" action="admin.php?r=comments&a=draft" class="d-inline" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit">Koncept</button>
+                  <button class="btn btn-light btn-sm border me-1" type="submit"
+                          aria-label="Přepnout na koncept" data-bs-toggle="tooltip" data-bs-title="Přepnout na koncept">
+                    <i class="bi bi-file-earmark"></i>
+                  </button>
                 </form>
 
                 <form method="post" action="admin.php?r=comments&a=spam" class="d-inline" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border me-1" type="submit">Spam</button>
+                  <button class="btn btn-light btn-sm border me-1" type="submit"
+                          aria-label="Označit jako spam" data-bs-toggle="tooltip" data-bs-title="Označit jako spam">
+                    <i class="bi bi-slash-circle"></i>
+                  </button>
                 </form>
 
                 <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
-                  <button class="btn btn-light btn-sm border" type="submit">Smazat</button>
+                  <button class="btn btn-light btn-sm border" type="submit"
+                          aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">
+                    <i class="bi bi-trash"></i>
+                  </button>
                 </form>
               </td>
             </tr>

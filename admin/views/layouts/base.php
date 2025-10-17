@@ -21,7 +21,7 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 </head>
 <body>
 <div class="admin-wrapper">
-  <aside class="admin-sidebar">
+  <aside class="admin-sidebar" aria-label="Admin menu">
     <div class="admin-brand">
       <a href="admin.php"><i class="bi bi-wordpress"></i> CMS Admin</a>
     </div>
@@ -62,9 +62,13 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
       </ul>
     </nav>
   </aside>
+  <div class="admin-sidebar-backdrop" data-admin-menu-backdrop></div>
   <div class="admin-main">
     <header class="admin-topbar">
       <div class="admin-topbar-left">
+        <button class="btn btn-outline-secondary btn-sm admin-menu-toggle d-lg-none" type="button" data-admin-menu-toggle aria-label="Menu" aria-expanded="false">
+          <i class="bi bi-list"></i>
+        </button>
         <i class="bi bi-gear-fill"></i>
         <?php if (!empty($pageTitle)): ?>
           <span class="admin-topbar-current"><?= $h((string)$pageTitle) ?></span>

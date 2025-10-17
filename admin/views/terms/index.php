@@ -23,19 +23,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   };
 ?>
   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 mb-3">
-    <nav aria-label="Typ termu" class="order-2 order-md-1">
-      <ul class="nav nav-pills nav-sm">
-        <?php foreach ($types as $key => $cfg): ?>
-          <li class="nav-item">
-            <a class="nav-link px-3 py-1 <?= $type === $key ? 'active' : '' ?>" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','type'=>$key])) ?>">
-              <?= $h((string)($cfg['nav'] ?? $key)) ?>
-            </a>
-          </li>
-        <?php endforeach; ?>
-      </ul>
-    </nav>
-
-    <form class="order-1 order-md-2 ms-md-auto" method="get" action="admin.php" role="search" data-ajax>
+    <form class="order-1 flex-grow-1" method="get" action="admin.php" role="search" data-ajax>
       <input type="hidden" name="r" value="terms">
       <input type="hidden" name="type" value="<?= $h($type) ?>">
       <div class="input-group input-group-sm" style="min-width:260px;">
@@ -49,7 +37,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       </div>
     </form>
 
-    <a class="btn btn-success btn-sm order-3" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'create','type'=>$type])) ?>">
+    <a class="btn btn-success btn-sm order-2 order-md-2 ms-md-auto" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'create','type'=>$type])) ?>">
       <i class="bi bi-plus-lg me-1"></i><?= $h((string)($typeCfg['create'] ?? 'Nový term')) ?>
     </a>
   </div>
