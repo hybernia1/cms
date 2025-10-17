@@ -105,6 +105,27 @@
     return null;
   }
 
+  function executeScripts(root) {
+    if (!root) {
+      return;
+    }
+    var scripts = [].slice.call(root.querySelectorAll('script'));
+    scripts.forEach(function (oldScript) {
+      if (!oldScript || !oldScript.parentNode) {
+        return;
+      }
+      var newScript = document.createElement('script');
+      for (var i = 0; i < oldScript.attributes.length; i++) {
+        var attr = oldScript.attributes[i];
+        newScript.setAttribute(attr.name, attr.value);
+      }
+      if (!oldScript.hasAttribute('src')) {
+        newScript.textContent = oldScript.textContent;
+      }
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+  }
+
   function applyAdminHtml(html) {
     if (typeof html !== 'string' || html.trim() === '') {
       return false;
@@ -117,6 +138,7 @@
       return false;
     }
     syncDocumentMeta(doc);
+    executeScripts(document.querySelector('.admin-wrapper'));
     refreshDynamicUI(document);
     return true;
   }
