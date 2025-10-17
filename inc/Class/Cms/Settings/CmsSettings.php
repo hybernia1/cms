@@ -154,22 +154,27 @@ final class CmsSettings
 
     public function formatDate(\DateTimeInterface $dt): string
     {
-        $tz = new \DateTimeZone($this->timezone());
+        $tz = $this->dateTimeZone();
         $d  = (new \DateTimeImmutable('@'.$dt->getTimestamp()))->setTimezone($tz);
         return $d->format($this->dateFormat());
     }
 
     public function formatTime(\DateTimeInterface $dt): string
     {
-        $tz = new \DateTimeZone($this->timezone());
+        $tz = $this->dateTimeZone();
         $d  = (new \DateTimeImmutable('@'.$dt->getTimestamp()))->setTimezone($tz);
         return $d->format($this->timeFormat());
     }
 
     public function formatDateTime(\DateTimeInterface $dt, string $sep = ' '): string
     {
-        $tz = new \DateTimeZone($this->timezone());
+        $tz = $this->dateTimeZone();
         $d  = (new \DateTimeImmutable('@'.$dt->getTimestamp()))->setTimezone($tz);
         return $d->format($this->dateFormat() . $sep . $this->timeFormat());
+    }
+
+    private function dateTimeZone(): \DateTimeZone
+    {
+        return new \DateTimeZone(SettingsPresets::toPhpTimezone($this->timezone()));
     }
 }
