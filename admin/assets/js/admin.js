@@ -1,4 +1,7 @@
 (function () {
+  var HISTORY_STATE_KEY = 'cmsAdminAjax';
+  var activeNavigation = null;
+
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
   }
@@ -59,25 +62,208 @@
     }
   }
 
-  function ajaxFormRequest(form, submitter) {
-    var method = (form.getAttribute('method') || 'GET').toUpperCase();
-    if (method === 'GET') {
+  function normalizeUrl(url) {
+    try {
+      return new URL(url, window.location.href).toString();
+    } catch (e) {
+      return url;
+    }
+  }
+
+  function buildHistoryState(extra) {
+    var state = {};
+    state[HISTORY_STATE_KEY] = true;
+    if (extra && typeof extra === 'object') {
+      Object.keys(extra).forEach(function (key) {
+        state[key] = extra[key];
+      });
+    }
+    return state;
+  }
+
+  function dispatchNavigated(url, options) {
+    var detail = {
+      url: url,
+      root: document,
+      initial: !!(options && options.initial),
+      source: options && options.source ? options.source : 'navigation'
+    };
+    try {
+      document.dispatchEvent(new CustomEvent('cms:admin:navigated', { detail: detail }));
+    } catch (err) {
+      try {
+        var legacyEvent = document.createEvent('CustomEvent');
+        legacyEvent.initCustomEvent('cms:admin:navigated', true, true, detail);
+        document.dispatchEvent(legacyEvent);
+      } catch (legacyError) {
+        try {
+          var fallback = document.createEvent('Event');
+          fallback.initEvent('cms:admin:navigated', true, true);
+          fallback.detail = detail;
+          document.dispatchEvent(fallback);
+        } catch (ignored) {
+          /* noop */
+        }
+      }
+    }
+  }
+
+  function syncDocumentMeta(doc) {
+    if (!doc) return;
+    var newTitle = doc.querySelector('title');
+    if (newTitle) {
+      document.title = newTitle.textContent || document.title;
+    }
+    var incomingHtml = doc.documentElement;
+    if (incomingHtml) {
+      var lang = incomingHtml.getAttribute('lang');
+      if (lang) {
+        document.documentElement.setAttribute('lang', lang);
+      }
+      var theme = incomingHtml.getAttribute('data-bs-theme');
+      if (theme) {
+        document.documentElement.setAttribute('data-bs-theme', theme);
+      }
+    }
+    var incomingBody = doc.body;
+    if (incomingBody) {
+      document.body.className = incomingBody.className || '';
+    }
+  }
+
+  function replaceAdminShell(doc) {
+    if (!doc) {
+      return false;
+    }
+    var newWrapper = doc.querySelector('.admin-wrapper');
+    var currentWrapper = document.querySelector('.admin-wrapper');
+    if (!newWrapper || !currentWrapper) {
+      return false;
+    }
+    currentWrapper.replaceWith(newWrapper);
+    return true;
+  }
+
+  function refreshDynamicUI(root) {
+    initTooltips(root);
+    initBulkForms(root);
+  }
+
+  function loadAdminPage(url, options) {
+    options = options || {};
+    var targetUrl = normalizeUrl(url);
+    if (!targetUrl) {
       return Promise.resolve();
     }
 
-    var action = form.getAttribute('action') || window.location.href;
-    var formData = new FormData(form);
-    if (submitter && submitter.name) {
-      formData.append(submitter.name, submitter.value);
+    if (activeNavigation && activeNavigation.controller) {
+      activeNavigation.controller.abort();
     }
 
+    var controller = new AbortController();
+    activeNavigation = { url: targetUrl, controller: controller };
+
+    document.documentElement.classList.add('is-admin-loading');
+
+    return fetch(targetUrl, {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'text/html,application/xhtml+xml'
+      },
+      signal: controller.signal
+    }).then(function (response) {
+      if (!response.ok) {
+        var error = new Error('Nepodařilo se načíst stránku (' + response.status + ').');
+        error.status = response.status;
+        throw error;
+      }
+      return response.text();
+    }).then(function (html) {
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(html, 'text/html');
+      if (!replaceAdminShell(doc)) {
+        window.location.href = targetUrl;
+        return;
+      }
+      syncDocumentMeta(doc);
+      refreshDynamicUI(document);
+
+      if (options.replaceHistory) {
+        window.history.replaceState(buildHistoryState(), '', targetUrl);
+      } else if (options.pushState && targetUrl !== window.location.href) {
+        window.history.pushState(buildHistoryState(), '', targetUrl);
+      } else if (!window.history.state || !window.history.state[HISTORY_STATE_KEY]) {
+        window.history.replaceState(buildHistoryState(), '', targetUrl);
+      } else {
+        window.history.replaceState(buildHistoryState(window.history.state), '', targetUrl);
+      }
+
+      if (options.scroll !== false) {
+        try {
+          window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        } catch (err) {
+          window.scrollTo(0, 0);
+        }
+      }
+
+      dispatchNavigated(targetUrl, { source: options.fromPopstate ? 'history' : 'navigation' });
+    }).catch(function (error) {
+      if (error && error.name === 'AbortError') {
+        return;
+      }
+      console.error(error);
+      window.location.href = targetUrl;
+    }).finally(function () {
+      if (activeNavigation && activeNavigation.controller === controller) {
+        activeNavigation = null;
+      }
+      document.documentElement.classList.remove('is-admin-loading');
+    });
+  }
+
+  function ajaxFormRequest(form, submitter) {
+    var method = (form.getAttribute('method') || 'GET').toUpperCase();
+    var action = form.getAttribute('action') || window.location.href;
     var restoreDisabled = false;
+
     if (submitter && typeof submitter.disabled === 'boolean' && !submitter.disabled) {
       submitter.disabled = true;
       restoreDisabled = true;
     }
 
     form.classList.add('is-submitting');
+
+    if (method === 'GET') {
+      var params = new URLSearchParams();
+      var formData = new FormData(form);
+      formData.forEach(function (value, key) {
+        params.append(key, value);
+      });
+      if (submitter && submitter.name) {
+        params.append(submitter.name, submitter.value);
+      }
+      var url = normalizeUrl(action);
+      var urlObj;
+      try {
+        urlObj = new URL(url);
+      } catch (err) {
+        urlObj = new URL(window.location.href);
+      }
+      urlObj.search = params.toString();
+      return loadAdminPage(urlObj.toString(), { pushState: true }).finally(function () {
+        form.classList.remove('is-submitting');
+        if (submitter && restoreDisabled) {
+          submitter.disabled = false;
+        }
+      });
+    }
+
+    var formData = new FormData(form);
+    if (submitter && submitter.name) {
+      formData.append(submitter.name, submitter.value);
+    }
 
     return fetch(action, {
       method: method,
@@ -122,21 +308,22 @@
         showFlashMessage(flash.type, flash.msg, form);
       }
 
+      var followUp = Promise.resolve();
+
       if (data && typeof data.redirect === 'string' && data.redirect !== '') {
-        window.location.href = data.redirect;
-        return;
-      }
-
-      if (data && typeof data.reload === 'boolean' && data.reload) {
-        window.location.reload();
-        return;
-      }
-
-      if (!flash && data && data.message) {
+        followUp = loadAdminPage(data.redirect, { pushState: true });
+      } else if (data && typeof data.reload === 'boolean' && data.reload) {
+        followUp = loadAdminPage(window.location.href, { replaceHistory: true });
+      } else if (!flash && data && data.message) {
         showFlashMessage(data.success === false ? 'danger' : 'info', data.message, form);
       }
+
+      return followUp;
     }).catch(function (error) {
       if (!error || !error.__handled) {
+        if (error && error.name === 'AbortError') {
+          return;
+        }
         var msg = (error && error.message) ? error.message : 'Došlo k neočekávané chybě.';
         showFlashMessage('danger', msg, form);
       }
@@ -166,19 +353,30 @@
     });
   }
 
-  function initTooltips() {
+  function initTooltips(root) {
     if (typeof bootstrap === 'undefined' || typeof bootstrap.Tooltip !== 'function') {
       return;
     }
-    var tooltipElements = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var scope = root || document;
+    var tooltipElements = [].slice.call(scope.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipElements.forEach(function (el) {
-      new bootstrap.Tooltip(el);
+      if (typeof bootstrap.Tooltip.getOrCreateInstance === 'function') {
+        bootstrap.Tooltip.getOrCreateInstance(el);
+      } else {
+        new bootstrap.Tooltip(el);
+      }
     });
   }
 
-  function initBulkForms() {
-    var forms = [].slice.call(document.querySelectorAll('[data-bulk-form]'));
+  function initBulkForms(root) {
+    var scope = root || document;
+    var forms = [].slice.call(scope.querySelectorAll('[data-bulk-form]'));
     forms.forEach(function (form) {
+      if (form.dataset.bulkInitialized === '1') {
+        return;
+      }
+      form.dataset.bulkInitialized = '1';
+
       var selectAllSelector = form.getAttribute('data-select-all');
       var rowSelector = form.getAttribute('data-row-checkbox');
       var applySelector = form.getAttribute('data-apply-button');
@@ -232,9 +430,87 @@
     });
   }
 
+  function shouldHandleLink(event, link) {
+    if (!link || typeof link.getAttribute !== 'function') {
+      return false;
+    }
+    if (link.hasAttribute('data-no-ajax')) {
+      return false;
+    }
+    if (link.target && link.target !== '_self') {
+      return false;
+    }
+    if (link.hasAttribute('download')) {
+      return false;
+    }
+    var href = link.getAttribute('href');
+    if (!href || href.trim() === '' || href.trim().charAt(0) === '#') {
+      return false;
+    }
+    if (link.getAttribute('rel') && link.getAttribute('rel').toLowerCase().indexOf('external') !== -1) {
+      return false;
+    }
+    var url;
+    try {
+      url = new URL(link.href, window.location.href);
+    } catch (e) {
+      return false;
+    }
+    if (url.origin !== window.location.origin) {
+      return false;
+    }
+    if (url.pathname !== window.location.pathname) {
+      return false;
+    }
+    if (link.dataset && link.dataset.noAjax === 'true') {
+      return false;
+    }
+    return true;
+  }
+
+  function initAjaxLinks() {
+    document.addEventListener('click', function (event) {
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (event.button !== 0) {
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      var link = event.target && event.target.closest ? event.target.closest('a') : null;
+      if (!shouldHandleLink(event, link)) {
+        return;
+      }
+
+      event.preventDefault();
+      loadAdminPage(link.href, { pushState: true });
+    });
+  }
+
+  function bootHistory() {
+    if (!window.history.state || !window.history.state[HISTORY_STATE_KEY]) {
+      window.history.replaceState(buildHistoryState(), '', window.location.href);
+    }
+    window.addEventListener('popstate', function (event) {
+      if (event.state && event.state[HISTORY_STATE_KEY]) {
+        loadAdminPage(window.location.href, { replaceHistory: true, fromPopstate: true });
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    initTooltips();
-    initBulkForms();
+    refreshDynamicUI(document);
     initAjaxForms();
+    initAjaxLinks();
+    bootHistory();
+    dispatchNavigated(window.location.href, { initial: true, source: 'initial' });
   });
+
+  window.cmsAdmin = {
+    load: loadAdminPage,
+    refresh: refreshDynamicUI
+  };
 })();

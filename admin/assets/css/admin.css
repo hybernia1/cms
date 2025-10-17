@@ -7,6 +7,9 @@ body {
   color: #1d2327;
   min-height: 100vh;
 }
+html.is-admin-loading body {
+  cursor: progress;
+}
 a { text-decoration: none; }
 .admin-wrapper {
   display: flex;
@@ -107,6 +110,10 @@ a { text-decoration: none; }
   display: flex;
   flex-direction: column;
   background: #f5f5f7;
+  transition: opacity .2s ease;
+}
+html.is-admin-loading .admin-main {
+  opacity: 0.6;
 }
 .admin-topbar {
   display: flex;
