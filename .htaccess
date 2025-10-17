@@ -1,0 +1,65 @@
+# === Základní bezpečnost a UX ===
+Options -Indexes
+DirectoryIndex index.php
+
+# Bezpečné MIME (volitelné; vyžaduje mod_headers)
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Statická cache pro assets/themes/uploads (volitelné; vyžaduje mod_expires)
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 7 days"
+  ExpiresByType application/javascript "access plus 7 days"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType image/webp "access plus 30 days"
+  ExpiresByType image/gif "access plus 30 days"
+  ExpiresDefault "access plus 1 hour"
+</IfModule>
+
+# === Rewrite ===
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Pokud požadavek míří na existující soubor/složku, nepřepisuj.
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # --- ADMIN pretty URLs ---
+  # /admin                      -> admin.php
+  RewriteRule ^admin/?$ admin.php [L,QSA]
+
+  # /admin/{route}              -> admin.php?r={route}
+  RewriteRule ^admin/([^/]+)/?$ admin.php?r=$1 [L,QSA]
+
+  # /admin/{route}/{action}     -> admin.php?r={route}&a={action}
+  RewriteRule ^admin/([^/]+)/([^/]+)/?$ admin.php?r=$1&a=$2 [L,QSA]
+
+  # --- FRONTEND pretty URLs ---
+  # Všechno ostatní pošli do index.php
+  
+  # Pokud je požadavek na existující soubor nebo adresář, předej přímo
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Admin necháme přes admin.php (můžeš mít i admin pretty URLs, ale teď neřešíme)
+RewriteRule ^admin(?:/.*)?$ admin.php [L,QSA]
+
+# Všechno ostatní pošli na index.php (frontend router)
+RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+# === Zamčení citlivých adresářů (doporučeno po instalaci) ===
+# Instalátor po dokončení uzamkni nebo smaž:
+# RewriteRule ^install/ - [F,L]
+
+# Zdrojáky (PHP třídy) nenech přistupovat přímo z webu:
+<IfModule mod_rewrite.c>
+  RewriteRule ^inc/ - [F,L]
+</IfModule>
