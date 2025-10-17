@@ -113,11 +113,7 @@ function cms_bootstrap_config_or_redirect(): array
     /** @var array<string,mixed> $config */
     $config = require $configFile;
 
-    try {
-        \Core\Database\Init::boot($config);
-    } catch (\Throwable) {
-        cms_redirect_to_install();
-    }
+    \Core\Database\Init::boot($config);
 
     return $config;
 }
