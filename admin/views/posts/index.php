@@ -163,7 +163,14 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                     </button>
                   </form>
 
-                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat?');" data-ajax>
+                  <form method="post"
+                        action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>"
+                        class="d-inline"
+                        data-ajax
+                        data-confirm-modal="Opravdu smazat?"
+                        data-confirm-modal-title="Potvrzení smazání"
+                        data-confirm-modal-confirm-label="Smazat"
+                        data-confirm-modal-cancel-label="Zrušit">
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                     <button class="btn btn-light btn-sm border"
