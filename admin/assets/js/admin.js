@@ -128,19 +128,20 @@
 
   function applyAdminHtml(html) {
     if (typeof html !== 'string' || html.trim() === '') {
-      return false;
+      return null;
     }
     var doc = parseHtmlDocument(html);
     if (!doc) {
-      return false;
+      return null;
     }
-    if (!replaceAdminShell(doc)) {
-      return false;
+    var newWrapper = replaceAdminShell(doc);
+    if (!newWrapper) {
+      return null;
     }
     syncDocumentMeta(doc);
-    executeScripts(document.querySelector('.admin-wrapper'));
-    refreshDynamicUI(document);
-    return true;
+    executeScripts(newWrapper);
+    refreshDynamicUI(newWrapper);
+    return newWrapper;
   }
 
   function readResponsePayload(response) {
@@ -185,7 +186,7 @@
   function dispatchNavigated(url, options) {
     var detail = {
       url: url,
-      root: document,
+      root: options && options.root ? options.root : document,
       initial: !!(options && options.initial),
       source: options && options.source ? options.source : 'navigation'
     };
@@ -234,15 +235,15 @@
 
   function replaceAdminShell(doc) {
     if (!doc) {
-      return false;
+      return null;
     }
     var newWrapper = doc.querySelector('.admin-wrapper');
     var currentWrapper = document.querySelector('.admin-wrapper');
     if (!newWrapper || !currentWrapper) {
-      return false;
+      return null;
     }
     currentWrapper.replaceWith(newWrapper);
-    return true;
+    return newWrapper;
   }
 
   function setSidebarOpen(open) {
@@ -384,7 +385,8 @@
         ? (data && typeof data.html === 'string' ? data.html : (data && typeof data.raw === 'string' ? data.raw : ''))
         : payload.text;
 
-      if (!applyAdminHtml(html)) {
+      var appliedRoot = applyAdminHtml(html);
+      if (!appliedRoot) {
         window.location.href = targetUrl;
         return;
       }
@@ -407,7 +409,7 @@
         }
       }
 
-      dispatchNavigated(targetUrl, { source: options.fromPopstate ? 'history' : 'navigation' });
+      dispatchNavigated(targetUrl, { source: options.fromPopstate ? 'history' : 'navigation', root: appliedRoot });
     }).catch(function (error) {
       if (error && error.name === 'AbortError') {
         return;
@@ -485,20 +487,24 @@
 
       if (payload.isJson && data && typeof data === 'object') {
         if (typeof data.html === 'string' && data.html !== '') {
-          if (!applyAdminHtml(data.html)) {
+          var formAppliedRoot = applyAdminHtml(data.html);
+          if (!formAppliedRoot) {
             window.location.reload();
             return Promise.resolve();
           }
           window.history.replaceState(buildHistoryState(window.history.state), '', window.location.href);
-          dispatchNavigated(window.location.href, { source: 'form' });
+          dispatchNavigated(window.location.href, { source: 'form', root: formAppliedRoot });
           return Promise.resolve();
         }
       } else if (typeof payload.text === 'string' && payload.text.trim() !== '') {
         var trimmed = payload.text.trim();
-        if (trimmed.charAt(0) === '<' && applyAdminHtml(payload.text)) {
-          window.history.replaceState(buildHistoryState(window.history.state), '', window.location.href);
-          dispatchNavigated(window.location.href, { source: 'form' });
-          return Promise.resolve();
+        if (trimmed.charAt(0) === '<') {
+          var htmlAppliedRoot = applyAdminHtml(payload.text);
+          if (htmlAppliedRoot) {
+            window.history.replaceState(buildHistoryState(window.history.state), '', window.location.href);
+            dispatchNavigated(window.location.href, { source: 'form', root: htmlAppliedRoot });
+            return Promise.resolve();
+          }
         }
       }
 
@@ -705,11 +711,12 @@
   }
 
   document.addEventListener('DOMContentLoaded', function () {
-    refreshDynamicUI(document);
+    var initialRoot = document.querySelector('.admin-wrapper') || document;
+    refreshDynamicUI(initialRoot);
     initAjaxForms();
     initAjaxLinks();
     bootHistory();
-    dispatchNavigated(window.location.href, { initial: true, source: 'initial' });
+    dispatchNavigated(window.location.href, { initial: true, source: 'initial', root: initialRoot });
   });
 
   window.cmsAdmin = {
