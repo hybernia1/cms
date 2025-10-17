@@ -20,6 +20,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     : ['r'=>'posts','a'=>'create','type'=>$type];
   $actionUrl = 'admin.php?'.http_build_query($actionParams);
   $checked  = fn(bool $b) => $b ? 'checked' : '';
+  $currentStatus = $isEdit ? (string)($post['status'] ?? 'draft') : 'draft';
+  $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
+  $currentStatusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
+  $commentsAllowed = $isEdit ? ((int)($post['comments_allowed'] ?? 1) === 1) : true;
+  $typeLabel = (string)($typeCfg['label'] ?? strtoupper($type));
   $encodeJson = function ($value) use ($h): string {
     $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if ($json === false) {
@@ -70,78 +75,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $categorySelected = $findSelectedItems($categoriesWhitelist, $categorySelectedIds);
   $tagSelected = $findSelectedItems($tagsWhitelist, $tagSelectedIds);
 
-  $selectedListToString = function (array $items): string {
-    $names = [];
-    foreach ($items as $item) {
-      if (!is_array($item)) {
-        continue;
-      }
-      $label = '';
-      if (isset($item['value'])) {
-        $label = trim((string)$item['value']);
-      }
-      if ($label === '' && isset($item['name'])) {
-        $label = trim((string)$item['name']);
-      }
-      if ($label === '' && isset($item['slug'])) {
-        $label = trim((string)$item['slug']);
-      }
-      if ($label !== '') {
-        $names[] = $label;
-      }
-    }
-    return implode(', ', $names);
-  };
-
-  $categorySelectedText = $selectedListToString($categorySelected);
-  $tagSelectedText = $selectedListToString($tagSelected);
-
-  $mergeOptions = static function (array $base, array $selected): array {
-    $existing = [];
-    foreach ($base as $item) {
-      $existing[(int)($item['id'] ?? 0)] = true;
-    }
-    foreach ($selected as $item) {
-      if (!is_array($item)) {
-        continue;
-      }
-      $id = (int)($item['id'] ?? 0);
-      if ($id <= 0 || isset($existing[$id])) {
-        continue;
-      }
-      $label = '';
-      if (isset($item['value'])) {
-        $label = trim((string)$item['value']);
-      }
-      if ($label === '' && isset($item['name'])) {
-        $label = trim((string)$item['name']);
-      }
-      if ($label === '' && isset($item['slug'])) {
-        $label = trim((string)$item['slug']);
-      }
-      $base[] = [
-        'id'    => $id,
-        'value' => $label !== '' ? $label : ('ID ' . $id),
-        'slug'  => (string)($item['slug'] ?? ''),
-      ];
-      $existing[$id] = true;
-    }
-    return $base;
-  };
-
-  $categoryOptions = $mergeOptions($categoriesWhitelist, $categorySelected);
-  $tagOptions = $mergeOptions($tagsWhitelist, $tagSelected);
-
-  $calcSelectSize = static function (array $items): int {
-    $count = count($items);
-    if ($count <= 0) {
-      return 4;
-    }
-    return max(4, min(10, $count));
-  };
-  $categorySelectSize = $calcSelectSize($categoryOptions);
-  $tagSelectSize = $calcSelectSize($tagOptions);
-
   $currentThumb = null;
   if ($isEdit && !empty($post['thumbnail_id'])) {
     $thumbRow = \Core\Database\Init::query()->table('media')->select(['id','url','mime'])->where('id','=',(int)$post['thumbnail_id'])->first();
@@ -154,157 +87,153 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     }
   }
 ?>
-  <form class="card" id="post-edit-form" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <span><?= $h($isEdit ? ($typeCfg['edit'] ?? 'Upravit položku').' #'.($post['id'] ?? '') : ($typeCfg['create'] ?? 'Nová položka')) ?></span>
-      <?php if ($type === 'post'): ?>
-        <a class="btn btn-sm btn-outline-secondary" href="admin.php?r=terms">Správa termů</a>
-      <?php endif; ?>
-    </div>
+  <form id="post-edit-form" class="post-edit-form" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+    <input type="hidden" name="status" id="status-input" value="<?= $h($currentStatus) ?>">
+    <div class="row g-4 align-items-start">
+      <div class="col-xl-8">
+        <div class="card shadow-sm">
+          <div class="card-body p-4">
+            <div class="mb-4">
+              <label class="form-label fs-5">Titulek</label>
+              <input class="form-control form-control-lg" name="title" required value="<?= $isEdit ? $h((string)$post['title']) : '' ?>">
+            </div>
 
-    <div class="card-body">
-      <div class="mb-3">
-        <label class="form-label">Titulek</label>
-        <input class="form-control" name="title" required value="<?= $isEdit ? $h((string)$post['title']) : '' ?>">
-      </div>
-
-      <?php if ($isEdit): ?>
-        <div class="mb-3">
-          <label class="form-label">Slug</label>
-          <input class="form-control" name="slug" value="<?= $h((string)$post['slug']) ?>">
-          <div class="form-text">Nech prázdné, pokud nechceš měnit.</div>
-        </div>
-      <?php endif; ?>
-
-      <div class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label">Typ</label>
-          <div class="form-control-plaintext fw-semibold"><?= $h((string)($typeCfg['label'] ?? strtoupper($type))) ?></div>
-          <?php if ($isEdit): ?><div class="form-text">Typ nelze měnit.</div><?php endif; ?>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">Status</label>
-          <?php $curStatus = $isEdit ? (string)$post['status'] : 'draft'; ?>
-          <select class="form-select" name="status">
-            <option value="draft"   <?= $curStatus==='draft'?'selected':'' ?>>draft</option>
-            <option value="publish" <?= $curStatus==='publish'?'selected':'' ?>>publish</option>
-          </select>
-        </div>
-        <div class="col-md-4 d-flex align-items-end">
-          <?php $allow = $isEdit ? ((int)$post['comments_allowed']===1) : true; ?>
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="comments" name="comments_allowed" <?= $checked($allow) ?>>
-            <label class="form-check-label" for="comments">Povolit komentáře</label>
-          </div>
-        </div>
-      </div>
-
-      <?php if ($type === 'post'): ?>
-        <div class="mt-3">
-          <div class="mb-3">
-          <label class="form-label">Kategorie</label>
-          <input id="categories-input" class="form-control" placeholder="Přidej kategorie"
-                   value="<?= $h($categorySelectedText) ?>"
-                   data-whitelist="<?= $encodeJson($categoriesWhitelist) ?>"
-                   data-selected="<?= $encodeJson($categorySelected) ?>">
-          <div class="form-text">Začni psát pro vyhledání existujících kategorií, nové potvrď klávesou Enter.</div>
-          <div class="tagify-fallback d-none mt-2" data-fallback="categories">
-            <select class="form-select" name="categories[]" multiple size="<?= (int)$categorySelectSize ?>" data-fallback-input>
-              <?php foreach ($categoryOptions as $item):
-                $optionId = (int)($item['id'] ?? 0);
-                $label = trim((string)($item['value'] ?? ''));
-                if ($label === '') {
-                  $label = trim((string)($item['slug'] ?? ''));
-                }
-                if ($label === '') {
-                  $label = 'ID ' . $optionId;
-                }
-              ?>
-                <option value="<?= $optionId ?>" <?= in_array($optionId, $categorySelectedIds, true) ? 'selected' : '' ?>><?= $h($label) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <div class="form-text mt-1">Záložní výběr, použij klávesu Ctrl/Cmd pro více položek. Nové kategorie napiš oddělené čárkou.</div>
-            <input class="form-control form-control-sm mt-2" type="text" name="new_categories" data-fallback-input placeholder="Nové kategorie" value="">
-          </div>
-          <div id="categories-hidden-inputs"></div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">Štítky</label>
-          <input id="tags-input" class="form-control" placeholder="Přidej štítky"
-                   value="<?= $h($tagSelectedText) ?>"
-                   data-whitelist="<?= $encodeJson($tagsWhitelist) ?>"
-                   data-selected="<?= $encodeJson($tagSelected) ?>">
-          <div class="form-text">Štítky odděluj čárkou nebo potvrzuj Enterem, lze kombinovat existující i nové.</div>
-          <div class="tagify-fallback d-none mt-2" data-fallback="tags">
-            <select class="form-select" name="tags[]" multiple size="<?= (int)$tagSelectSize ?>" data-fallback-input>
-              <?php foreach ($tagOptions as $item):
-                $optionId = (int)($item['id'] ?? 0);
-                $label = trim((string)($item['value'] ?? ''));
-                if ($label === '') {
-                  $label = trim((string)($item['slug'] ?? ''));
-                }
-                if ($label === '') {
-                  $label = 'ID ' . $optionId;
-                }
-              ?>
-                <option value="<?= $optionId ?>" <?= in_array($optionId, $tagSelectedIds, true) ? 'selected' : '' ?>><?= $h($label) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <div class="form-text mt-1">Záložní výběr, použij klávesu Ctrl/Cmd pro více položek. Nové štítky napiš oddělené čárkou.</div>
-            <input class="form-control form-control-sm mt-2" type="text" name="new_tags" data-fallback-input placeholder="Nové štítky" value="">
-          </div>
-          <div id="tags-hidden-inputs"></div>
-        </div>
-      </div>
-      <?php endif; ?>
-
-      <div class="mb-3 mt-3">
-        <label class="form-label">Obsah</label>
-        <textarea class="form-control" name="content" rows="8"><?= $isEdit ? $h((string)($post['content'] ?? '')) : '' ?></textarea>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">Náhledový obrázek</label>
-        <div id="thumbnail-preview" class="border border-dashed rounded p-3 bg-body-tertiary d-flex flex-wrap align-items-center gap-3"
-             data-empty-text="Žádný obrázek není vybrán."
-             data-initial="<?= $encodeJson($currentThumb ?? null) ?>">
-          <div id="thumbnail-preview-inner" class="d-flex align-items-center gap-3">
-            <?php if ($currentThumb): ?>
-              <?php if (str_starts_with((string)$currentThumb['mime'], 'image/')): ?>
-                <img src="<?= $h((string)$currentThumb['url']) ?>" alt="Aktuální obrázek" style="max-width:220px;border-radius:.75rem">
-              <?php else: ?>
-                <div>
-                  <div class="fw-semibold text-truncate" style="max-width:260px;"><?= $h((string)$currentThumb['url']) ?></div>
-                  <div class="text-secondary small mt-1"><?= $h((string)$currentThumb['mime']) ?></div>
-                </div>
-              <?php endif; ?>
-            <?php else: ?>
-              <div class="text-secondary">Žádný obrázek není vybrán.</div>
+            <?php if ($isEdit): ?>
+              <div class="mb-4">
+                <label class="form-label">Slug</label>
+                <input class="form-control" name="slug" value="<?= $h((string)$post['slug']) ?>">
+                <div class="form-text">Nech prázdné, pokud nechceš měnit.</div>
+              </div>
             <?php endif; ?>
+
+            <div>
+              <label class="form-label fs-5">Obsah</label>
+              <textarea class="form-control" name="content" rows="12" data-content-editor data-placeholder="Začni psát obsah…"><?= $isEdit ? $h((string)($post['content'] ?? '')) : '' ?></textarea>
+            </div>
           </div>
-          <div id="thumbnail-upload-info" class="text-secondary small d-none"></div>
         </div>
-        <div class="d-flex flex-wrap gap-2 mt-2">
-          <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#mediaPickerModal">
-            <i class="bi bi-images me-1"></i>Vybrat nebo nahrát
-          </button>
-          <button class="btn btn-outline-danger btn-sm<?= $currentThumb ? '' : ' disabled' ?>" type="button" id="thumbnail-remove-btn">
-            <i class="bi bi-x-lg me-1"></i>Odebrat
-          </button>
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4">
+          <a class="btn btn-outline-secondary" href="<?= $h('admin.php?'.http_build_query(['r' => 'posts', 'type' => $type])) ?>">Zpět na seznam</a>
+          <?php if ($isEdit): ?>
+            <span class="text-secondary small">ID #<?= $h((string)($post['id'] ?? '')) ?></span>
+          <?php endif; ?>
         </div>
-        <input type="hidden" name="selected_thumbnail_id" id="selected-thumbnail-id" value="<?= $currentThumb ? $h((string)$currentThumb['id']) : '' ?>">
-        <input type="hidden" name="remove_thumbnail" id="remove-thumbnail" value="0">
-        <input class="form-control d-none" type="file" name="thumbnail" id="thumbnail-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf">
-        <div class="form-text">Vybraný soubor se uloží do <code>uploads/Y/m/posts/</code> a lze jej přetáhnout přímo do otevřeného modálu.</div>
       </div>
 
-  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-  </div>
-  <div class="card-footer d-flex gap-2">
-    <button class="btn btn-primary" type="submit"><?= $h($isEdit ? 'Uložit změny' : 'Vytvořit') ?></button>
-    <a class="btn btn-outline-secondary" href="<?= $h('admin.php?'.http_build_query(['r'=>'posts','type'=>$type])) ?>">Zpět na seznam</a>
-  </div>
+      <div class="col-xl-4">
+        <div class="vstack gap-3">
+          <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Publikovat</div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="text-secondary small mb-1">Typ obsahu</div>
+                <div class="badge text-bg-light text-uppercase"><?= $h($typeLabel) ?></div>
+              </div>
+              <div class="mb-4">
+                <div class="text-secondary small mb-1">Aktuální stav</div>
+                <div id="status-current-label" class="fw-semibold text-capitalize" data-status-labels='<?= $encodeJson($statusLabels) ?>'><?= $h($currentStatusLabel) ?></div>
+              </div>
+              <div class="d-grid gap-2">
+                <button class="btn btn-outline-secondary" type="submit" data-status-value="draft">Uložit jako koncept</button>
+                <button class="btn btn-primary" type="submit" data-status-value="publish">Publikovat</button>
+              </div>
+            </div>
+          </div>
+
+          <?php if ($type === 'post'): ?>
+            <div class="card shadow-sm">
+              <div class="card-header fw-semibold">Kategorie</div>
+              <div class="card-body">
+                <div
+                  data-tag-field
+                  data-existing-name="categories[]"
+                  data-new-name="new_categories"
+                  data-placeholder="Přidej kategorie"
+                  data-helper="Začni psát pro vyhledání existujících kategorií, nové potvrď klávesou Enter."
+                  data-empty="Žádné kategorie nejsou vybrány."
+                  data-whitelist="<?= $encodeJson($categoriesWhitelist) ?>"
+                  data-selected="<?= $encodeJson($categorySelected) ?>"
+                >
+                  <div data-tag-hidden></div>
+                </div>
+              </div>
+            </div>
+            <div class="card shadow-sm">
+              <div class="card-header fw-semibold">Štítky</div>
+              <div class="card-body">
+                <div
+                  data-tag-field
+                  data-existing-name="tags[]"
+                  data-new-name="new_tags"
+                  data-placeholder="Přidej štítky"
+                  data-helper="Štítky odděluj čárkou nebo potvrzuj Enterem, lze kombinovat existující i nové."
+                  data-empty="Žádné štítky nejsou vybrány."
+                  data-whitelist="<?= $encodeJson($tagsWhitelist) ?>"
+                  data-selected="<?= $encodeJson($tagSelected) ?>"
+                >
+                  <div data-tag-hidden></div>
+                </div>
+              </div>
+            </div>
+          <?php endif; ?>
+
+          <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Média</div>
+            <div class="card-body">
+              <div id="thumbnail-preview" class="border border-dashed rounded p-3 bg-body-tertiary d-flex flex-wrap align-items-center gap-3"
+                   data-empty-text="Žádný obrázek není vybrán."
+                   data-initial="<?= $encodeJson($currentThumb ?? null) ?>">
+                <div id="thumbnail-preview-inner" class="d-flex align-items-center gap-3">
+                  <?php if ($currentThumb): ?>
+                    <?php if (str_starts_with((string)$currentThumb['mime'], 'image/')): ?>
+                      <img src="<?= $h((string)$currentThumb['url']) ?>" alt="Aktuální obrázek" style="max-width:220px;border-radius:.75rem">
+                    <?php else: ?>
+                      <div>
+                        <div class="fw-semibold text-truncate" style="max-width:260px;">
+                          <?= $h((string)$currentThumb['url']) ?>
+                        </div>
+                        <div class="text-secondary small mt-1">
+                          <?= $h((string)$currentThumb['mime']) ?>
+                        </div>
+                      </div>
+                    <?php endif; ?>
+                  <?php else: ?>
+                    <div class="text-secondary">Žádný obrázek není vybrán.</div>
+                  <?php endif; ?>
+                </div>
+                <div id="thumbnail-upload-info" class="text-secondary small d-none"></div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#mediaPickerModal">
+                  <i class="bi bi-images me-1"></i>Vybrat nebo nahrát
+                </button>
+                <button class="btn btn-outline-danger btn-sm<?= $currentThumb ? '' : ' disabled' ?>" type="button" id="thumbnail-remove-btn">
+                  <i class="bi bi-x-lg me-1"></i>Odebrat
+                </button>
+              </div>
+              <input type="hidden" name="selected_thumbnail_id" id="selected-thumbnail-id" value="<?= $currentThumb ? $h((string)$currentThumb['id']) : '' ?>">
+              <input type="hidden" name="remove_thumbnail" id="remove-thumbnail" value="0">
+              <input class="form-control d-none" type="file" name="thumbnail" id="thumbnail-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf">
+              <div class="form-text mt-2">Vybraný soubor se uloží do <code>uploads/Y/m/posts/</code> a lze jej přetáhnout přímo do otevřeného modálu.</div>
+            </div>
+          </div>
+
+          <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Nastavení</div>
+            <div class="card-body">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="comments" name="comments_allowed" <?= $checked($commentsAllowed) ?>>
+                <label class="form-check-label" for="comments">Povolit komentáře</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </form>
+
 
   <div class="modal fade" id="mediaPickerModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -353,145 +282,29 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       var form = document.getElementById('post-edit-form');
       if (!form) { return; }
 
-      var TagifyCtor = window.Tagify;
-
-      function toggleFallback(section, enabled) {
-        var container = document.querySelector('[data-fallback="' + section + '"]');
-        if (!container) return;
-        var inputs = container.querySelectorAll('[data-fallback-input]');
-        inputs.forEach(function (input) {
-          if (enabled) {
-            input.removeAttribute('disabled');
-          } else {
-            input.setAttribute('disabled', 'disabled');
-          }
-        });
-        if (enabled) {
-          container.classList.remove('d-none');
-        } else {
-          container.classList.add('d-none');
+      var statusInput = document.getElementById('status-input');
+      var statusLabel = document.getElementById('status-current-label');
+      var statusMap = {};
+      if (statusLabel) {
+        var rawMap = statusLabel.getAttribute('data-status-labels');
+        if (rawMap) {
+          try { statusMap = JSON.parse(rawMap); } catch (e) { statusMap = {}; }
         }
       }
-
-      function parseDataAttr(el, attr) {
-        if (!el) return [];
-        var raw = el.getAttribute(attr);
-        if (!raw) return [];
-        try { return JSON.parse(raw); } catch (e) { return []; }
-      }
-
-      function normalizeTagifyItems(items) {
-        if (!Array.isArray(items)) return [];
-        return items.map(function (item) {
-          var normalized = { id: '', value: '', slug: '' };
-          if (!item || typeof item !== 'object') {
-            return normalized;
+      var statusButtons = form.querySelectorAll('[data-status-value]');
+      statusButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var value = button.getAttribute('data-status-value') || '';
+          if (statusInput) {
+            statusInput.value = value;
           }
-          if (typeof item.id === 'number' || (typeof item.id === 'string' && item.id.trim() !== '')) {
-            normalized.id = String(item.id).trim();
-          }
-          if (typeof item.slug === 'string' && item.slug.trim() !== '') {
-            normalized.slug = item.slug.trim();
-          }
-          if (typeof item.value === 'string' && item.value.trim() !== '') {
-            normalized.value = item.value.trim();
-          } else if (typeof item.name === 'string' && item.name.trim() !== '') {
-            normalized.value = item.name.trim();
-          } else if (normalized.id !== '') {
-            normalized.value = 'ID ' + normalized.id;
-          }
-          return normalized;
-        }).filter(function (item) { return item.value !== ''; });
-      }
-
-      function syncTagify(tagify, container, existingName, newName) {
-        if (!tagify || !container) return;
-        container.innerHTML = '';
-        var newNames = [];
-        tagify.value.forEach(function (item) {
-          var id = item && item.id ? parseInt(item.id, 10) : 0;
-          if (id > 0) {
-            var input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = existingName;
-            input.value = String(id);
-            container.appendChild(input);
-          } else if (item && item.value) {
-            var newVal = String(item.value).trim();
-            if (newVal !== '') {
-              newNames.push(newVal);
+          if (statusLabel) {
+            var label = statusMap && statusMap[value] ? statusMap[value] : value;
+            if (label) {
+              statusLabel.textContent = label;
             }
           }
         });
-        var newInput = document.createElement('input');
-        newInput.type = 'hidden';
-        newInput.name = newName;
-        newInput.value = newNames.join(', ');
-        container.appendChild(newInput);
-      }
-
-      var categoryTagify = null;
-      var tagTagify = null;
-
-      if (typeof TagifyCtor === 'function') {
-        var categoriesInput = document.getElementById('categories-input');
-        var categoriesHidden = document.getElementById('categories-hidden-inputs');
-        if (categoriesInput && categoriesHidden) {
-          if (categoriesInput.value) {
-            categoriesInput.value = '';
-          }
-          var categoryWhitelist = normalizeTagifyItems(parseDataAttr(categoriesInput, 'data-whitelist'));
-          categoryTagify = new TagifyCtor(categoriesInput, {
-            whitelist: categoryWhitelist,
-            enforceWhitelist: false,
-            tagTextProp: 'value',
-            dropdown: { enabled: 0, maxItems: 20 },
-            editTags: false
-          });
-          var initialCategories = normalizeTagifyItems(parseDataAttr(categoriesInput, 'data-selected'));
-          if (initialCategories.length) {
-            categoryTagify.addTags(initialCategories);
-          }
-          categoryTagify.on('change', function () {
-            syncTagify(categoryTagify, categoriesHidden, 'categories[]', 'new_categories');
-          });
-          syncTagify(categoryTagify, categoriesHidden, 'categories[]', 'new_categories');
-        }
-
-        var tagsInput = document.getElementById('tags-input');
-        var tagsHidden = document.getElementById('tags-hidden-inputs');
-        if (tagsInput && tagsHidden) {
-          if (tagsInput.value) {
-            tagsInput.value = '';
-          }
-          var tagWhitelist = normalizeTagifyItems(parseDataAttr(tagsInput, 'data-whitelist'));
-          tagTagify = new TagifyCtor(tagsInput, {
-            whitelist: tagWhitelist,
-            enforceWhitelist: false,
-            tagTextProp: 'value',
-            dropdown: { enabled: 0, maxItems: 20 },
-            editTags: false
-          });
-          var initialTags = normalizeTagifyItems(parseDataAttr(tagsInput, 'data-selected'));
-          if (initialTags.length) {
-            tagTagify.addTags(initialTags);
-          }
-          tagTagify.on('change', function () {
-            syncTagify(tagTagify, tagsHidden, 'tags[]', 'new_tags');
-          });
-          syncTagify(tagTagify, tagsHidden, 'tags[]', 'new_tags');
-        }
-
-        toggleFallback('categories', false);
-        toggleFallback('tags', false);
-      } else {
-        toggleFallback('categories', true);
-        toggleFallback('tags', true);
-      }
-
-      form.addEventListener('submit', function () {
-        syncTagify(categoryTagify, document.getElementById('categories-hidden-inputs'), 'categories[]', 'new_categories');
-        syncTagify(tagTagify, document.getElementById('tags-hidden-inputs'), 'tags[]', 'new_tags');
       });
 
       // --- Media picker ---
