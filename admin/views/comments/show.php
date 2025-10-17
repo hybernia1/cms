@@ -7,8 +7,9 @@ declare(strict_types=1);
 /** @var array $comment */
 /** @var array<int,array> $children */
 /** @var string $csrf */
+/** @var int $replyParentId */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($comment,$children,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($comment,$children,$csrf,$replyParentId) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $badge = function(string $status): string {
     return match($status){
@@ -72,8 +73,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     <div class="card-body">
       <form method="post" action="admin.php?r=comments&a=reply">
         <textarea class="form-control mb-2" name="content" rows="4" placeholder="Napiš odpověď…"></textarea>
-        <input type="hidden" name="parent_id" value="<?= (int)$comment['id'] ?>">
+        <input type="hidden" name="parent_id" value="<?= (int)$replyParentId ?>">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+        <?php if ((int)$comment['id'] !== (int)$replyParentId): ?>
+          <div class="form-text mb-2">Odpověď bude připojena k hlavnímu komentáři #<?= (int)$replyParentId ?>.</div>
+        <?php endif; ?>
         <button class="btn btn-primary" type="submit">Odeslat odpověď</button>
       </form>
     </div>

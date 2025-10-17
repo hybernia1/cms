@@ -390,14 +390,42 @@ final class FrontController
             ->orderBy('c.created_at','ASC')
             ->get();
 
-        $byId = []; $root = [];
-        foreach ($rows as $r) { $r['children'] = []; $byId[(int)$r['id']] = $r; }
+        $byId = [];
+        foreach ($rows as $r) {
+            $r['children'] = [];
+            $byId[(int)$r['id']] = $r;
+        }
+
+        $root = [];
+        $rootCache = [];
+        $findRootId = function (int $commentId) use (&$byId, &$rootCache, &$findRootId): int {
+            if (isset($rootCache[$commentId])) {
+                return $rootCache[$commentId];
+            }
+            if (!isset($byId[$commentId])) {
+                return $rootCache[$commentId] = $commentId;
+            }
+            $parentId = (int)($byId[$commentId]['parent_id'] ?? 0);
+            if ($parentId <= 0 || !isset($byId[$parentId]) || $parentId === $commentId) {
+                return $rootCache[$commentId] = $commentId;
+            }
+            return $rootCache[$commentId] = $findRootId($parentId);
+        };
+
         foreach ($byId as $id => &$node) {
-            $pid = (int)($node['parent_id'] ?? 0);
-            if ($pid > 0 && isset($byId[$pid])) $byId[$pid]['children'][] = &$node;
-            else $root[] = &$node;
+            $threadRootId = $findRootId($id);
+            if ($threadRootId === $id) {
+                $root[] = &$node;
+                continue;
+            }
+            if (isset($byId[$threadRootId])) {
+                $byId[$threadRootId]['children'][] = &$node;
+            } else {
+                $root[] = &$node;
+            }
         }
         unset($node);
+
         return $root;
     }
 
@@ -442,8 +470,7 @@ final class FrontController
 
             $parentId = (int)($_POST['parent_id'] ?? 0);
             if ($parentId > 0) {
-                $exists = DB::query()->table('comments')->select(['id','post_id'])->where('id','=', $parentId)->first();
-                if (!$exists || (int)$exists['post_id'] !== $postId) $parentId = 0;
+                $parentId = $this->resolveCommentRootId($parentId, $postId);
             }
 
             // přihlášený uživatel?
@@ -497,6 +524,30 @@ final class FrontController
     {
         header('Location: ' . $this->urls->post($slug));
         exit;
+    }
+
+    private function resolveCommentRootId(int $commentId, int $postId): int
+    {
+        if ($commentId <= 0) {
+            return 0;
+        }
+
+        $currentId = $commentId;
+        $guard = 0;
+        while ($currentId > 0 && $guard < 20) {
+            $row = DB::query()->table('comments')->select(['id','parent_id','post_id'])->where('id','=', $currentId)->first();
+            if (!$row || (int)($row['post_id'] ?? 0) !== $postId) {
+                return 0;
+            }
+            $parentId = (int)($row['parent_id'] ?? 0);
+            if ($parentId <= 0 || $parentId === $currentId) {
+                return (int)$row['id'];
+            }
+            $currentId = $parentId;
+            $guard++;
+        }
+
+        return 0;
     }
 
     // ---------- auth ----------

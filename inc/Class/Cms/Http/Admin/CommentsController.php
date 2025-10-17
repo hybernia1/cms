@@ -106,18 +106,29 @@ final class CommentsController extends BaseAdminController
             $this->redirect('admin.php?r=comments', 'danger', 'Komentář nenalezen.');
         }
 
-        // načti děti (odpovědi)
-        $children = DB::query()->table('comments','c')
-            ->select(['c.*'])
-            ->where('c.parent_id','=', $id)
-            ->orderBy('c.created_at','ASC')
-            ->get();
+        $threadRootId = $this->resolveThreadRootId((int)$row['id']);
+        $children = [];
+        $childIds = [];
+        if ($threadRootId > 0) {
+            $threadIds = $this->collectThreadIds($threadRootId);
+            if ($threadIds) {
+                $childIds = array_values(array_diff($threadIds, [$threadRootId, $id]));
+            }
+        }
+        if ($childIds) {
+            $children = DB::query()->table('comments','c')
+                ->select(['c.*'])
+                ->whereIn('c.id', $childIds)
+                ->orderBy('c.created_at','ASC')
+                ->get();
+        }
 
         $this->renderAdmin('comments/show', [
             'pageTitle' => 'Komentář #' . $id,
             'nav'       => AdminNavigation::build('comments'),
             'comment'   => $row,
             'children'  => $children,
+            'replyParentId' => $threadRootId,
         ]);
     }
 
@@ -156,9 +167,10 @@ final class CommentsController extends BaseAdminController
             $this->redirect('admin.php?r=comments', 'danger', 'Chybí ID.');
         }
 
-        // smaž i odpovědi (jedna úroveň; pokud chceš rekurzi, dalo by se)
-        DB::query()->table('comments')->delete()->where('parent_id','=', $id)->execute();
-        DB::query()->table('comments')->delete()->where('id','=', $id)->execute();
+        $targetIds = $this->collectThreadIds($id);
+        if ($targetIds) {
+            DB::query()->table('comments')->delete()->whereIn('id', $targetIds)->execute();
+        }
 
         $this->redirect((string)($_POST['_back'] ?? 'admin.php?r=comments'), 'success', 'Komentář odstraněn.');
     }
@@ -177,6 +189,11 @@ final class CommentsController extends BaseAdminController
             $this->redirect('admin.php?r=comments', 'danger', 'Původní komentář nenalezen.');
         }
 
+        $threadRootId = $this->resolveThreadRootId((int)$parent['id']);
+        if ($threadRootId <= 0) {
+            $threadRootId = (int)$parent['id'];
+        }
+
         $user = $this->auth->user();
         $authorName  = (string)($user['name'] ?? 'Admin');
         $authorEmail = (string)($user['email'] ?? '');
@@ -190,12 +207,60 @@ final class CommentsController extends BaseAdminController
             $authorEmail,
             $content,
             'published',
-            $parentId,
+            $threadRootId,
             $_SERVER['REMOTE_ADDR'] ?? '',
             $_SERVER['HTTP_USER_AGENT'] ?? '',
             DateTimeFactory::nowString(),
         ])->execute();
 
-        $this->redirect('admin.php?r=comments&a=show&id=' . $parentId, 'success', 'Odpověď byla přidána.');
+        $this->redirect('admin.php?r=comments&a=show&id=' . $threadRootId, 'success', 'Odpověď byla přidána.');
+    }
+
+    private function collectThreadIds(int $rootId): array
+    {
+        if ($rootId <= 0) {
+            return [];
+        }
+
+        $ids = [$rootId];
+        $queue = [$rootId];
+
+        while ($queue) {
+            $children = DB::query()->table('comments')->select(['id'])->whereIn('parent_id', $queue)->get();
+            $queue = [];
+            foreach ($children as $child) {
+                $childId = (int)($child['id'] ?? 0);
+                if ($childId > 0 && !in_array($childId, $ids, true)) {
+                    $ids[] = $childId;
+                    $queue[] = $childId;
+                }
+            }
+        }
+
+        return $ids;
+    }
+
+    private function resolveThreadRootId(int $commentId): int
+    {
+        if ($commentId <= 0) {
+            return 0;
+        }
+
+        $currentId = $commentId;
+        $guard = 0;
+        while ($currentId > 0 && $guard < 20) {
+            $row = DB::query()->table('comments')->select(['id','parent_id'])->where('id','=', $currentId)->first();
+            if (!$row) {
+                return $commentId;
+            }
+            $parentId = (int)($row['parent_id'] ?? 0);
+            if ($parentId <= 0 || $parentId === $currentId) {
+                return (int)$row['id'];
+            }
+            $currentId = $parentId;
+            $guard++;
+        }
+
+        return $commentId;
     }
 }

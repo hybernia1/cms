@@ -218,95 +218,103 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   <script>
   (function() {
-    const modalEl = document.getElementById('mediaDetailModal');
-    if (!modalEl || typeof window.bootstrap === 'undefined' || !window.bootstrap.Modal) {
-      return;
-    }
-    const modal = new window.bootstrap.Modal(modalEl);
-    const preview = modalEl.querySelector('[data-role="preview"]');
-    const fields = {
-      id: modalEl.querySelector('[data-field="id"]'),
-      type: modalEl.querySelector('[data-field="type"]'),
-      mime: modalEl.querySelector('[data-field="mime"]'),
-      dimensions: modalEl.querySelector('[data-field="dimensions"]'),
-      size: modalEl.querySelector('[data-field="size"]'),
-      created: modalEl.querySelector('[data-field="created"]'),
-      author: modalEl.querySelector('[data-field="author"]'),
-    };
-    const links = {
-      original: modalEl.querySelector('[data-link="original"]'),
-      webp: modalEl.querySelector('[data-link="webp"]'),
-    };
-
-    const updateField = (key, value) => {
-      if (!fields[key]) return;
-      fields[key].textContent = value && value !== '' ? value : '—';
-    };
-
-    const updateLink = (key, url, hiddenClass) => {
-      const el = links[key];
-      if (!el) return;
-      if (url) {
-        el.href = url;
-        el.removeAttribute('aria-disabled');
-        if (hiddenClass) {
-          el.classList.remove(hiddenClass);
-        }
-      } else {
-        el.removeAttribute('href');
-        el.setAttribute('aria-disabled', 'true');
-        if (hiddenClass) {
-          el.classList.add(hiddenClass);
-        }
+    function initMediaModal() {
+      const modalEl = document.getElementById('mediaDetailModal');
+      if (!modalEl || typeof window.bootstrap === 'undefined' || !window.bootstrap.Modal) {
+        return;
       }
-    };
+      const modal = new window.bootstrap.Modal(modalEl);
+      const preview = modalEl.querySelector('[data-role="preview"]');
+      const fields = {
+        id: modalEl.querySelector('[data-field="id"]'),
+        type: modalEl.querySelector('[data-field="type"]'),
+        mime: modalEl.querySelector('[data-field="mime"]'),
+        dimensions: modalEl.querySelector('[data-field="dimensions"]'),
+        size: modalEl.querySelector('[data-field="size"]'),
+        created: modalEl.querySelector('[data-field="created"]'),
+        author: modalEl.querySelector('[data-field="author"]'),
+      };
+      const links = {
+        original: modalEl.querySelector('[data-link="original"]'),
+        webp: modalEl.querySelector('[data-link="webp"]'),
+      };
 
-    document.querySelectorAll('.media-thumb').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        let data = {};
-        try {
-          data = JSON.parse(btn.getAttribute('data-media') || '{}');
-        } catch (e) {
-          data = {};
-        }
+      const updateField = (key, value) => {
+        if (!fields[key]) return;
+        fields[key].textContent = value && value !== '' ? value : '—';
+      };
 
-        if (preview) {
-          preview.innerHTML = '';
-          if (data.displayUrl) {
-            const img = document.createElement('img');
-            img.src = data.displayUrl;
-            img.alt = 'media detail';
-            img.style.maxWidth = '100%';
-            img.style.maxHeight = '320px';
-            img.style.objectFit = 'contain';
-            preview.appendChild(img);
-          } else {
-            const placeholder = document.createElement('div');
-            placeholder.className = 'text-secondary';
-            placeholder.textContent = 'Náhled není k dispozici.';
-            preview.appendChild(placeholder);
+      const updateLink = (key, url, hiddenClass) => {
+        const el = links[key];
+        if (!el) return;
+        if (url) {
+          el.href = url;
+          el.removeAttribute('aria-disabled');
+          if (hiddenClass) {
+            el.classList.remove(hiddenClass);
+          }
+        } else {
+          el.removeAttribute('href');
+          el.setAttribute('aria-disabled', 'true');
+          if (hiddenClass) {
+            el.classList.add(hiddenClass);
           }
         }
+      };
 
-        const dimensions = data.width && data.height ? `${data.width} × ${data.height}px` : '';
-        const authorParts = [];
-        if (data.authorName) authorParts.push(data.authorName);
-        if (data.authorEmail) authorParts.push(`(${data.authorEmail})`);
+      document.querySelectorAll('.media-thumb').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          let data = {};
+          try {
+            data = JSON.parse(btn.getAttribute('data-media') || '{}');
+          } catch (e) {
+            data = {};
+          }
 
-        updateField('id', data.id ? `#${data.id}` : '');
-        updateField('type', data.typeLabel || data.type || '');
-        updateField('mime', data.mime || '');
-        updateField('dimensions', dimensions);
-        updateField('size', data.sizeHuman || (data.sizeBytes ? `${data.sizeBytes} B` : ''));
-        updateField('created', data.created || '');
-        updateField('author', authorParts.length ? authorParts.join(' ') : '');
+          if (preview) {
+            preview.innerHTML = '';
+            if (data.displayUrl) {
+              const img = document.createElement('img');
+              img.src = data.displayUrl;
+              img.alt = 'media detail';
+              img.style.maxWidth = '100%';
+              img.style.maxHeight = '320px';
+              img.style.objectFit = 'contain';
+              preview.appendChild(img);
+            } else {
+              const placeholder = document.createElement('div');
+              placeholder.className = 'text-secondary';
+              placeholder.textContent = 'Náhled není k dispozici.';
+              preview.appendChild(placeholder);
+            }
+          }
 
-        updateLink('original', data.url || '', 'disabled');
-        updateLink('webp', data.webpUrl || '', 'd-none');
+          const dimensions = data.width && data.height ? `${data.width} × ${data.height}px` : '';
+          const authorParts = [];
+          if (data.authorName) authorParts.push(data.authorName);
+          if (data.authorEmail) authorParts.push(`(${data.authorEmail})`);
 
-        modal.show();
+          updateField('id', data.id ? `#${data.id}` : '');
+          updateField('type', data.typeLabel || data.type || '');
+          updateField('mime', data.mime || '');
+          updateField('dimensions', dimensions);
+          updateField('size', data.sizeHuman || (data.sizeBytes ? `${data.sizeBytes} B` : ''));
+          updateField('created', data.created || '');
+          updateField('author', authorParts.length ? authorParts.join(' ') : '');
+
+          updateLink('original', data.url || '', 'disabled');
+          updateLink('webp', data.webpUrl || '', 'd-none');
+
+          modal.show();
+        });
       });
-    });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initMediaModal);
+    } else {
+      initMediaModal();
+    }
   })();
   </script>
 <?php
