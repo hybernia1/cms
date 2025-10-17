@@ -210,10 +210,10 @@
 
     if (dropzone) {
       dropzone.addEventListener('click', function (evt) {
+        if (!fileInput) { return; }
+        if (evt.target === fileInput) { return; }
         evt.preventDefault();
-        if (fileInput) {
-          fileInput.click();
-        }
+        fileInput.click();
       });
       dropzone.addEventListener('dragover', function (evt) {
         evt.preventDefault();

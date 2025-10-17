@@ -658,10 +658,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             prepareFileSelection(evt.dataTransfer.files[0]);
           }
         });
-        dropzone.addEventListener('click', function () {
-          if (modalFileInput) {
-            modalFileInput.click();
-          }
+        dropzone.addEventListener('click', function (evt) {
+          if (!modalFileInput) { return; }
+          if (evt.target === modalFileInput) { return; }
+          evt.preventDefault();
+          modalFileInput.click();
         });
       }
 
