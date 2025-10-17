@@ -20,12 +20,18 @@ $BASE = dirname(__DIR__);           // root projektu
 $CONFIG_FILE = $BASE . '/config.php';
 $TABLES_FILE = __DIR__ . '/tables.php';
 
+$haveConfig = is_file($CONFIG_FILE);
+$stepProvided = array_key_exists('step', $_GET);
+
+if ($haveConfig && !$stepProvided) {
+    exit;
+}
+
 // helpers
 function h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
 function is_cli(): bool { return (PHP_SAPI === 'cli'); }
 
 // načti stávající config (pokud je)
-$haveConfig = is_file($CONFIG_FILE);
 $config = $haveConfig ? (require $CONFIG_FILE) : [
     'debug' => true,
     'db' => [
@@ -40,7 +46,7 @@ $config = $haveConfig ? (require $CONFIG_FILE) : [
 ];
 
 // krok
-$step = isset($_GET['step']) ? max(1, (int)$_GET['step']) : 1;
+$step = $stepProvided ? max(1, (int)$_GET['step']) : 1;
 
 // POST akce
 $flash = null;
