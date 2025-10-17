@@ -40,6 +40,70 @@ final class MediaService
         return ['id'=>$id, 'url'=>$info['url'], 'mime'=>$info['mime']];
     }
 
+    public function optimizeWebp(int $mediaId, PathResolver $paths): bool
+    {
+        $row = $this->repo->find($mediaId);
+        if (!$row) {
+            throw new \RuntimeException('Soubor nebyl nalezen.');
+        }
+
+        $mime = (string)($row['mime'] ?? '');
+        if (!str_starts_with($mime, 'image/')) {
+            throw new \RuntimeException('Optimalizace je dostupná pouze pro obrázky.');
+        }
+
+        $settings = new CmsSettings();
+        if (!$settings->webpEnabled()) {
+            throw new \RuntimeException('WebP konverze je v nastavení vypnutá.');
+        }
+
+        $meta = $this->decodeMeta($row['meta'] ?? null);
+        $existingWebp = isset($meta['webp']) && is_string($meta['webp']) && $meta['webp'] !== ''
+            ? $meta['webp']
+            : null;
+
+        if ($existingWebp !== null && $this->webpFileExists($existingWebp, $paths)) {
+            return false;
+        }
+
+        $relative = (string)($row['rel_path'] ?? '');
+        if ($relative === '') {
+            throw new \RuntimeException('Chybí relativní cesta k souboru.');
+        }
+
+        $info = [
+            'relative' => $relative,
+            'mime'     => $mime,
+        ];
+
+        $webpRel = $this->maybeCreateWebp($info, $paths);
+        if ($webpRel === null) {
+            throw new \RuntimeException('Nepodařilo se vytvořit WebP variantu.');
+        }
+
+        $meta['webp'] = $webpRel;
+
+        if (!isset($meta['w']) || !isset($meta['h'])) {
+            try {
+                $abs = $paths->absoluteFromRelative($relative);
+                if (is_file($abs)) {
+                    $size = @getimagesize($abs);
+                    if ($size) {
+                        $meta['w'] = (int)$size[0];
+                        $meta['h'] = (int)$size[1];
+                    }
+                }
+            } catch (\Throwable) {
+                // Ignorujeme, rozměry nejsou kritické pro úspěch optimalizace.
+            }
+        }
+
+        $metaJson = $meta !== [] ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
+        $this->repo->update($mediaId, ['meta' => $metaJson]);
+
+        return true;
+    }
+
     /**
      * @param array{relative?:string,width?:int,height?:int,mime:string} $info
      */
@@ -208,5 +272,29 @@ final class MediaService
                 }
                 return null;
         }
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function decodeMeta(mixed $raw): array
+    {
+        if (!is_string($raw) || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function webpFileExists(string $relative, PathResolver $paths): bool
+    {
+        try {
+            $abs = $paths->absoluteFromRelative($relative);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return is_file($abs);
     }
 }
