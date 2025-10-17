@@ -1,20 +1,22 @@
 (function () {
   var bootstrap = window.bootstrap;
 
-  function createLinkDialog() {
-    var modalEl = document.getElementById('contentEditorLinkModal');
-    if (!modalEl || !bootstrap || !bootstrap.Modal) {
-      return {
-        open: function (opts) {
-          var defaultValue = opts && opts.defaultValue ? String(opts.defaultValue) : '';
-          var url = window.prompt('Zadej adresu odkazu:', defaultValue);
-          if (url && opts && typeof opts.onSubmit === 'function') {
-            opts.onSubmit(url, !!opts.openInNewTab);
-          }
-        }
-      };
+  function fallbackLinkDialog(opts) {
+    var defaultValue = opts && opts.defaultValue ? String(opts.defaultValue) : '';
+    var url = window.prompt('Zadej adresu odkazu:', defaultValue);
+    if (url && opts && typeof opts.onSubmit === 'function') {
+      opts.onSubmit(url, !!opts.openInNewTab);
     }
+  }
 
+  function fallbackImageDialog(opts) {
+    var url = window.prompt('Zadej adresu obrázku:');
+    if (url && opts && typeof opts.onInsert === 'function') {
+      opts.onInsert({ id: null, url: url, mime: 'image/*' }, '');
+    }
+  }
+
+  function setupLinkDialog(modalEl) {
     var modal = new bootstrap.Modal(modalEl);
     var urlInput = modalEl.querySelector('[data-link-url]');
     var targetCheckbox = modalEl.querySelector('[data-link-target]');
@@ -89,19 +91,7 @@
     };
   }
 
-  function createImageDialog() {
-    var modalEl = document.getElementById('contentEditorImageModal');
-    if (!modalEl || !bootstrap || !bootstrap.Modal) {
-      return {
-        open: function (opts) {
-          var url = window.prompt('Zadej adresu obrázku:');
-          if (url && opts && typeof opts.onInsert === 'function') {
-            opts.onInsert({ id: null, url: url, mime: 'image/*' }, '');
-          }
-        }
-      };
-    }
-
+  function setupImageDialog(modalEl) {
     var modal = new bootstrap.Modal(modalEl);
     var confirmBtn = modalEl.querySelector('[data-image-confirm]');
     var altInput = modalEl.querySelector('[data-image-alt]');
@@ -475,8 +465,37 @@
     };
   }
 
-  var linkDialog = createLinkDialog();
-  var imageDialog = createImageDialog();
+  function openLinkDialogWithFallback(opts) {
+    if (!bootstrap || !bootstrap.Modal) {
+      fallbackLinkDialog(opts);
+      return;
+    }
+    var modalEl = document.getElementById('contentEditorLinkModal');
+    if (!modalEl) {
+      fallbackLinkDialog(opts);
+      return;
+    }
+    if (!modalEl.__contentEditorLinkDialog) {
+      modalEl.__contentEditorLinkDialog = setupLinkDialog(modalEl);
+    }
+    modalEl.__contentEditorLinkDialog.open(opts);
+  }
+
+  function openImageDialogWithFallback(opts) {
+    if (!bootstrap || !bootstrap.Modal) {
+      fallbackImageDialog(opts);
+      return;
+    }
+    var modalEl = document.getElementById('contentEditorImageModal');
+    if (!modalEl) {
+      fallbackImageDialog(opts);
+      return;
+    }
+    if (!modalEl.__contentEditorImageDialog) {
+      modalEl.__contentEditorImageDialog = setupImageDialog(modalEl);
+    }
+    modalEl.__contentEditorImageDialog.open(opts);
+  }
 
   function initEditor(textarea) {
     if (!textarea || textarea.__contentEditorInit) {
@@ -579,11 +598,11 @@
         area.focus();
         saveSelection();
         if (buttonConfig.modal === 'link') {
-          openLinkDialog();
+          showLinkDialog();
           return;
         }
         if (buttonConfig.modal === 'image') {
-          openImageDialog();
+          showImageDialog();
           return;
         }
         if (buttonConfig.cmd === 'formatBlock') {
@@ -774,9 +793,9 @@
       syncState();
     }
 
-    function openLinkDialog() {
+    function showLinkDialog() {
       var anchor = findAnchorAtSelection();
-      linkDialog.open({
+      openLinkDialogWithFallback({
         defaultValue: anchor ? anchor.getAttribute('href') || '' : '',
         openInNewTab: anchor ? anchor.getAttribute('target') === '_blank' : false,
         onSubmit: function (url, openInNewTab) {
@@ -785,8 +804,8 @@
       });
     }
 
-    function openImageDialog() {
-      imageDialog.open({
+    function showImageDialog() {
+      openImageDialogWithFallback({
         csrf: csrfToken,
         postId: postId,
         onInsert: function (item, altText) {
