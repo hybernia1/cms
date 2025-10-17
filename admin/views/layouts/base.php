@@ -78,13 +78,17 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
       </div>
       <div class="admin-topbar-right">
         <?php if (!empty($currentUser)): ?>
-          <span class="admin-user-pill">
+          <span class="admin-user-pill" title="Přihlášený uživatel">
+            <i class="bi bi-person-circle" aria-hidden="true"></i>
             <span class="admin-user-name"><?= $h((string)($currentUser['name'] ?? '')) ?></span>
-            <span><?= $h((string)($currentUser['email'] ?? '')) ?></span>
           </span>
         <?php endif; ?>
-        <a class="btn btn-outline-secondary btn-sm" href="./" data-no-ajax>Frontend</a>
-        <a class="btn btn-danger btn-sm" href="admin.php?r=auth&a=logout" data-no-ajax>Odhlásit</a>
+        <a class="admin-icon-btn" href="./" data-no-ajax aria-label="Otevřít web" data-bs-toggle="tooltip" data-bs-title="Otevřít web">
+          <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+        </a>
+        <a class="admin-icon-btn" href="admin.php?r=auth&a=logout" data-no-ajax aria-label="Odhlásit" data-bs-toggle="tooltip" data-bs-title="Odhlásit">
+          <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+        </a>
       </div>
     </header>
     <main class="admin-content" data-flash-container>
