@@ -83,18 +83,78 @@ spl_autoload_register(
 /**
  * Přesměruj na instalátor a ukonči skript.
  */
-function cms_redirect_to_install(): never
+function cms_install_url(): string
 {
     $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
     $scriptDir = str_replace('\\', '/', (string)dirname($scriptName));
     $scriptDir = trim($scriptDir, '/');
-    if ($scriptDir === '.') {
-        $scriptDir = '';
+    if ($scriptDir === '.' || $scriptDir === '') {
+        return '/install/';
     }
 
-    $target = $scriptDir === '' ? '/install/' : '/' . $scriptDir . '/install/';
+    return '/' . $scriptDir . '/install/';
+}
 
-    header('Location: ' . $target);
+function cms_redirect_to_install(): never
+{
+    header('Location: ' . cms_install_url());
+    exit;
+}
+
+function cms_installation_error(string $message, ?Throwable $previous = null): never
+{
+    $isCli = (PHP_SAPI === 'cli');
+
+    if ($isCli) {
+        $output = "Installation error: {$message}";
+        if ($previous) {
+            $output .= "\n" . $previous->getMessage();
+        }
+        fwrite(STDERR, $output . "\n");
+        exit(1);
+    }
+
+    http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+
+    $reason = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    $target = htmlspecialchars(cms_install_url(), ENT_QUOTES, 'UTF-8');
+    $details = '';
+
+    if ($previous) {
+        $details = htmlspecialchars($previous->getMessage(), ENT_QUOTES, 'UTF-8');
+        $details = "<pre style=\"white-space:pre-wrap;\">{$details}</pre>";
+    }
+
+    echo <<<HTML
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>Chyba konfigurace</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background:#111; color:#eee; padding:3rem 1.5rem; }
+    .card { max-width: 680px; margin: 0 auto; background: #1f1f1f; border-radius: .75rem; padding: 2rem; box-shadow: 0 1rem 2rem rgba(0,0,0,.35); }
+    a { color: #61dafb; }
+    pre { background: rgba(255,255,255,.05); padding:1rem; border-radius:.5rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Chyba konfigurace</h1>
+    <p>{$reason}</p>
+    {$details}
+    <p>
+      Zkontroluj prosím <code>config.php</code> nebo znovu spusť instalátor.
+      <br>
+      <a href="{$target}">Přejít na instalátor</a>
+    </p>
+  </div>
+</body>
+</html>
+HTML;
+
     exit;
 }
 
@@ -113,10 +173,14 @@ function cms_bootstrap_config_or_redirect(): array
     /** @var array<string,mixed> $config */
     $config = require $configFile;
 
+    if (!is_array($config) || !isset($config['db']) || !is_array($config['db'])) {
+        cms_installation_error('Soubor config.php má neplatnou strukturu.');
+    }
+
     try {
         \Core\Database\Init::boot($config);
-    } catch (\Throwable) {
-        cms_redirect_to_install();
+    } catch (\Throwable $e) {
+        cms_installation_error('Nepodařilo se navázat připojení k databázi. Zkontroluj prosím přihlašovací údaje.', $e);
     }
 
     return $config;
