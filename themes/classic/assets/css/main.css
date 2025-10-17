@@ -225,6 +225,19 @@ a:hover {
   color: var(--accent);
 }
 
+.btn--link {
+  background: none;
+  color: var(--accent);
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.btn--link:hover {
+  text-decoration: underline;
+  color: var(--accent-strong);
+}
+
 .muted {
   color: var(--muted);
 }
@@ -356,6 +369,30 @@ a:hover {
   gap: 1rem;
 }
 
+.comment__actions {
+  margin-top: 0.75rem;
+}
+
+.comment__reply {
+  font-size: 0.9rem;
+}
+
+.comment-form__reply-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.comment-form__reply-label {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.comment-form__reply-target {
+  color: var(--fg);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -375,7 +412,8 @@ a:hover {
 }
 
 .form-field__control,
-.search-form input[type="text"] {
+.search-form input[type="text"],
+.search-form__input {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 12px;
@@ -386,7 +424,8 @@ a:hover {
 }
 
 .form-field__control:focus,
-.search-form input[type="text"]:focus {
+.search-form input[type="text"]:focus,
+.search-form__input:focus {
   outline: none;
   border-color: var(--accent-strong);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
