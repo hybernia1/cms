@@ -42,7 +42,7 @@ final class SettingsController extends BaseAdminController
                 'theme_slug'   => 'classic',
                 'date_format'  => 'Y-m-d',
                 'time_format'  => 'H:i',
-                'timezone'     => 'Europe/Prague',
+                'timezone'     => 'UTC+01:00',
                 'allow_registration' => 1,
                 'site_url'     => $this->detectSiteUrl(),
                 'created_at'   => DateTimeFactory::nowString(),
@@ -53,10 +53,12 @@ final class SettingsController extends BaseAdminController
             // doplň chybějící klíče bezpečnými defaulty (když migrace neběžela apod.)
             $row['date_format']        = $row['date_format']        ?? 'Y-m-d';
             $row['time_format']        = $row['time_format']        ?? 'H:i';
-            $row['timezone']           = $row['timezone']           ?? 'Europe/Prague';
+            $row['timezone']           = $row['timezone']           ?? 'UTC+01:00';
             $row['allow_registration'] = isset($row['allow_registration']) ? (int)$row['allow_registration'] : 1;
             $row['site_url']           = ($row['site_url'] ?? '') !== '' ? (string)$row['site_url'] : $this->detectSiteUrl();
         }
+
+        $row['timezone'] = SettingsPresets::normalizeTimezone((string)($row['timezone'] ?? 'UTC+01:00'));
 
         $data = $this->decodeSettingsData($row['data'] ?? null);
         $media = is_array($data['media'] ?? null) ? $data['media'] : [];
@@ -68,8 +70,7 @@ final class SettingsController extends BaseAdminController
 
     private function timezones(): array
     {
-        $presets = SettingsPresets::timezones();
-        return $presets !== [] ? $presets : \DateTimeZone::listIdentifiers();
+        return SettingsPresets::timezones();
     }
 
     private function formatPresets(): array
@@ -150,7 +151,9 @@ final class SettingsController extends BaseAdminController
     private function index(): void
     {
         $settings = $this->loadSettings();
-        $tz = new \DateTimeZone((string)($settings['timezone'] ?? 'Europe/Prague'));
+        $timezone = SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
+        $settings['timezone'] = $timezone;
+        $tz = new \DateTimeZone($timezone);
         $now = (new \DateTimeImmutable('now', $tz));
         $dateFmt = (string)($settings['date_format'] ?? 'Y-m-d');
         $timeFmt = (string)($settings['time_format'] ?? 'H:i');
@@ -224,10 +227,11 @@ final class SettingsController extends BaseAdminController
         $dateFormat = $this->pickPresetValue($dateOptions, (string)($_POST['date_format'] ?? ''), 'Y-m-d');
         $timeFormat = $this->pickPresetValue($timeOptions, (string)($_POST['time_format'] ?? ''), 'H:i');
 
-        $tz = (string)($_POST['timezone'] ?? 'Europe/Prague');
+        $tzInput = (string)($_POST['timezone'] ?? 'UTC+01:00');
+        $tz = SettingsPresets::normalizeTimezone($tzInput);
         $tzList = $this->timezones();
         if (!in_array($tz, $tzList, true)) {
-            $tz = 'Europe/Prague';
+            $tz = 'UTC+00:00';
         }
 
         // nové: allow_registration + site_url
@@ -362,6 +366,9 @@ final class SettingsController extends BaseAdminController
     private function pickPresetValue(array $options, string $selected, string $default): string
     {
         $selected = trim($selected);
+        if ($selected === '') {
+            return $options[0] ?? $default;
+        }
         foreach ($options as $option) {
             if (!is_string($option)) {
                 continue;
@@ -370,6 +377,6 @@ final class SettingsController extends BaseAdminController
                 return $option;
             }
         }
-        return $options[0] ?? $default;
+        return $selected;
     }
 }

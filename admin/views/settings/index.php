@@ -18,6 +18,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $datetimePresets = is_array($formatPresets['datetime'] ?? null) ? $formatPresets['datetime'] : [];
   $webpEnabled = (int)($settings['webp_enabled'] ?? 0) === 1;
   $webpCompression = (string)($settings['webp_compression'] ?? 'medium');
+  $curTz = \Cms\Utils\SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
+  $tzLabel = static function(string $tz): string {
+    return \Cms\Utils\SettingsPresets::timezoneLabel($tz);
+  };
 ?>
   <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax>
     <div class="card-body">
@@ -93,13 +97,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           </div>
           <div class="col-lg-4">
             <label class="form-label" for="timezone">Časová zóna</label>
-            <?php $curTz = (string)($settings['timezone'] ?? 'Europe/Prague'); ?>
             <select class="form-select" name="timezone" id="timezone">
               <?php foreach ($timezones as $tz): ?>
                 <?php if (!is_string($tz)) continue; ?>
-                <option value="<?= $h($tz) ?>"<?= $sel($tz,$curTz) ?>><?= $h($tz) ?></option>
+                <option value="<?= $h($tz) ?>"<?= $sel($tz,$curTz) ?>><?= $h($tzLabel($tz)) ?></option>
               <?php endforeach; ?>
             </select>
+            <div class="form-text">Vyberte požadovaný posun vůči UTC.</div>
           </div>
         </div>
         <datalist id="dateFormatPresets">
@@ -147,12 +151,18 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       const previewEl = document.getElementById('preview');
       const webpToggle = document.getElementById('webp_enabled');
       const webpCompression = document.getElementById('webp_compression');
+      const timezoneSelect = document.getElementById('timezone');
 
       function updatePreview() {
         if (!dateInput || !timeInput || !previewEl) return;
         const dateVal = dateInput.value || 'Y-m-d';
         const timeVal = timeInput.value || 'H:i';
-        previewEl.textContent = dateVal + ' ' + timeVal + ' — např. <?= $h($previewNow) ?>';
+        let tzPreview = '';
+        if (timezoneSelect && timezoneSelect.selectedIndex >= 0) {
+          tzPreview = timezoneSelect.options[timezoneSelect.selectedIndex].textContent || '';
+          tzPreview = tzPreview.trim();
+        }
+        previewEl.textContent = dateVal + ' ' + timeVal + (tzPreview ? ' (' + tzPreview + ')' : '') + ' — např. <?= $h($previewNow) ?>';
       }
 
       function updateWebpState() {
@@ -170,6 +180,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       }
       if (webpToggle) {
         webpToggle.addEventListener('change', updateWebpState);
+      }
+      if (timezoneSelect) {
+        timezoneSelect.addEventListener('change', updatePreview);
       }
 
       updatePreview();

@@ -73,7 +73,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <tr>
               <th style="width:36px"><input class="form-check-input" type="checkbox" id="terms-select-all" aria-label="Vybrat vše"></th>
               <th>Název</th>
-              <th style="width:200px">Vytvořeno</th>
               <th style="width:160px" class="text-end">Akce</th>
             </tr>
           </thead>
@@ -99,11 +98,6 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                     <div class="text-secondary small text-truncate"><?= $h((string)$it['description']) ?></div>
                   <?php endif; ?>
                 </td>
-                <td>
-                  <span class="small" title="<?= $h((string)($it['created_at_raw'] ?? '')) ?>">
-                    <?= $h((string)($it['created_at_display'] ?? ($it['created_at_raw'] ?? ''))) ?>
-                  </span>
-                </td>
                 <td class="text-end">
                   <a class="btn btn-light btn-sm border me-1" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>" aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
                     <i class="bi bi-pencil"></i>
@@ -120,7 +114,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <?php endforeach; ?>
             <?php if (!$items): ?>
               <tr>
-                <td colspan="4" class="text-center text-secondary py-4">
+                <td colspan="3" class="text-center text-secondary py-4">
                   <i class="bi bi-inbox me-1"></i>Žádné termy
                 </td>
               </tr>

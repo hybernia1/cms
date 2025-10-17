@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Settings;
 
 use Core\Database\Init as DB;
+use Cms\Utils\SettingsPresets;
 
 final class CmsSettings
 {
@@ -23,9 +24,10 @@ final class CmsSettings
                     'theme_slug'  => 'classic',
                     'date_format' => 'Y-m-d',
                     'time_format' => 'H:i',
-                    'timezone'    => 'Europe/Prague',
+                    'timezone'    => 'UTC+01:00',
                 ];
             }
+            $row['timezone'] = SettingsPresets::normalizeTimezone((string)($row['timezone'] ?? 'UTC+01:00'));
             self::$row = $row;
         }
         return self::$row;
@@ -74,7 +76,7 @@ final class CmsSettings
     public function themeSlug(): string   { return (string)(self::row()['theme_slug'] ?? 'classic'); }
     public function dateFormat(): string  { return (string)(self::row()['date_format'] ?? 'Y-m-d'); }
     public function timeFormat(): string  { return (string)(self::row()['time_format'] ?? 'H:i'); }
-    public function timezone(): string    { return (string)(self::row()['timezone'] ?? 'Europe/Prague'); }
+    public function timezone(): string    { return SettingsPresets::normalizeTimezone((string)(self::row()['timezone'] ?? 'UTC+01:00')); }
 
     public function webpEnabled(): bool
     {
