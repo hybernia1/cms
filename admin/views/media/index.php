@@ -71,21 +71,14 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   </div>
 
   <div class="card mb-3">
-    <div class="card-body">
-      <form method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" class="row gy-2 gx-2 align-items-end" data-ajax>
-        <div class="col-md-6">
-          <label class="form-label" for="media-files">Nahrát soubor(y)</label>
-          <input class="form-control" id="media-files" type="file" name="files[]" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.pdf,.zip,.txt,.csv,image/*,application/pdf,application/zip,text/plain,text/csv">
-          <div class="form-text">Uloží se do <code>uploads/Y/m/media/</code>.</div>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">&nbsp;</label>
-          <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-          <button class="btn btn-success btn-sm w-100" type="submit">
-            <i class="bi bi-cloud-upload me-1"></i>Nahrát
-          </button>
-        </div>
-      </form>
+    <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+      <div>
+        <h2 class="h6 text-uppercase text-secondary fw-semibold mb-1">Nahrát média</h2>
+        <p class="text-secondary small mb-0">Přetáhni soubory do uploaderu nebo je vyber ručně. Soubory se uloží do <code>uploads/Y/m/media/</code>.</p>
+      </div>
+      <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#mediaUploadModal">
+        <i class="bi bi-cloud-arrow-up me-1"></i>Nahrát nové soubory
+      </button>
     </div>
   </div>
 
@@ -98,6 +91,32 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <?php foreach ($items as $m):
             $isImg = str_starts_with((string)$m['mime'], 'image/');
             $meta = is_array($m['meta'] ?? null) ? $m['meta'] : [];
+            $references = [
+              'thumbnails' => array_values(array_map(static function (array $ref): array {
+                return [
+                  'id' => (int)($ref['id'] ?? 0),
+                  'title' => (string)($ref['title'] ?? ''),
+                  'status' => (string)($ref['status'] ?? ''),
+                  'statusLabel' => (string)($ref['status_label'] ?? ''),
+                  'type' => (string)($ref['type'] ?? ''),
+                  'typeLabel' => (string)($ref['type_label'] ?? ''),
+                  'editUrl' => (string)($ref['edit_url'] ?? ''),
+                ];
+              }, $m['references']['thumbnails'] ?? [])),
+              'content' => array_values(array_map(static function (array $ref): array {
+                return [
+                  'id' => (int)($ref['id'] ?? 0),
+                  'title' => (string)($ref['title'] ?? ''),
+                  'status' => (string)($ref['status'] ?? ''),
+                  'statusLabel' => (string)($ref['status_label'] ?? ''),
+                  'type' => (string)($ref['type'] ?? ''),
+                  'typeLabel' => (string)($ref['type_label'] ?? ''),
+                  'role' => (string)($ref['role'] ?? ''),
+                  'roleLabel' => (string)($ref['role_label'] ?? ''),
+                  'editUrl' => (string)($ref['edit_url'] ?? ''),
+                ];
+              }, $m['references']['content'] ?? [])),
+            ];
             $modalData = [
               'id'          => $m['id'] ?? null,
               'type'        => $m['type'] ?? '',
@@ -115,6 +134,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
               'createdIso'  => $m['created_iso'] ?? '',
               'authorName'  => $m['author_name'] ?? '',
               'authorEmail' => $m['author_email'] ?? '',
+              'references'  => $references,
             ];
           ?>
             <div class="col-12 col-sm-6 col-md-4 col-lg-3">
@@ -181,6 +201,34 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
+  <div class="modal fade" id="mediaUploadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <form class="modal-content" method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" id="media-upload-form" data-ajax>
+        <div class="modal-header">
+          <h5 class="modal-title">Nahrát soubory</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+        </div>
+        <div class="modal-body">
+          <div class="admin-dropzone" id="media-upload-dropzone">
+            <i class="bi bi-cloud-arrow-up fs-2 mb-2 d-block"></i>
+            <p class="mb-1">Přetáhni soubory sem nebo klikni pro výběr.</p>
+            <p class="text-secondary small mb-3">Podporované formáty: JPG, PNG, GIF, WEBP, SVG, PDF, ZIP, TXT, CSV.</p>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="media-upload-browse">Vybrat soubory</button>
+          </div>
+          <div id="media-upload-summary" class="text-secondary small mt-3 d-none"></div>
+          <input class="d-none" type="file" id="media-upload-input" name="files[]" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.pdf,.zip,.txt,.csv,image/*,application/pdf,application/zip,text/plain,text/csv">
+          <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" type="submit" id="media-upload-submit" disabled>
+            <i class="bi bi-cloud-arrow-up me-1"></i>Nahrát
+          </button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal fade" id="mediaDetailModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
@@ -206,6 +254,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <dt class="col-sm-4">Autor</dt>
             <dd class="col-sm-8" data-field="author">—</dd>
           </dl>
+          <div class="mt-3" data-role="usage">
+            <h6 class="small text-uppercase text-secondary fw-semibold mb-2">Využití v příspěvcích</h6>
+            <div class="small" data-field="usage">Médium zatím není připojeno k žádnému příspěvku.</div>
+          </div>
         </div>
         <div class="modal-footer flex-wrap gap-2">
           <a class="btn btn-light btn-sm border" target="_blank" rel="noopener" data-link="original">Otevřít originál</a>
@@ -217,7 +269,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   </div>
 
   <script>
-  (function() {
+  (function () {
     function initMediaModal() {
       const modalEl = document.getElementById('mediaDetailModal');
       if (!modalEl || typeof window.bootstrap === 'undefined' || !window.bootstrap.Modal) {
@@ -238,6 +290,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         original: modalEl.querySelector('[data-link="original"]'),
         webp: modalEl.querySelector('[data-link="webp"]'),
       };
+      const usageSection = modalEl.querySelector('[data-role="usage"]');
+      const usageField = usageSection ? usageSection.querySelector('[data-field="usage"]') : null;
+      const defaultUsageText = 'Médium zatím není připojeno k žádnému příspěvku.';
 
       const updateField = (key, value) => {
         if (!fields[key]) return;
@@ -259,6 +314,63 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           if (hiddenClass) {
             el.classList.add(hiddenClass);
           }
+        }
+      };
+
+      const renderUsage = (references) => {
+        if (!usageField) { return; }
+        usageField.innerHTML = '';
+        const thumbs = Array.isArray(references && references.thumbnails) ? references.thumbnails : [];
+        const content = Array.isArray(references && references.content) ? references.content : [];
+        if (!thumbs.length && !content.length) {
+          usageField.textContent = defaultUsageText;
+          return;
+        }
+
+        const appendList = (title, items, includeRole) => {
+          if (!items.length) { return; }
+          const heading = document.createElement('div');
+          heading.className = 'fw-semibold mb-1';
+          heading.textContent = title;
+          usageField.appendChild(heading);
+
+          const list = document.createElement('ul');
+          list.className = 'list-unstyled mb-2';
+          items.forEach((item) => {
+            const li = document.createElement('li');
+            li.className = 'mb-1';
+            const titleText = (item && typeof item.title === 'string' && item.title.trim() !== '') ? item.title : 'Bez názvu';
+            const prefix = item && item.id ? `#${item.id} – ` : '';
+            if (item && item.editUrl) {
+              const link = document.createElement('a');
+              link.href = item.editUrl;
+              link.className = 'text-decoration-none';
+              link.textContent = prefix + titleText;
+              link.setAttribute('data-no-ajax', 'true');
+              li.appendChild(link);
+            } else {
+              li.textContent = prefix + titleText;
+            }
+            const metaParts = [];
+            if (item && item.typeLabel) metaParts.push(item.typeLabel);
+            if (item && item.statusLabel) metaParts.push(item.statusLabel);
+            if (includeRole && item && item.roleLabel) metaParts.push(item.roleLabel);
+            if (metaParts.length) {
+              const meta = document.createElement('div');
+              meta.className = 'text-secondary small';
+              meta.textContent = metaParts.join(' • ');
+              li.appendChild(meta);
+            }
+            list.appendChild(li);
+          });
+          usageField.appendChild(list);
+        };
+
+        appendList('Náhled příspěvku', thumbs, false);
+        appendList('V obsahu', content, true);
+        if (usageField.lastElementChild && usageField.lastElementChild.tagName === 'UL') {
+          usageField.lastElementChild.classList.remove('mb-2');
+          usageField.lastElementChild.classList.add('mb-0');
         }
       };
 
@@ -304,17 +416,132 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
           updateLink('original', data.url || '', 'disabled');
           updateLink('webp', data.webpUrl || '', 'd-none');
+          renderUsage(data.references || null);
 
           modal.show();
         });
       });
     }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initMediaModal);
-    } else {
-      initMediaModal();
+    function initMediaUploader() {
+      const modalEl = document.getElementById('mediaUploadModal');
+      const form = document.getElementById('media-upload-form');
+      const fileInput = document.getElementById('media-upload-input');
+      const dropzone = document.getElementById('media-upload-dropzone');
+      const browseBtn = document.getElementById('media-upload-browse');
+      const summary = document.getElementById('media-upload-summary');
+      const submitBtn = document.getElementById('media-upload-submit');
+
+      if (!modalEl || !form || !fileInput || !summary || !submitBtn) {
+        return;
+      }
+
+      const formatFileSize = (bytes) => {
+        if (!Number.isFinite(bytes) || bytes <= 0) {
+          return '';
+        }
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let value = bytes;
+        let unitIndex = 0;
+        while (value >= 1024 && unitIndex < units.length - 1) {
+          value /= 1024;
+          unitIndex += 1;
+        }
+        return unitIndex === 0 ? `${Math.round(value)} ${units[unitIndex]}` : `${value.toFixed(1)} ${units[unitIndex]}`;
+      };
+
+      const renderSummary = () => {
+        const files = fileInput.files;
+        summary.innerHTML = '';
+        if (!files || files.length === 0) {
+          summary.classList.add('d-none');
+          submitBtn.disabled = true;
+          return;
+        }
+
+        const list = document.createElement('ul');
+        list.className = 'list-unstyled mb-2';
+        Array.from(files).forEach((file) => {
+          const li = document.createElement('li');
+          li.className = 'mb-1';
+          const sizeText = typeof file.size === 'number' ? formatFileSize(file.size) : '';
+          li.textContent = file.name + (sizeText ? ` (${sizeText})` : '');
+          list.appendChild(li);
+        });
+        summary.appendChild(list);
+        summary.classList.remove('d-none');
+        submitBtn.disabled = false;
+      };
+
+      const resetUpload = () => {
+        try { fileInput.value = ''; } catch (err) {}
+        summary.innerHTML = '';
+        summary.classList.add('d-none');
+        submitBtn.disabled = true;
+      };
+
+      fileInput.addEventListener('change', renderSummary);
+
+      if (browseBtn) {
+        browseBtn.addEventListener('click', (evt) => {
+          evt.preventDefault();
+          fileInput.click();
+        });
+      }
+
+      if (dropzone) {
+        dropzone.addEventListener('dragover', (evt) => {
+          evt.preventDefault();
+          dropzone.classList.add('is-dragover');
+        });
+        dropzone.addEventListener('dragleave', () => {
+          dropzone.classList.remove('is-dragover');
+        });
+        dropzone.addEventListener('dragend', () => {
+          dropzone.classList.remove('is-dragover');
+        });
+        dropzone.addEventListener('drop', (evt) => {
+          evt.preventDefault();
+          dropzone.classList.remove('is-dragover');
+          if (!evt.dataTransfer || !evt.dataTransfer.files || evt.dataTransfer.files.length === 0) {
+            return;
+          }
+          const files = evt.dataTransfer.files;
+          try {
+            const dt = new DataTransfer();
+            Array.from(files).forEach((file) => dt.items.add(file));
+            fileInput.files = dt.files;
+          } catch (err) {
+            try { fileInput.files = files; } catch (e) {}
+          }
+          renderSummary();
+        });
+        dropzone.addEventListener('click', (evt) => {
+          if (browseBtn && browseBtn.contains(evt.target)) {
+            return;
+          }
+          fileInput.click();
+        });
+      }
+
+      modalEl.addEventListener('show.bs.modal', resetUpload);
+      modalEl.addEventListener('hidden.bs.modal', resetUpload);
+
+      resetUpload();
     }
+
+    function onReady(fn) {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', fn);
+      } else {
+        fn();
+      }
+    }
+
+    onReady(function () {
+      initMediaModal();
+      initMediaUploader();
+    });
   })();
   </script>
 <?php

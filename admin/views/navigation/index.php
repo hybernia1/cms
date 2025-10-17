@@ -24,6 +24,10 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
     foreach ($targets as $t) {
         $targetLabels[$t['value']] = $t['label'];
     }
+    $targetIcons = [
+        '_self' => ['icon' => 'bi-arrow-return-right', 'title' => 'Otevřít ve stejném okně'],
+        '_blank' => ['icon' => 'bi-box-arrow-up-right', 'title' => 'Otevřít v novém okně'],
+    ];
     $defaultOrder = $editingItem ? (int)($editingItem['sort_order'] ?? 0) : (count($items) + 1);
 ?>
   <?php if (!$tablesReady): ?>
@@ -197,12 +201,11 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
             <table class="table table-sm table-hover align-middle mb-0">
               <thead class="table-light">
                 <tr>
-                  <th style="width:80px">ID</th>
                   <th>Položka</th>
                   <th>URL</th>
-                  <th style="width:130px">Cíl</th>
+                  <th style="width:90px" class="text-center">Cíl</th>
                   <th style="width:110px">Pořadí</th>
-                  <th style="width:180px"></th>
+                  <th style="width:160px" class="text-end"></th>
                 </tr>
               </thead>
               <tbody>
@@ -210,7 +213,6 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                   <?php $isEditing = $editingItem && (int)$editingItem['id'] === (int)$it['id']; ?>
                   <?php $indent = max(0, (int)$it['depth']) * 16; ?>
                   <tr class="<?= $isEditing ? 'table-active' : '' ?>">
-                    <td>#<?= $h((string)$it['id']) ?></td>
                     <td>
                       <div style="padding-left: <?= $indent ?>px">
                         <div class="fw-semibold"><?= $h((string)$it['title']) ?></div>
@@ -228,22 +230,37 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                         <?= $h((string)$it['url']) ?>
                       </div>
                     </td>
-                    <td><?= $h($targetLabels[$it['target']] ?? (string)$it['target']) ?></td>
+                    <td class="text-center">
+                      <?php
+                        $targetKey = (string)($it['target'] ?? '_self');
+                        $targetInfo = $targetIcons[$targetKey] ?? ['icon' => 'bi-question-circle', 'title' => $targetLabels[$targetKey] ?? $targetKey];
+                      ?>
+                      <span class="admin-icon-indicator" data-bs-toggle="tooltip" data-bs-title="<?= $h($targetInfo['title']) ?>">
+                        <i class="bi <?= $h($targetInfo['icon']) ?>" aria-hidden="true"></i>
+                        <span class="visually-hidden"><?= $h($targetInfo['title']) ?></span>
+                      </span>
+                    </td>
                     <td><?= $h((string)$it['sort_order']) ?></td>
                     <td class="text-end">
-                      <a class="btn btn-light btn-sm border me-1" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form">Upravit</a>
-                      <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" onsubmit="return confirm('Opravdu odstranit tuto položku?');" data-ajax>
-                        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                        <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
-                        <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
-                        <button class="btn btn-light btn-sm border" type="submit">Smazat</button>
-                      </form>
+                      <div class="d-inline-flex gap-2 align-items-center">
+                        <a class="admin-icon-btn" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form" aria-label="Upravit položku" data-bs-toggle="tooltip" data-bs-title="Upravit položku">
+                          <i class="bi bi-pencil" aria-hidden="true"></i>
+                        </a>
+                        <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" onsubmit="return confirm('Opravdu odstranit tuto položku?');" data-ajax>
+                          <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+                          <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
+                          <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
+                          <button class="admin-icon-btn" type="submit" aria-label="Smazat položku" data-bs-toggle="tooltip" data-bs-title="Smazat položku">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
+                          </button>
+                        </form>
+                      </div>
                     </td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$items): ?>
                   <tr>
-                    <td colspan="6" class="text-center text-secondary py-4">Toto menu zatím neobsahuje žádné položky.</td>
+                    <td colspan="5" class="text-center text-secondary py-4">Toto menu zatím neobsahuje žádné položky.</td>
                   </tr>
                 <?php endif; ?>
               </tbody>

@@ -70,6 +70,13 @@ final class MediaController extends BaseAdminController
         $paths = $this->uploadPaths();
         $settings = new CmsSettings();
         $items = array_map(fn(array $row) => $this->prepareItem($row, $paths), $pag['items'] ?? []);
+        $mediaIds = array_map(static fn(array $item): int => (int)($item['id'] ?? 0), $items);
+        $references = $this->mediaReferences($mediaIds);
+        $items = array_map(static function (array $item) use ($references): array {
+            $id = (int)($item['id'] ?? 0);
+            $item['references'] = $references[$id] ?? ['thumbnails' => [], 'content' => []];
+            return $item;
+        }, $items);
 
         $this->renderAdmin('media/index', [
             'pageTitle'  => 'Média',
@@ -354,6 +361,111 @@ final class MediaController extends BaseAdminController
 
         $decoded = json_decode($raw, true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param array<int> $mediaIds
+     * @return array<int,array{thumbnails:array<int,array<string,mixed>>,content:array<int,array<string,mixed>>}>
+     */
+    private function mediaReferences(array $mediaIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $mediaIds), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($ids as $id) {
+            $map[$id] = ['thumbnails' => [], 'content' => []];
+        }
+
+        $thumbRows = DB::query()->table('posts')
+            ->select(['id','title','slug','type','status','thumbnail_id'])
+            ->whereIn('thumbnail_id', $ids)
+            ->get();
+
+        foreach ($thumbRows as $row) {
+            $mediaId = (int)($row['thumbnail_id'] ?? 0);
+            $postId = (int)($row['id'] ?? 0);
+            if ($mediaId <= 0 || $postId <= 0 || !isset($map[$mediaId])) {
+                continue;
+            }
+            $map[$mediaId]['thumbnails'][$postId] = $this->mapPostReference($row, 'thumbnail');
+        }
+
+        $contentRows = DB::query()->table('post_media', 'pm')
+            ->select(['pm.media_id','pm.role','p.id','p.title','p.slug','p.type','p.status'])
+            ->join('posts p', 'pm.post_id', '=', 'p.id')
+            ->whereIn('pm.media_id', $ids)
+            ->get();
+
+        foreach ($contentRows as $row) {
+            $mediaId = (int)($row['media_id'] ?? 0);
+            $postId = (int)($row['id'] ?? 0);
+            if ($mediaId <= 0 || $postId <= 0 || !isset($map[$mediaId])) {
+                continue;
+            }
+            $role = (string)($row['role'] ?? 'attachment');
+            $key = $postId . '|' . $role;
+            $map[$mediaId]['content'][$key] = $this->mapPostReference($row, $role);
+        }
+
+        foreach ($map as &$groups) {
+            $groups['thumbnails'] = array_values($groups['thumbnails']);
+            $groups['content'] = array_values($groups['content']);
+        }
+        unset($groups);
+
+        return $map;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function mapPostReference(array $row, string $context): array
+    {
+        $postId = (int)($row['id'] ?? 0);
+        return [
+            'id' => $postId,
+            'title' => (string)($row['title'] ?? ''),
+            'slug' => (string)($row['slug'] ?? ''),
+            'status' => (string)($row['status'] ?? ''),
+            'status_label' => $this->postStatusLabel((string)($row['status'] ?? '')),
+            'type' => (string)($row['type'] ?? ''),
+            'type_label' => $this->postTypeLabel((string)($row['type'] ?? '')),
+            'edit_url' => 'admin.php?r=posts&a=edit&id=' . $postId,
+            'role' => $context,
+            'role_label' => $context === 'attachment' ? '' : $this->mediaRoleLabel($context),
+        ];
+    }
+
+    private function postStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'publish' => 'Publikováno',
+            'draft' => 'Koncept',
+            'future' => 'Naplánováno',
+            default => ucfirst($status),
+        };
+    }
+
+    private function postTypeLabel(string $type): string
+    {
+        return match ($type) {
+            'page' => 'Stránka',
+            'post' => 'Příspěvek',
+            default => ucfirst($type),
+        };
+    }
+
+    private function mediaRoleLabel(string $role): string
+    {
+        return match ($role) {
+            'gallery' => 'Galerie',
+            'hero' => 'Hero sekce',
+            default => ucfirst($role),
+        };
     }
 
     private function formatBytes(int $bytes): string
