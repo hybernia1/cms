@@ -96,6 +96,52 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $categorySelectedText = $selectedListToString($categorySelected);
   $tagSelectedText = $selectedListToString($tagSelected);
 
+  $mergeOptions = static function (array $base, array $selected): array {
+    $existing = [];
+    foreach ($base as $item) {
+      $existing[(int)($item['id'] ?? 0)] = true;
+    }
+    foreach ($selected as $item) {
+      if (!is_array($item)) {
+        continue;
+      }
+      $id = (int)($item['id'] ?? 0);
+      if ($id <= 0 || isset($existing[$id])) {
+        continue;
+      }
+      $label = '';
+      if (isset($item['value'])) {
+        $label = trim((string)$item['value']);
+      }
+      if ($label === '' && isset($item['name'])) {
+        $label = trim((string)$item['name']);
+      }
+      if ($label === '' && isset($item['slug'])) {
+        $label = trim((string)$item['slug']);
+      }
+      $base[] = [
+        'id'    => $id,
+        'value' => $label !== '' ? $label : ('ID ' . $id),
+        'slug'  => (string)($item['slug'] ?? ''),
+      ];
+      $existing[$id] = true;
+    }
+    return $base;
+  };
+
+  $categoryOptions = $mergeOptions($categoriesWhitelist, $categorySelected);
+  $tagOptions = $mergeOptions($tagsWhitelist, $tagSelected);
+
+  $calcSelectSize = static function (array $items): int {
+    $count = count($items);
+    if ($count <= 0) {
+      return 4;
+    }
+    return max(4, min(10, $count));
+  };
+  $categorySelectSize = $calcSelectSize($categoryOptions);
+  $tagSelectSize = $calcSelectSize($tagOptions);
+
   $currentThumb = null;
   if ($isEdit && !empty($post['thumbnail_id'])) {
     $thumbRow = \Core\Database\Init::query()->table('media')->select(['id','url','mime'])->where('id','=',(int)$post['thumbnail_id'])->first();
@@ -156,24 +202,60 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <?php if ($type === 'post'): ?>
         <div class="mt-3">
           <div class="mb-3">
-            <label class="form-label">Kategorie</label>
-            <input id="categories-input" class="form-control" placeholder="Přidej kategorie"
+          <label class="form-label">Kategorie</label>
+          <input id="categories-input" class="form-control" placeholder="Přidej kategorie"
                    value="<?= $h($categorySelectedText) ?>"
                    data-whitelist="<?= $encodeJson($categoriesWhitelist) ?>"
                    data-selected="<?= $encodeJson($categorySelected) ?>">
-            <div class="form-text">Začni psát pro vyhledání existujících kategorií, nové potvrď klávesou Enter.</div>
-            <div id="categories-hidden-inputs"></div>
+          <div class="form-text">Začni psát pro vyhledání existujících kategorií, nové potvrď klávesou Enter.</div>
+          <div class="tagify-fallback d-none mt-2" data-fallback="categories">
+            <select class="form-select" name="categories[]" multiple size="<?= (int)$categorySelectSize ?>" data-fallback-input>
+              <?php foreach ($categoryOptions as $item):
+                $optionId = (int)($item['id'] ?? 0);
+                $label = trim((string)($item['value'] ?? ''));
+                if ($label === '') {
+                  $label = trim((string)($item['slug'] ?? ''));
+                }
+                if ($label === '') {
+                  $label = 'ID ' . $optionId;
+                }
+              ?>
+                <option value="<?= $optionId ?>" <?= in_array($optionId, $categorySelectedIds, true) ? 'selected' : '' ?>><?= $h($label) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text mt-1">Záložní výběr, použij klávesu Ctrl/Cmd pro více položek. Nové kategorie napiš oddělené čárkou.</div>
+            <input class="form-control form-control-sm mt-2" type="text" name="new_categories" data-fallback-input placeholder="Nové kategorie" value="">
           </div>
-          <div class="mb-3">
-            <label class="form-label">Štítky</label>
-            <input id="tags-input" class="form-control" placeholder="Přidej štítky"
+          <div id="categories-hidden-inputs"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Štítky</label>
+          <input id="tags-input" class="form-control" placeholder="Přidej štítky"
                    value="<?= $h($tagSelectedText) ?>"
                    data-whitelist="<?= $encodeJson($tagsWhitelist) ?>"
                    data-selected="<?= $encodeJson($tagSelected) ?>">
-            <div class="form-text">Štítky odděluj čárkou nebo potvrzuj Enterem, lze kombinovat existující i nové.</div>
-            <div id="tags-hidden-inputs"></div>
+          <div class="form-text">Štítky odděluj čárkou nebo potvrzuj Enterem, lze kombinovat existující i nové.</div>
+          <div class="tagify-fallback d-none mt-2" data-fallback="tags">
+            <select class="form-select" name="tags[]" multiple size="<?= (int)$tagSelectSize ?>" data-fallback-input>
+              <?php foreach ($tagOptions as $item):
+                $optionId = (int)($item['id'] ?? 0);
+                $label = trim((string)($item['value'] ?? ''));
+                if ($label === '') {
+                  $label = trim((string)($item['slug'] ?? ''));
+                }
+                if ($label === '') {
+                  $label = 'ID ' . $optionId;
+                }
+              ?>
+                <option value="<?= $optionId ?>" <?= in_array($optionId, $tagSelectedIds, true) ? 'selected' : '' ?>><?= $h($label) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text mt-1">Záložní výběr, použij klávesu Ctrl/Cmd pro více položek. Nové štítky napiš oddělené čárkou.</div>
+            <input class="form-control form-control-sm mt-2" type="text" name="new_tags" data-fallback-input placeholder="Nové štítky" value="">
           </div>
+          <div id="tags-hidden-inputs"></div>
         </div>
+      </div>
       <?php endif; ?>
 
       <div class="mb-3 mt-3">
@@ -272,6 +354,24 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       if (!form) { return; }
 
       var TagifyCtor = window.Tagify;
+
+      function toggleFallback(section, enabled) {
+        var container = document.querySelector('[data-fallback="' + section + '"]');
+        if (!container) return;
+        var inputs = container.querySelectorAll('[data-fallback-input]');
+        inputs.forEach(function (input) {
+          if (enabled) {
+            input.removeAttribute('disabled');
+          } else {
+            input.setAttribute('disabled', 'disabled');
+          }
+        });
+        if (enabled) {
+          container.classList.remove('d-none');
+        } else {
+          container.classList.add('d-none');
+        }
+      }
 
       function parseDataAttr(el, attr) {
         if (!el) return [];
@@ -381,6 +481,12 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           });
           syncTagify(tagTagify, tagsHidden, 'tags[]', 'new_tags');
         }
+
+        toggleFallback('categories', false);
+        toggleFallback('tags', false);
+      } else {
+        toggleFallback('categories', true);
+        toggleFallback('tags', true);
       }
 
       form.addEventListener('submit', function () {
