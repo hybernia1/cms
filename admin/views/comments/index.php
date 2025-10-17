@@ -56,7 +56,14 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $renderDeleteAction = function(array $comment) use ($h, $csrf, $backUrl): string {
     ob_start();
     ?>
-    <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');" data-ajax>
+    <form method="post"
+          action="admin.php?r=comments&a=delete"
+          class="d-inline"
+          data-ajax
+          data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
+          data-confirm-modal-title="Potvrzení smazání"
+          data-confirm-modal-confirm-label="Smazat"
+          data-confirm-modal-cancel-label="Zrušit">
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
       <input type="hidden" name="id" value="<?= (int)($comment['id'] ?? 0) ?>">
       <input type="hidden" name="_back" value="<?= $h($backUrl) ?>">

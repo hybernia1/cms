@@ -168,7 +168,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                         <button class="btn btn-outline-success btn-sm" type="submit">Optimalizovat</button>
                       </form>
                     <?php endif; ?>
-                    <form method="post" action="admin.php?r=media&a=delete" onsubmit="return confirm('Opravdu odstranit?');" data-ajax>
+                    <form method="post"
+                          action="admin.php?r=media&a=delete"
+                          data-ajax
+                          data-confirm-modal="Opravdu odstranit?"
+                          data-confirm-modal-title="Potvrzení smazání"
+                          data-confirm-modal-confirm-label="Smazat"
+                          data-confirm-modal-cancel-label="Zrušit">
                       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                       <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
                       <button class="btn btn-light btn-sm border" type="submit">Smazat</button>

@@ -2,6 +2,9 @@
   var HISTORY_STATE_KEY = 'cmsAdminAjax';
   var activeNavigation = null;
   var adminMenuMediaQuery = null;
+  var confirmModalElement = null;
+  var confirmModalInstance = null;
+  var confirmModalCallback = null;
 
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
@@ -328,12 +331,173 @@
       });
     }
 
+    var sectionButtons = [].slice.call(scope.querySelectorAll('.admin-menu-item.has-children > .admin-menu-link[data-admin-menu-section]'));
+    sectionButtons.forEach(function (btn) {
+      if (btn.dataset.adminMenuSectionBound === '1') {
+        return;
+      }
+      btn.dataset.adminMenuSectionBound = '1';
+      var parent = btn.closest('.admin-menu-item');
+      if (parent) {
+        btn.setAttribute('aria-expanded', parent.classList.contains('is-expanded') ? 'true' : 'false');
+      }
+      btn.addEventListener('click', function (event) {
+        event.preventDefault();
+        var item = btn.closest('.admin-menu-item');
+        if (!item) {
+          return;
+        }
+        var expanded = item.classList.toggle('is-expanded');
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      });
+    });
+
     setSidebarOpen(document.body.classList.contains('admin-sidebar-open'));
+  }
+
+  function ensureConfirmModal() {
+    if (confirmModalElement) {
+      return confirmModalElement;
+    }
+    var element = document.getElementById('adminConfirmModal');
+    if (!element) {
+      return null;
+    }
+    if (typeof bootstrap === 'undefined' || typeof bootstrap.Modal !== 'function') {
+      return null;
+    }
+    confirmModalElement = element;
+    confirmModalInstance = bootstrap.Modal.getOrCreateInstance(element);
+    var confirmButton = element.querySelector('[data-confirm-modal-confirm]');
+    var cancelButton = element.querySelector('[data-confirm-modal-cancel]');
+    if (confirmButton && !confirmButton.dataset.defaultLabel) {
+      confirmButton.dataset.defaultLabel = confirmButton.textContent || '';
+    }
+    if (cancelButton && !cancelButton.dataset.defaultLabel) {
+      cancelButton.dataset.defaultLabel = cancelButton.textContent || '';
+    }
+    if (confirmButton && confirmButton.dataset.confirmModalBound !== '1') {
+      confirmButton.dataset.confirmModalBound = '1';
+      confirmButton.addEventListener('click', function () {
+        if (confirmModalInstance) {
+          confirmModalInstance.hide();
+        }
+        if (confirmModalCallback) {
+          var callback = confirmModalCallback;
+          confirmModalCallback = null;
+          callback(true);
+        }
+      });
+    }
+    if (element.dataset.confirmModalHiddenBound !== '1') {
+      element.dataset.confirmModalHiddenBound = '1';
+      element.addEventListener('hidden.bs.modal', function () {
+        if (confirmModalCallback) {
+          var callback = confirmModalCallback;
+          confirmModalCallback = null;
+          callback(false);
+        }
+      });
+    }
+    return confirmModalElement;
+  }
+
+  function showConfirmModal(options) {
+    options = options || {};
+    var modalElement = ensureConfirmModal();
+    if (!modalElement || !confirmModalInstance) {
+      var fallbackMessage = options.message || 'Opravdu chcete pokračovat?';
+      if (window.confirm(fallbackMessage)) {
+        if (typeof options.onConfirm === 'function') {
+          options.onConfirm();
+        }
+      } else if (typeof options.onCancel === 'function') {
+        options.onCancel();
+      }
+      return;
+    }
+
+    var titleEl = modalElement.querySelector('[data-confirm-modal-title]');
+    if (titleEl) {
+      var titleText = (typeof options.title === 'string' && options.title.trim() !== '')
+        ? options.title
+        : 'Potvrzení akce';
+      titleEl.textContent = titleText;
+    }
+
+    var messageEl = modalElement.querySelector('[data-confirm-modal-message]');
+    if (messageEl) {
+      var messageText = (typeof options.message === 'string' && options.message.trim() !== '')
+        ? options.message
+        : 'Opravdu chcete pokračovat?';
+      messageEl.textContent = messageText;
+    }
+
+    var confirmBtn = modalElement.querySelector('[data-confirm-modal-confirm]');
+    if (confirmBtn) {
+      var confirmLabel = (typeof options.confirmLabel === 'string' && options.confirmLabel.trim() !== '')
+        ? options.confirmLabel
+        : (confirmBtn.dataset.defaultLabel || confirmBtn.textContent || '');
+      confirmBtn.textContent = confirmLabel;
+    }
+
+    var cancelBtn = modalElement.querySelector('[data-confirm-modal-cancel]');
+    if (cancelBtn) {
+      var cancelLabel = (typeof options.cancelLabel === 'string' && options.cancelLabel.trim() !== '')
+        ? options.cancelLabel
+        : (cancelBtn.dataset.defaultLabel || cancelBtn.textContent || '');
+      cancelBtn.textContent = cancelLabel;
+    }
+
+    confirmModalCallback = function (confirmed) {
+      if (confirmed) {
+        if (typeof options.onConfirm === 'function') {
+          options.onConfirm();
+        }
+      } else if (typeof options.onCancel === 'function') {
+        options.onCancel();
+      }
+    };
+
+    confirmModalInstance.show();
+  }
+
+  function initConfirmModals(root) {
+    var scope = root || document;
+    var forms = [].slice.call(scope.querySelectorAll('form[data-confirm-modal]'));
+    forms.forEach(function (form) {
+      if (form.dataset.confirmModalBound === '1') {
+        return;
+      }
+      form.dataset.confirmModalBound = '1';
+      form.addEventListener('submit', function (event) {
+        if (form.dataset.confirmModalHandled === '1') {
+          delete form.dataset.confirmModalHandled;
+          return;
+        }
+        event.preventDefault();
+        var message = form.getAttribute('data-confirm-modal') || '';
+        var title = form.getAttribute('data-confirm-modal-title') || '';
+        var confirmLabel = form.getAttribute('data-confirm-modal-confirm-label') || '';
+        var cancelLabel = form.getAttribute('data-confirm-modal-cancel-label') || '';
+        showConfirmModal({
+          message: message,
+          title: title,
+          confirmLabel: confirmLabel,
+          cancelLabel: cancelLabel,
+          onConfirm: function () {
+            form.dataset.confirmModalHandled = '1';
+            form.submit();
+          }
+        });
+      });
+    });
   }
 
   function refreshDynamicUI(root) {
     initTooltips(root);
     initBulkForms(root);
+    initConfirmModals(root);
     initAdminMenuToggle(root);
   }
 

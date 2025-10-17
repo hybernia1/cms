@@ -88,6 +88,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                   <?php else: ?>
                     <div class="fw-semibold text-truncate"><?= $h((string)($it['name'] ?? '—')) ?></div>
                   <?php endif; ?>
+                  <div class="text-secondary small text-truncate">
+                    <i class="bi bi-link-45deg me-1"></i><?= $h($slug) ?>
+                  </div>
                   <?php if (($it['description'] ?? '') !== ''): ?>
                     <div class="text-secondary small text-truncate"><?= $h((string)$it['description']) ?></div>
                   <?php endif; ?>
@@ -96,7 +99,14 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                   <a class="btn btn-light btn-sm border me-1" href="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'edit','id'=>$it['id'],'type'=>$type])) ?>" aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
                     <i class="bi bi-pencil"></i>
                   </a>
-                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat? Bude odpojen od všech příspěvků.');" data-ajax>
+                  <form method="post"
+                        action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'delete','type'=>$type])) ?>"
+                        class="d-inline"
+                        data-ajax
+                        data-confirm-modal="Opravdu smazat? Bude odpojen od všech příspěvků."
+                        data-confirm-modal-title="Potvrzení smazání"
+                        data-confirm-modal-confirm-label="Smazat"
+                        data-confirm-modal-cancel-label="Zrušit">
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                     <button class="btn btn-light btn-sm border" type="submit" aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">

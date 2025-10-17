@@ -68,7 +68,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <i class="bi bi-slash-circle"></i>
         </button>
       </form>
-      <form method="post" action="admin.php?r=comments&a=delete" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');" data-ajax>
+      <form method="post"
+            action="admin.php?r=comments&a=delete"
+            data-ajax
+            data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
+            data-confirm-modal-title="Potvrzení smazání"
+            data-confirm-modal-confirm-label="Smazat"
+            data-confirm-modal-cancel-label="Zrušit">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= $back ?>">

@@ -26,8 +26,9 @@ final class AdminNavigation
             [
                 'key'       => 'content',
                 'label'     => 'Obsah',
-                'href'      => 'admin.php?r=posts&type=post',
+                'href'      => null,
                 'icon'      => 'bi-folder2',
+                'section'   => true,
                 'children'  => [
                     ['key' => 'posts:post', 'label' => 'Příspěvky', 'href' => 'admin.php?r=posts&type=post', 'icon' => 'bi-file-earmark-text'],
                     ['key' => 'posts:page', 'label' => 'Stránky',   'href' => 'admin.php?r=posts&type=page', 'icon' => 'bi-file-earmark-richtext'],
@@ -47,8 +48,9 @@ final class AdminNavigation
             [
                 'key'       => 'appearance',
                 'label'     => 'Vzhled',
-                'href'      => 'admin.php?r=themes',
+                'href'      => null,
                 'icon'      => 'bi-palette',
+                'section'   => true,
                 'children'  => [
                     ['key' => 'themes',     'label' => 'Šablony',  'href' => 'admin.php?r=themes',     'icon' => 'bi-brush'],
                     ['key' => 'navigation', 'label' => 'Navigace', 'href' => 'admin.php?r=navigation', 'icon' => 'bi-list-ul'],
@@ -57,8 +59,9 @@ final class AdminNavigation
             [
                 'key'       => 'settings',
                 'label'     => 'Nastavení',
-                'href'      => 'admin.php?r=settings',
+                'href'      => null,
                 'icon'      => 'bi-gear',
+                'section'   => true,
                 'children'  => [
                     ['key' => 'settings:general',    'label' => 'Obecné',   'href' => 'admin.php?r=settings',    'icon' => 'bi-sliders'],
                     ['key' => 'settings:mail',       'label' => 'E-mail',   'href' => 'admin.php?r=settings&a=mail', 'icon' => 'bi-envelope'],
@@ -85,9 +88,6 @@ final class AdminNavigation
             $item['children'] = $children;
             $item['active'] = $itemIsActive;
             $item['expanded'] = $itemIsActive;
-            if (!empty($children) && in_array($item['key'], ['content', 'settings'], true)) {
-                $item['expanded'] = true;
-            }
             if (!isset($item['icon'])) {
                 $item['icon'] = null;
             }

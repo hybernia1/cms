@@ -145,10 +145,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <div class="text-secondary small mb-1">Aktuální stav</div>
                 <div id="status-current-label" class="fw-semibold text-capitalize" data-status-labels='<?= $encodeJson($statusLabels) ?>'><?= $h($currentStatusLabel) ?></div>
               </div>
-              <div class="d-grid gap-2">
-                <button class="btn btn-outline-secondary" type="submit" data-status-value="draft">Uložit jako koncept</button>
-                <button class="btn btn-primary" type="submit" data-status-value="publish">Publikovat</button>
-              </div>
+            </div>
+            <div class="card-footer d-flex flex-wrap gap-2">
+              <button class="btn btn-outline-secondary btn-sm" type="submit" data-status-value="draft">Uložit koncept</button>
+              <button class="btn btn-primary btn-sm" type="submit" data-status-value="publish">Publikovat</button>
             </div>
           </div>
 
