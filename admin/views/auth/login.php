@@ -8,10 +8,10 @@ $this->render('layouts/auth', compact('pageTitle'), function () use ($csrf, $err
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
   <?php if (!empty($error)): ?>
-    <div class="alert alert-danger"><?= $h($error) ?></div>
+    <div class="alert alert-danger admin-flash" role="alert"><?= $h($error) ?></div>
   <?php endif; ?>
 
-  <form method="post" action="admin.php?r=auth&a=login" novalidate autocomplete="off">
+  <form method="post" action="admin.php?r=auth&a=login" novalidate autocomplete="off" data-ajax>
     <div class="mb-3">
       <label class="form-label">E-mail</label>
       <input class="form-control" type="email" name="email" required autofocus>

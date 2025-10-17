@@ -61,6 +61,50 @@ final class SettingsController
         $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
     }
 
+    private function isAjax(): bool
+    {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return true;
+        }
+
+        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
+        return str_contains($accept, 'application/json');
+    }
+
+    private function redirect(string $url): void
+    {
+        $flash = $_SESSION['_flash'] ?? null;
+
+        if ($this->isAjax()) {
+            $payload = [
+                'success'  => $this->flashIndicatesSuccess($flash),
+                'redirect' => $url,
+            ];
+            if (is_array($flash)) {
+                $payload['flash'] = [
+                    'type' => (string)($flash['type'] ?? ''),
+                    'msg'  => (string)($flash['msg'] ?? ''),
+                ];
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        header('Location: ' . $url);
+        exit;
+    }
+
+    private function flashIndicatesSuccess($flash): bool
+    {
+        if (!is_array($flash)) {
+            return true;
+        }
+        $type = strtolower((string)($flash['type'] ?? ''));
+        return $type !== 'danger';
+    }
+
     private function loadSettings(): array
     {
         // 1 řádek v tabulce settings (id=1)
@@ -316,8 +360,7 @@ final class SettingsController
         CmsSettings::refresh();
 
         $this->flash('success','Nastavení uloženo.');
-        header('Location: admin.php?r=settings');
-        exit;
+        $this->redirect('admin.php?r=settings');
     }
 
     private function saveMail(): void
@@ -373,8 +416,7 @@ final class SettingsController
         CmsSettings::refresh();
 
         $this->flash('success','E-mailové nastavení bylo uloženo.');
-        header('Location: admin.php?r=settings&a=mail');
-        exit;
+        $this->redirect('admin.php?r=settings&a=mail');
     }
 
     private function sendTestMail(): void
@@ -384,8 +426,7 @@ final class SettingsController
         $email = trim((string)($_POST['test_email'] ?? ''));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->flash('danger','Zadejte platnou e-mailovou adresu pro test.');
-            header('Location: admin.php?r=settings&a=mail');
-            exit;
+            $this->redirect('admin.php?r=settings&a=mail');
         }
 
         $mailService = new MailService(new CmsSettings());
@@ -399,8 +440,7 @@ final class SettingsController
             $this->flash('danger','Testovací e-mail se nepodařilo odeslat. Zkontrolujte nastavení serveru.');
         }
 
-        header('Location: admin.php?r=settings&a=mail');
-        exit;
+        $this->redirect('admin.php?r=settings&a=mail');
     }
 
     private function pickPresetValue(array $options, string $selected, string $default): string

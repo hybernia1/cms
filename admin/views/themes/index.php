@@ -32,7 +32,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <?php if ($t['slug'] === $activeSlug): ?>
                   <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle">Aktivní</span>
                 <?php else: ?>
-                  <form method="post" action="admin.php?r=themes&a=activate" class="ms-auto">
+                  <form method="post" action="admin.php?r=themes&a=activate" class="ms-auto" data-ajax>
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="slug" value="<?= $h($t['slug']) ?>">
                     <button class="btn btn-light btn-sm border" type="submit">Aktivovat</button>
@@ -49,7 +49,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
 
     <div class="col-lg-4">
-      <form class="card shadow-sm" method="post" action="admin.php?r=themes&a=upload" enctype="multipart/form-data">
+      <form class="card shadow-sm" method="post" action="admin.php?r=themes&a=upload" enctype="multipart/form-data" data-ajax>
         <div class="card-header">Nahrát šablonu (ZIP)</div>
         <div class="card-body">
           <input type="file" class="form-control" name="theme_zip" accept=".zip,application/zip" required>

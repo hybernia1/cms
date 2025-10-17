@@ -72,7 +72,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   <div class="card mb-3">
     <div class="card-body">
-      <form method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" class="row gy-2 gx-2 align-items-end">
+      <form method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" class="row gy-2 gx-2 align-items-end" data-ajax>
         <div class="col-md-6">
           <label class="form-label" for="media-files">Nahrát soubor(y)</label>
           <input class="form-control" id="media-files" type="file" name="files[]" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.pdf,.zip,.txt,.csv,image/*,application/pdf,application/zip,text/plain,text/csv">
@@ -142,13 +142,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                   <span class="small text-secondary">#<?= $h((string)$m['id']) ?> • <?= $h($m['created_display'] !== '' ? $m['created_display'] : date('Y-m-d', strtotime((string)$m['created_at']))) ?></span>
                   <div class="d-flex gap-2">
                     <?php if (!empty($webpEnabled) && $isImg && empty($m['has_webp'])): ?>
-                      <form method="post" action="admin.php?r=media&a=optimize" onsubmit="return confirm('Vytvořit WebP variantu?');">
+                      <form method="post" action="admin.php?r=media&a=optimize" onsubmit="return confirm('Vytvořit WebP variantu?');" data-ajax>
                         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                         <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
                         <button class="btn btn-outline-success btn-sm" type="submit">Optimalizovat</button>
                       </form>
                     <?php endif; ?>
-                    <form method="post" action="admin.php?r=media&a=delete" onsubmit="return confirm('Opravdu odstranit?');">
+                    <form method="post" action="admin.php?r=media&a=delete" onsubmit="return confirm('Opravdu odstranit?');" data-ajax>
                       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                       <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
                       <button class="btn btn-light btn-sm border" type="submit">Smazat</button>

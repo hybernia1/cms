@@ -97,6 +97,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         data-apply-button="#bulk-apply"
         data-counter="#bulk-selection-counter"
         method="post"
+        data-ajax
         action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'bulk','type'=>$type])) ?>">
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
   </form>
@@ -167,7 +168,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                     <i class="bi bi-pencil"></i>
                   </a>
 
-                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'toggle','type'=>$type])) ?>" class="d-inline">
+                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'toggle','type'=>$type])) ?>" class="d-inline" data-ajax>
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                     <button class="btn btn-light btn-sm border me-1" type="submit"
@@ -181,7 +182,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                     </button>
                   </form>
 
-                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat?');">
+                  <form method="post" action="<?= $h('admin.php?'.http_build_query(['r'=>'posts','a'=>'delete','type'=>$type])) ?>" class="d-inline" onsubmit="return confirm('Opravdu smazat?');" data-ajax>
                     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                     <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
                     <button class="btn btn-light btn-sm border"

@@ -23,6 +23,16 @@ abstract class BaseAdminController
         $this->auth = new AuthService();
     }
 
+    final protected function isAjax(): bool
+    {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return true;
+        }
+
+        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
+        return str_contains($accept, 'application/json');
+    }
+
     final protected function token(): string
     {
         if (empty($_SESSION['csrf_admin'])) {
@@ -51,6 +61,26 @@ abstract class BaseAdminController
     {
         if ($flashType !== null && $flashMessage !== null) {
             $this->flash($flashType, $flashMessage);
+        }
+
+        $flash = $_SESSION['_flash'] ?? null;
+
+        if ($this->isAjax()) {
+            $payload = [
+                'success'  => $this->flashIndicatesSuccess($flash),
+                'redirect' => $url,
+            ];
+
+            if (is_array($flash)) {
+                $payload['flash'] = [
+                    'type' => (string)($flash['type'] ?? ''),
+                    'msg'  => (string)($flash['msg'] ?? ''),
+                ];
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+            exit;
         }
 
         header('Location: ' . $url);
@@ -82,5 +112,16 @@ abstract class BaseAdminController
         unset($_SESSION['_flash']);
 
         return $flash;
+    }
+
+    private function flashIndicatesSuccess($flash): bool
+    {
+        if (!is_array($flash)) {
+            return true;
+        }
+
+        $type = strtolower((string)($flash['type'] ?? ''));
+
+        return $type !== 'danger';
     }
 }

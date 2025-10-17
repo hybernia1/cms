@@ -100,6 +100,16 @@ final class NavigationController
         $_SESSION['_flash'] = ['type' => $type, 'msg' => $msg];
     }
 
+    private function isAjax(): bool
+    {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return true;
+        }
+
+        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
+        return str_contains($accept, 'application/json');
+    }
+
     private function redirect(?int $menuId = null, array $extra = []): void
     {
         $params = array_merge(['r' => 'navigation'], $extra);
@@ -107,8 +117,36 @@ final class NavigationController
             $params['menu_id'] = $menuId;
         }
         $url = 'admin.php?' . http_build_query($params);
+        $flash = $_SESSION['_flash'] ?? null;
+
+        if ($this->isAjax()) {
+            $payload = [
+                'success'  => $this->flashIndicatesSuccess($flash),
+                'redirect' => $url,
+            ];
+            if (is_array($flash)) {
+                $payload['flash'] = [
+                    'type' => (string)($flash['type'] ?? ''),
+                    'msg'  => (string)($flash['msg'] ?? ''),
+                ];
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         header('Location: ' . $url);
         exit;
+    }
+
+    private function flashIndicatesSuccess($flash): bool
+    {
+        if (!is_array($flash)) {
+            return true;
+        }
+        $type = strtolower((string)($flash['type'] ?? ''));
+        return $type !== 'danger';
     }
 
     private function tablesReady(): bool

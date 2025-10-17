@@ -92,28 +92,28 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
               <td class="text-end">
                 <a class="btn btn-light btn-sm border me-1" href="admin.php?r=comments&a=show&id=<?= (int)$c['id'] ?>">Detail</a>
 
-                <form method="post" action="admin.php?r=comments&a=approve" class="d-inline">
+                <form method="post" action="admin.php?r=comments&a=approve" class="d-inline" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
                   <button class="btn btn-light btn-sm border me-1" type="submit">Schválit</button>
                 </form>
 
-                <form method="post" action="admin.php?r=comments&a=draft" class="d-inline">
+                <form method="post" action="admin.php?r=comments&a=draft" class="d-inline" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
                   <button class="btn btn-light btn-sm border me-1" type="submit">Koncept</button>
                 </form>
 
-                <form method="post" action="admin.php?r=comments&a=spam" class="d-inline">
+                <form method="post" action="admin.php?r=comments&a=spam" class="d-inline" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">
                   <button class="btn btn-light btn-sm border me-1" type="submit">Spam</button>
                 </form>
 
-                <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');">
+                <form method="post" action="admin.php?r=comments&a=delete" class="d-inline" onsubmit="return confirm('Opravdu smazat? Smaže i odpovědi.');" data-ajax>
                   <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                   <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
                   <input type="hidden" name="_back" value="<?= $h($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments') ?>">

@@ -51,6 +51,50 @@ final class ThemesController
         $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
     }
 
+    private function isAjax(): bool
+    {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return true;
+        }
+
+        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
+        return str_contains($accept, 'application/json');
+    }
+
+    private function redirect(string $url): void
+    {
+        $flash = $_SESSION['_flash'] ?? null;
+
+        if ($this->isAjax()) {
+            $payload = [
+                'success'  => $this->flashIndicatesSuccess($flash),
+                'redirect' => $url,
+            ];
+            if (is_array($flash)) {
+                $payload['flash'] = [
+                    'type' => (string)($flash['type'] ?? ''),
+                    'msg'  => (string)($flash['msg'] ?? ''),
+                ];
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        header('Location: ' . $url);
+        exit;
+    }
+
+    private function flashIndicatesSuccess($flash): bool
+    {
+        if (!is_array($flash)) {
+            return true;
+        }
+        $type = strtolower((string)($flash['type'] ?? ''));
+        return $type !== 'danger';
+    }
+
     private function activeSlug(): string
     {
         $slug = DB::query()->table('settings')->select(['theme_slug'])->where('id','=',1)->value('theme_slug');
@@ -100,8 +144,14 @@ final class ThemesController
     {
         $this->assertCsrf();
         $slug = preg_replace('~[^a-z0-9\-_]~i','', (string)($_POST['slug'] ?? ''));
-        if ($slug === '') { $this->flash('danger','Chybí slug.'); header('Location: admin.php?r=themes'); exit; }
-        if (!is_dir($this->themesDir.'/'.$slug)) { $this->flash('danger','Šablona neexistuje.'); header('Location: admin.php?r=themes'); exit; }
+        if ($slug === '') {
+            $this->flash('danger','Chybí slug.');
+            $this->redirect('admin.php?r=themes');
+        }
+        if (!is_dir($this->themesDir.'/'.$slug)) {
+            $this->flash('danger','Šablona neexistuje.');
+            $this->redirect('admin.php?r=themes');
+        }
 
         DB::query()->table('settings')->update([
             'theme_slug' => $slug,
@@ -109,26 +159,28 @@ final class ThemesController
         ])->where('id','=',1)->execute();
 
         $this->flash('success','Šablona aktivována.');
-        header('Location: admin.php?r=themes');
-        exit;
+        $this->redirect('admin.php?r=themes');
     }
 
     public function upload(): void
     {
         $this->assertCsrf();
         if (empty($_FILES['theme_zip']) || (int)$_FILES['theme_zip']['error'] !== UPLOAD_ERR_OK) {
-            $this->flash('danger','Soubor se nepodařilo nahrát.'); header('Location: admin.php?r=themes'); exit;
+            $this->flash('danger','Soubor se nepodařilo nahrát.');
+            $this->redirect('admin.php?r=themes');
         }
         $name = (string)$_FILES['theme_zip']['name'];
         $tmp  = (string)$_FILES['theme_zip']['tmp_name'];
 
         if (!preg_match('~\.zip$~i', $name)) {
-            $this->flash('danger','Povolen je pouze ZIP.'); header('Location: admin.php?r=themes'); exit;
+            $this->flash('danger','Povolen je pouze ZIP.');
+            $this->redirect('admin.php?r=themes');
         }
 
         $zip = new \ZipArchive();
         if ($zip->open($tmp) !== true) {
-            $this->flash('danger','ZIP nelze otevřít.'); header('Location: admin.php?r=themes'); exit;
+            $this->flash('danger','ZIP nelze otevřít.');
+            $this->redirect('admin.php?r=themes');
         }
 
         // Zjisti kořenový adresář v ZIPu (většina šablon má root folder)
@@ -139,7 +191,8 @@ final class ThemesController
             $name = $st['name'];
             if (str_contains($name, '../') || str_starts_with($name, '/')) {
                 $zip->close();
-                $this->flash('danger','ZIP obsahuje nebezpečné cesty.'); header('Location: admin.php?r=themes'); exit;
+                $this->flash('danger','ZIP obsahuje nebezpečné cesty.');
+                $this->redirect('admin.php?r=themes');
             }
             $parts = explode('/', $name);
             if (count($parts) > 1 && $parts[0] !== '') { $rootHint = $parts[0]; break; }
@@ -148,7 +201,8 @@ final class ThemesController
         @mkdir($tempDir, 0775, true);
         if (!$zip->extractTo($tempDir)) {
             $zip->close();
-            $this->flash('danger','Chyba při rozbalování.'); header('Location: admin.php?r=themes'); exit;
+            $this->flash('danger','Chyba při rozbalování.');
+            $this->redirect('admin.php?r=themes');
         }
         $zip->close();
 
@@ -164,16 +218,22 @@ final class ThemesController
         }
         if (!$manifest) {
             $this->rrmdir($tempDir);
-            $this->flash('danger','Manifest theme.json nebyl nalezen.'); header('Location: admin.php?r=themes'); exit;
+            $this->flash('danger','Manifest theme.json nebyl nalezen.');
+            $this->redirect('admin.php?r=themes');
         }
         $info = json_decode((string)file_get_contents($manifest), true);
         if (!is_array($info) || empty($info['slug']) || empty($info['name'])) {
             $this->rrmdir($tempDir);
-            $this->flash('danger','Manifest theme.json je neplatný.'); header('Location: admin.php?r=themes'); exit;
+            $this->flash('danger','Manifest theme.json je neplatný.');
+            $this->redirect('admin.php?r=themes');
         }
 
         $slug = preg_replace('~[^a-z0-9\-_]~i', '', (string)$info['slug']);
-        if ($slug === '') { $this->rrmdir($tempDir); $this->flash('danger','Neplatný slug v manifestu.'); header('Location: admin.php?r=themes'); exit; }
+        if ($slug === '') {
+            $this->rrmdir($tempDir);
+            $this->flash('danger','Neplatný slug v manifestu.');
+            $this->redirect('admin.php?r=themes');
+        }
 
         $target = $this->themesDir.'/'.$slug;
         // přepiš existující? – povolíme (update šablony)
@@ -188,8 +248,7 @@ final class ThemesController
         $this->rrmdir($tempDir);
 
         $this->flash('success','Šablona nahrána: '.$slug);
-        header('Location: admin.php?r=themes');
-        exit;
+        $this->redirect('admin.php?r=themes');
     }
 
     private function rrmdir(string $dir): void

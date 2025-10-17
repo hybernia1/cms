@@ -14,7 +14,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $driver = is_string($mail['driver'] ?? null) ? (string)$mail['driver'] : 'php';
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=mail" id="mailSettingsForm">
+  <form class="card" method="post" action="admin.php?r=settings&a=mail" id="mailSettingsForm" data-ajax>
     <div class="card-body">
       <div class="mb-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Způsob odesílání</h2>
@@ -97,7 +97,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </form>
 
-  <form class="card mt-4" method="post" action="admin.php?r=settings&a=mail">
+  <form class="card mt-4" method="post" action="admin.php?r=settings&a=mail" data-ajax>
     <div class="card-body">
       <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Testovací e-mail</h2>
       <p class="text-secondary small">Odešle jednoduchý testovací e-mail pomocí aktuálně uložené konfigurace.</p>

@@ -18,7 +18,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     : ['r'=>'terms','a'=>'create','type'=>$type];
   $actionUrl = 'admin.php?'.http_build_query($actionParams);
   ?>
-  <form class="card" method="post" action="<?= $actionUrl ?>">
+  <form class="card" method="post" action="<?= $actionUrl ?>" data-ajax>
     <div class="card-header"><?= $h($isEdit ? ($typeCfg['edit'] ?? ('Upravit '.$typeCfg['label'])).' #'.$term['id'] : ($typeCfg['create'] ?? 'Nový term')) ?></div>
     <div class="card-body">
       <div class="mb-3">
