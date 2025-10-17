@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace Cms\Http\Admin;
 
-use Cms\View\ViewEngine;
-use Cms\Auth\AuthService;
 use Core\Database\Init as DB;
 use Cms\Mail\MailService;
 use Cms\Settings\CmsSettings;
@@ -12,17 +10,8 @@ use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
 use Cms\Utils\SettingsPresets;
 
-final class SettingsController
+final class SettingsController extends BaseAdminController
 {
-    private ViewEngine $view;
-    private AuthService $auth;
-
-    public function __construct(string $baseViewsPath)
-    {
-        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $this->view = new ViewEngine($baseViewsPath);
-        $this->auth = new AuthService();
-    }
 
     public function handle(string $action): void
     {
@@ -39,70 +28,6 @@ final class SettingsController
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->save(); return; }
                 $this->index(); return;
         }
-    }
-
-
-    private function token(): string
-    {
-        if (empty($_SESSION['csrf_admin'])) $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
-        return $_SESSION['csrf_admin'];
-    }
-
-    private function assertCsrf(): void
-    {
-        $in = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
-        if (empty($_SESSION['csrf_admin']) || !hash_equals($_SESSION['csrf_admin'], (string)$in)) {
-            http_response_code(419); echo 'CSRF token invalid'; exit;
-        }
-    }
-
-    private function flash(string $type, string $msg): void
-    {
-        $_SESSION['_flash'] = ['type'=>$type,'msg'=>$msg];
-    }
-
-    private function isAjax(): bool
-    {
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            return true;
-        }
-
-        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
-        return str_contains($accept, 'application/json');
-    }
-
-    private function redirect(string $url): void
-    {
-        $flash = $_SESSION['_flash'] ?? null;
-
-        if ($this->isAjax()) {
-            $payload = [
-                'success'  => $this->flashIndicatesSuccess($flash),
-                'redirect' => $url,
-            ];
-            if (is_array($flash)) {
-                $payload['flash'] = [
-                    'type' => (string)($flash['type'] ?? ''),
-                    'msg'  => (string)($flash['msg'] ?? ''),
-                ];
-            }
-
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-
-        header('Location: ' . $url);
-        exit;
-    }
-
-    private function flashIndicatesSuccess($flash): bool
-    {
-        if (!is_array($flash)) {
-            return true;
-        }
-        $type = strtolower((string)($flash['type'] ?? ''));
-        return $type !== 'danger';
     }
 
     private function loadSettings(): array
@@ -230,18 +155,14 @@ final class SettingsController
         $dateFmt = (string)($settings['date_format'] ?? 'Y-m-d');
         $timeFmt = (string)($settings['time_format'] ?? 'H:i');
 
-        $this->view->render('settings/index', [
-            'pageTitle'   => 'Nastavení',
-            'nav'         => AdminNavigation::build('settings:general'),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'settings'    => $settings,
-            'csrf'        => $this->token(),
-            'timezones'   => $this->timezones(),
-            'previewNow'  => $now->format($dateFmt.' '.$timeFmt),
+        $this->renderAdmin('settings/index', [
+            'pageTitle'     => 'Nastavení',
+            'nav'           => AdminNavigation::build('settings:general'),
+            'settings'      => $settings,
+            'timezones'     => $this->timezones(),
+            'previewNow'    => $now->format($dateFmt.' '.$timeFmt),
             'formatPresets' => $this->formatPresets(),
         ]);
-        unset($_SESSION['_flash']);
     }
 
     private function mail(): void
@@ -250,22 +171,17 @@ final class SettingsController
 
         $generalSettings = $this->loadSettings();
 
-        $this->view->render('settings/mail', [
-            'pageTitle'   => 'Nastavení e-mailu',
-            'nav'         => AdminNavigation::build('settings:mail'),
-            'currentUser' => $this->auth->user(),
-            'flash'       => $_SESSION['_flash'] ?? null,
-            'csrf'        => $this->token(),
-            'mail'        => $mailSettings,
-            'drivers'     => [
+        $this->renderAdmin('settings/mail', [
+            'pageTitle' => 'Nastavení e-mailu',
+            'nav'       => AdminNavigation::build('settings:mail'),
+            'mail'      => $mailSettings,
+            'drivers'   => [
                 'php'  => 'PHP mail()',
                 'smtp' => 'SMTP server',
             ],
-            'siteEmail'   => (string)($generalSettings['site_email'] ?? ''),
-            'siteName'    => (string)($generalSettings['site_title'] ?? ''),
+            'siteEmail' => (string)($generalSettings['site_email'] ?? ''),
+            'siteName'  => (string)($generalSettings['site_title'] ?? ''),
         ]);
-
-        unset($_SESSION['_flash']);
     }
 
     private function detectSiteUrl(): string
