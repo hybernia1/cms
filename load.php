@@ -85,7 +85,16 @@ spl_autoload_register(
  */
 function cms_redirect_to_install(): never
 {
-    header('Location: install/');
+    $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+    $scriptDir = str_replace('\\', '/', (string)dirname($scriptName));
+    $scriptDir = trim($scriptDir, '/');
+    if ($scriptDir === '.') {
+        $scriptDir = '';
+    }
+
+    $target = $scriptDir === '' ? '/install/' : '/' . $scriptDir . '/install/';
+
+    header('Location: ' . $target);
     exit;
 }
 
