@@ -9,7 +9,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
     <h1 class="card__title">Poslední příspěvky</h1>
     <a class="btn btn--ghost" href="<?= $h($urls->type('post')) ?>">Archiv</a>
   </header>
-  <?php $this->part('parts/post-list', [
+  <?php $this->part('post-list', [
     'posts'        => $latestPosts,
     'emptyMessage' => 'Zatím žádné příspěvky.',
     'urls'         => $urls,

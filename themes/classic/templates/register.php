@@ -30,7 +30,7 @@ ob_start();
 <?php
 $body = ob_get_clean();
 
-$this->part('parts/auth/card', [
+$this->part('auth', 'card', [
     'title' => 'Registrace',
     'type'  => $type ?? null,
     'msg'   => $msg ?? null,

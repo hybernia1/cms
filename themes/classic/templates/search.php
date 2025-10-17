@@ -6,7 +6,7 @@
 <section class="card card--section">
   <header class="card__header card__header--stacked">
     <h1 class="card__title">Hledání</h1>
-    <?php $this->part('parts/search/form', [
+    <?php $this->part('search', 'form', [
       'query'   => $query,
       'action'  => $urls->search(),
       'classes' => [
@@ -14,7 +14,7 @@
       ],
     ]); ?>
   </header>
-  <?php $this->part('parts/post-list', [
+  <?php $this->part('post-list', [
     'posts'        => $items,
     'emptyMessage' => $query === '' ? 'Zadejte hledaný výraz.' : 'Nic nebylo nalezeno.',
     'urls'         => $urls,

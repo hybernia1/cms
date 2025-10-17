@@ -10,7 +10,7 @@ final class ThemeResolver
     /**
      * $kind může být:
      *  - 'home', 'single', 'page', 'archive', 'search', ...
-     *  - VNOŘENÁ cesta: 'auth/login', 'auth/register', ...
+     *  - VNOŘENÁ cesta: 'auth/login', 'auth/register', ... (kvůli zpětné kompatibilitě)
      *
      * Použijeme několik kandidátů a první existující vrátíme.
      */
@@ -26,10 +26,26 @@ final class ThemeResolver
 
         // 2) Pokud je vnořený tvar, zkus variantu se spojovníkem: auth-login.php
         if (str_contains($k, '/')) {
-            $candidates[] = str_replace('/', '-', $k);
+            $withHyphen = str_replace('/', '-', $k);
+            $candidates[] = $withHyphen;
+            if (str_contains($withHyphen, '_')) {
+                $candidates[] = str_replace('_', '-', $withHyphen);
+            }
         }
 
-        // 3) Pokud máme typ, zkus variantu s typem (např. single-post.php / single-page.php)
+        // 3) Poslední segment vnořené cesty: login.php, register-success.php...
+        if (str_contains($k, '/')) {
+            $segments = array_values(array_filter(explode('/', $k), static fn(string $value): bool => $value !== ''));
+            $last = end($segments) ?: '';
+            if ($last !== '') {
+                $candidates[] = $last;
+                if (str_contains($last, '_')) {
+                    $candidates[] = str_replace('_', '-', $last);
+                }
+            }
+        }
+
+        // 4) Pokud máme typ, zkus variantu s typem (např. single-post.php / single-page.php)
         if ($type !== '') {
             // k.php + typ
             $candidates[] = "{$k}-{$type}";
@@ -39,14 +55,14 @@ final class ThemeResolver
             }
         }
 
-        // 4) typické fallbacky
+        // 5) typické fallbacky
         if ($k !== 'single') {
             $candidates[] = 'single'; // jeden univerzální detail
         }
         $candidates[] = 'index';      // úplně obecný fallback
         $candidates[] = '404';        // poslední možnost
 
-        foreach ($candidates as $candidate) {
+        foreach (array_values(array_unique($candidates)) as $candidate) {
             if ($this->exists($candidate)) {
                 return $candidate;
             }
