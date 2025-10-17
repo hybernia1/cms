@@ -19,8 +19,13 @@ final class DateTimeFactory
         $name = $settings->timezone();
 
         if (self::$timezone === null || self::$timezoneName !== $name) {
-            self::$timezone = new DateTimeZone($name);
-            self::$timezoneName = $name;
+            try {
+                self::$timezone = new DateTimeZone($name);
+                self::$timezoneName = $name;
+            } catch (\Throwable) {
+                self::$timezone = new DateTimeZone('Europe/Prague');
+                self::$timezoneName = 'Europe/Prague';
+            }
         }
         return self::$timezone;
     }
