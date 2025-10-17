@@ -20,7 +20,13 @@ final class MediaService
      * @param array $file  jeden prvek z $_FILES['field']
      * @return array{ id:int, url:string, mime:string }
      */
-    public function uploadAndCreate(array $file, int $userId, PathResolver $paths, ?string $subdir = 'uploads'): array
+    public function uploadAndCreate(
+        array $file,
+        int $userId,
+        PathResolver $paths,
+        ?string $subdir = 'uploads',
+        ?int $postId = null
+    ): array
     {
         $uploader = new Uploader($paths);
         $info = $uploader->handle($file, $subdir);
@@ -36,6 +42,10 @@ final class MediaService
             'meta'       => $meta !== null ? json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null,
             'created_at' => DateTimeFactory::nowString(),
         ]);
+
+        if ($postId !== null && $postId > 0) {
+            $this->repo->attachToPost($postId, $id);
+        }
 
         return ['id'=>$id, 'url'=>$info['url'], 'mime'=>$info['mime']];
     }

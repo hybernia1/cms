@@ -10,6 +10,7 @@ declare(strict_types=1);
 /** @var array{category:array<int,int>,tag:array<int,int>} $selected */
 /** @var string $type */
 /** @var array $types */
+/** @var array<int> $attachedMedia */
 
 $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
@@ -109,7 +110,16 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
             <div>
               <label class="form-label fs-5">Obsah</label>
-              <textarea class="form-control" name="content" rows="12" data-content-editor data-placeholder="Začni psát obsah…"><?= $isEdit ? $h((string)($post['content'] ?? '')) : '' ?></textarea>
+              <textarea
+                class="form-control"
+                name="content"
+                rows="12"
+                data-content-editor
+                data-placeholder="Začni psát obsah…"
+                data-attachments-input="#attached-media-input"
+                data-post-id="<?= $isEdit ? $h((string)($post['id'] ?? '')) : '' ?>"
+              ><?= $isEdit ? $h((string)($post['content'] ?? '')) : '' ?></textarea>
+              <input type="hidden" name="attached_media" id="attached-media-input" value="<?= !empty($attachedMedia) ? $encodeJson($attachedMedia) : '' ?>">
             </div>
           </div>
         </div>
@@ -281,6 +291,83 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       </div>
   </div>
 </div>
+
+  <div class="modal fade" id="contentEditorLinkModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Vložit odkaz</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="content-link-url">URL odkazu</label>
+            <input type="url" class="form-control" id="content-link-url" data-link-url placeholder="https://" autocomplete="off">
+          </div>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="content-link-newtab" data-link-target>
+            <label class="form-check-label" for="content-link-newtab">Otevřít v nové záložce</label>
+          </div>
+          <div class="text-danger small mt-2 d-none" data-link-error></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" data-link-confirm>Vložit</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="contentEditorImageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Vložit obrázek</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+        </div>
+        <div class="modal-body">
+          <ul class="nav nav-tabs" id="content-image-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="content-image-upload-tab" data-bs-toggle="tab" data-bs-target="#content-image-upload-pane" type="button" role="tab">Nahrát nový</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="content-image-library-tab" data-bs-toggle="tab" data-bs-target="#content-image-library-pane" type="button" role="tab">Knihovna</button>
+            </li>
+          </ul>
+          <div class="tab-content pt-3">
+            <div class="tab-pane fade show active" id="content-image-upload-pane" role="tabpanel" aria-labelledby="content-image-upload-tab">
+              <div class="border border-dashed rounded-3 p-4 text-center bg-body-tertiary" id="content-image-dropzone">
+                <i class="bi bi-cloud-arrow-up fs-2 mb-2 d-block"></i>
+                <p class="mb-2">Přetáhni soubor sem nebo klikni pro výběr.</p>
+                <p class="text-secondary small mb-3">Podporované formáty: JPG, PNG, GIF, WEBP.</p>
+                <input type="file" id="content-image-file" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" class="form-control" style="max-width:320px;margin:0 auto;">
+                <div id="content-image-upload-info" class="text-secondary small mt-2 d-none"></div>
+              </div>
+            </div>
+            <div class="tab-pane fade" id="content-image-library-pane" role="tabpanel" aria-labelledby="content-image-library-tab">
+              <div id="content-image-library-loading" class="text-center py-4 d-none">
+                <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Načítání…</span></div>
+              </div>
+              <div id="content-image-library-error" class="alert alert-danger d-none"></div>
+              <div id="content-image-library-empty" class="text-secondary text-center py-4 d-none">Žádné obrázky zatím nejsou k dispozici.</div>
+              <div id="content-image-library-grid" class="row g-3"></div>
+            </div>
+          </div>
+          <div class="mt-4">
+            <label class="form-label" for="content-image-alt">Alternativní text</label>
+            <input type="text" class="form-control" id="content-image-alt" data-image-alt placeholder="Popis obrázku">
+            <div class="form-text">Pomáhá s přístupností a SEO.</div>
+          </div>
+          <div class="text-danger small mt-3 d-none" data-image-error></div>
+        </div>
+        <div class="modal-footer">
+          <div class="me-auto text-secondary small" id="content-image-selected-info"></div>
+          <button type="button" class="btn btn-primary" data-image-confirm disabled>Vložit</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function () {

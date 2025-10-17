@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS post_media (
   media_id BIGINT UNSIGNED NOT NULL,
   role VARCHAR(50) NOT NULL DEFAULT 'attachment',
   PRIMARY KEY (post_id, media_id),
-  INDEX ix_pm_role (role)
+  INDEX ix_pm_role (role),
+  INDEX ix_pm_media (media_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
 ,
