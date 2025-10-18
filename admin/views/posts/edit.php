@@ -145,6 +145,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <div class="text-secondary small mb-1">Aktuální stav</div>
                 <div id="status-current-label" class="fw-semibold text-capitalize" data-status-labels='<?= $encodeJson($statusLabels) ?>'><?= $h($currentStatusLabel) ?></div>
               </div>
+              <div class="text-secondary small mt-3" id="post-autosave-status" role="status" aria-live="polite"></div>
             </div>
             <div class="card-footer d-flex flex-wrap gap-2">
               <button class="btn btn-outline-secondary btn-sm" type="submit" data-status-value="draft">Uložit koncept</button>
@@ -398,6 +399,230 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           }
         });
       });
+
+      // --- Autosave ---
+      var contentTextarea = form.querySelector('textarea[name="content"]');
+      var autosaveStatusEl = document.getElementById('post-autosave-status');
+      var autosaveEnabled = false;
+      var autosaveUrl = null;
+      var autosaveTimer = null;
+      var autosavePending = false;
+      var autosaveSaving = false;
+      var autosaveLastSnapshot = null;
+      var autosaveStatusState = { message: '', tone: '' };
+      var AUTOSAVE_DELAY = 8000;
+
+      if (contentTextarea) {
+        var postIdAttr = contentTextarea.getAttribute('data-post-id') || '';
+        var postId = parseInt(postIdAttr, 10);
+        if (!isNaN(postId) && postId > 0) {
+          try {
+            autosaveUrl = new URL(form.getAttribute('action') || window.location.href, window.location.href);
+            autosaveUrl.searchParams.set('a', 'autosave');
+            autosaveEnabled = true;
+          } catch (err) {
+            autosaveEnabled = false;
+          }
+        }
+      }
+
+      function setAutosaveStatus(message, tone) {
+        if (!autosaveStatusEl) { return; }
+        var text = message || '';
+        var state = tone || '';
+        if (autosaveStatusState.message === text && autosaveStatusState.tone === state) {
+          return;
+        }
+        autosaveStatusState.message = text;
+        autosaveStatusState.tone = state;
+        autosaveStatusEl.textContent = text;
+        autosaveStatusEl.classList.remove('text-danger');
+        autosaveStatusEl.classList.remove('text-secondary');
+        if (!text) {
+          autosaveStatusEl.classList.add('text-secondary');
+          return;
+        }
+        if (state === 'error') {
+          autosaveStatusEl.classList.add('text-danger');
+        } else {
+          autosaveStatusEl.classList.add('text-secondary');
+        }
+      }
+
+      function buildAutosavePayload() {
+        var formData = new FormData(form);
+        var fileKeys = [];
+        formData.forEach(function (value, key) {
+          if (value instanceof File) {
+            fileKeys.push(key);
+          }
+        });
+        fileKeys.forEach(function (key) {
+          formData.delete(key);
+        });
+
+        var commentsInput = form.querySelector('input[name="comments_allowed"]');
+        if (commentsInput) {
+          formData.delete('comments_allowed');
+          if (commentsInput.checked) {
+            formData.append('comments_allowed', '1');
+          }
+        }
+
+        formData.append('autosave', '1');
+
+        var snapshotMap = {};
+        formData.forEach(function (value, key) {
+          if (value instanceof File || key === 'autosave') {
+            return;
+          }
+          var str = typeof value === 'string' ? value : (value === null ? '' : String(value));
+          if (Object.prototype.hasOwnProperty.call(snapshotMap, key)) {
+            var existing = snapshotMap[key];
+            if (Array.isArray(existing)) {
+              existing.push(str);
+            } else {
+              snapshotMap[key] = [existing, str];
+            }
+          } else {
+            snapshotMap[key] = str;
+          }
+        });
+
+        return {
+          formData: formData,
+          snapshot: JSON.stringify(snapshotMap),
+        };
+      }
+
+      function scheduleAutosave() {
+        if (!autosaveEnabled) {
+          return;
+        }
+        autosavePending = true;
+        if (autosaveSaving) {
+          return;
+        }
+        if (autosaveTimer) {
+          window.clearTimeout(autosaveTimer);
+        }
+        setAutosaveStatus('Změny budou brzy automaticky uloženy…', 'pending');
+        autosaveTimer = window.setTimeout(runAutosave, AUTOSAVE_DELAY);
+      }
+
+      function runAutosave() {
+        if (!autosaveEnabled || autosaveSaving) {
+          return;
+        }
+        autosaveTimer = null;
+        if (!autosavePending) {
+          return;
+        }
+        var payload = buildAutosavePayload();
+        if (payload.snapshot === autosaveLastSnapshot) {
+          autosavePending = false;
+          return;
+        }
+        autosavePending = false;
+        autosaveSaving = true;
+        setAutosaveStatus('Automaticky ukládám změny…', 'progress');
+        var snapshotValue = payload.snapshot;
+        if (!autosaveUrl) {
+          autosaveSaving = false;
+          return;
+        }
+        fetch(autosaveUrl.toString(), {
+          method: 'POST',
+          body: payload.formData,
+          credentials: 'same-origin',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+          .then(function (response) {
+            var status = response.status;
+            return response.text().then(function (text) {
+              var data = {};
+              if (text) {
+                try {
+                  data = JSON.parse(text);
+                } catch (err) {
+                  data = { raw: text };
+                }
+              }
+              if (!response.ok || (data && data.success === false)) {
+                var message = data && typeof data.message === 'string' && data.message
+                  ? data.message
+                  : 'Došlo k chybě při automatickém uložení (' + status + ').';
+                var error = new Error(message);
+                error.status = status;
+                throw error;
+              }
+              return data;
+            });
+          })
+          .then(function (data) {
+            autosaveLastSnapshot = snapshotValue;
+            var display = data && typeof data.saved_at_display === 'string' && data.saved_at_display
+              ? data.saved_at_display
+              : '';
+            var fallback = '';
+            if (!display && data && typeof data.saved_at_iso === 'string' && data.saved_at_iso) {
+              fallback = data.saved_at_iso;
+            } else if (!display && data && typeof data.saved_at === 'string' && data.saved_at) {
+              fallback = data.saved_at;
+            }
+            if (display) {
+              setAutosaveStatus('Automaticky uloženo ' + display + '.', 'success');
+            } else if (fallback) {
+              setAutosaveStatus('Automaticky uloženo ' + fallback + '.', 'success');
+            } else {
+              setAutosaveStatus('Změny byly automaticky uloženy.', 'success');
+            }
+          })
+          .catch(function (error) {
+            autosavePending = true;
+            var message = error && error.message ? error.message : 'Došlo k chybě při automatickém uložení.';
+            setAutosaveStatus('Automatické uložení selhalo: ' + message, 'error');
+          })
+          .finally(function () {
+            autosaveSaving = false;
+            if (autosavePending) {
+              if (autosaveTimer) {
+                window.clearTimeout(autosaveTimer);
+              }
+              autosaveTimer = window.setTimeout(runAutosave, AUTOSAVE_DELAY);
+            }
+          });
+      }
+
+      if (autosaveEnabled) {
+        var initialPayload = buildAutosavePayload();
+        autosaveLastSnapshot = initialPayload.snapshot;
+        form.addEventListener('input', scheduleAutosave);
+        form.addEventListener('change', scheduleAutosave);
+        if (typeof MutationObserver === 'function') {
+          var tagHiddenElements = form.querySelectorAll('[data-tag-hidden]');
+          tagHiddenElements.forEach(function (el) {
+            try {
+              var observer = new MutationObserver(function () {
+                scheduleAutosave();
+              });
+              observer.observe(el, { childList: true, subtree: true, characterData: true });
+            } catch (observerError) {
+              /* ignore */
+            }
+          });
+        }
+        form.addEventListener('submit', function () {
+          if (autosaveTimer) {
+            window.clearTimeout(autosaveTimer);
+            autosaveTimer = null;
+          }
+          autosavePending = false;
+        });
+      }
 
       // --- Media picker ---
       var modalEl = document.getElementById('mediaPickerModal');

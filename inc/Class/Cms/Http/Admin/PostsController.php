@@ -32,6 +32,10 @@ final class PostsController extends BaseAdminController
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') $this->update(); else $this->form();
                 return;
 
+            case 'autosave':
+                $this->autosave();
+                return;
+
             case 'bulk':
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->bulk(); return; }
                 $this->index();
@@ -500,6 +504,105 @@ final class PostsController extends BaseAdminController
         }
     }
 
+    private function autosave(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'Metoda není podporována.',
+            ], 405);
+        }
+
+        if (!$this->isAjax()) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'Automatické uložení je dostupné pouze přes AJAX.',
+            ], 400);
+        }
+
+        $this->assertCsrf();
+
+        $id = (int)($_GET['id'] ?? 0);
+        if ($id <= 0) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'Chybí ID příspěvku.',
+            ], 400);
+        }
+
+        $repo = new PostsRepository();
+        $post = $repo->find($id);
+        if (!$post) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'Příspěvek nebyl nalezen.',
+            ], 404);
+        }
+
+        $user = $this->auth->user();
+        if (!$user) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'Nejste přihlášeni.',
+            ], 403);
+        }
+
+        try {
+            $updateData = [
+                'title'            => (string)($_POST['title'] ?? ''),
+                'content'          => (string)($_POST['content'] ?? ''),
+                'comments_allowed' => isset($_POST['comments_allowed']) ? 1 : 0,
+            ];
+
+            if (isset($_POST['status'])) {
+                $status = trim((string)$_POST['status']);
+                if ($status !== '') {
+                    $updateData['status'] = $status;
+                }
+            }
+
+            if (isset($_POST['slug'])) {
+                $updateData['slug'] = (string)$_POST['slug'];
+            }
+
+            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
+            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+            if ($removeThumb) {
+                $updateData['thumbnail_id'] = null;
+            } elseif ($selectedThumbId > 0) {
+                $updateData['thumbnail_id'] = $selectedThumbId;
+            }
+
+            (new PostsService())->update($id, $updateData);
+
+            $this->syncPostMedia($id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
+
+            $type = (string)($post['type'] ?? 'post');
+            if ($type === 'post') {
+                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+                $this->syncTerms($id, $catIds, $tagIds);
+            } else {
+                $this->syncTerms($id, [], []);
+            }
+
+            $now = DateTimeFactory::now();
+            $settings = new CmsSettings();
+
+            $this->jsonResponse([
+                'success'          => true,
+                'saved_at'         => DateTimeFactory::formatForStorage($now),
+                'saved_at_iso'     => $now->format(\DATE_ATOM),
+                'saved_at_display' => $settings->formatDateTime($now),
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     private function parseNewTerms(string $input): array
     {
         $parts = preg_split('/[,\n]+/', $input);
@@ -643,5 +746,20 @@ final class PostsController extends BaseAdminController
             'success',
             $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.'
         );
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function jsonResponse(array $payload, int $status = 200): never
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            $json = '{}';
+        }
+        echo $json;
+        exit;
     }
 }
