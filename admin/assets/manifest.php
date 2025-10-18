@@ -7,6 +7,7 @@ return [
         'admin/assets/editor/tags/tags.css',
         'admin/assets/editor/content/editor.css',
         'admin/assets/css/admin.css',
+        'admin/assets/css/flash.css',
     ],
     'js' => [
         ['src' => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', 'defer' => true],

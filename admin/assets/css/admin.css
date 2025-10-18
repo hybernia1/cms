@@ -243,10 +243,7 @@ body.admin-sidebar-open {
   font-weight: 600;
   margin: 0;
 }
-.admin-flash {
-  margin-bottom: 1.5rem;
-  border-radius: 0.75rem;
-}
+.admin-flash { border-radius: 0.75rem; }
 .card {
   background: #fff;
   border: 1px solid #dcdcde;
