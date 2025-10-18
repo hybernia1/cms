@@ -20,6 +20,9 @@ final class CommentsController extends BaseAdminController
             case 'show':
                 $this->show(); return;
 
+            case 'bulk':
+                $this->bulk(); return;
+
             case 'approve':
             case 'draft':
             case 'spam':
@@ -72,6 +75,15 @@ final class CommentsController extends BaseAdminController
         }
 
         $pag = $q->paginate($page, $perPage);
+        $pagination = $this->paginationData($pag, $page, $perPage);
+
+        $buildUrl = $this->listingUrlBuilder([
+            'r'      => 'comments',
+            'status' => $filters['status'] !== '' ? $filters['status'] : null,
+            'q'      => $filters['q'] !== '' ? $filters['q'] : null,
+            'post'   => $filters['post'] !== '' ? $filters['post'] : null,
+            'page'   => $pagination['page'],
+        ]);
 
         $settings = new CmsSettings();
         $items = [];
@@ -90,17 +102,100 @@ final class CommentsController extends BaseAdminController
         }
 
         $this->renderAdmin('comments/index', [
-            'pageTitle'  => 'Komentáře',
-            'nav'        => AdminNavigation::build('comments'),
-            'filters'    => $filters,
-            'items'      => $items,
-            'pagination' => [
-                'page'     => $pag['page'] ?? $page,
-                'per_page' => $pag['per_page'] ?? $perPage,
-                'total'    => $pag['total'] ?? 0,
-                'pages'    => $pag['pages'] ?? 1,
-            ],
+            'pageTitle'    => 'Komentáře',
+            'nav'          => AdminNavigation::build('comments'),
+            'filters'      => $filters,
+            'items'        => $items,
+            'pagination'   => $pagination,
+            'statusCounts' => $this->countByStatus(),
+            'buildUrl'     => $buildUrl,
         ]);
+    }
+
+    private function bulk(): void
+    {
+        $this->assertCsrf();
+
+        $action = (string)($_POST['bulk_action'] ?? '');
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+
+        $redirect = $this->listUrl([
+            'status' => (string)($_POST['status'] ?? ''),
+            'q'      => (string)($_POST['q'] ?? ''),
+            'post'   => (string)($_POST['post'] ?? ''),
+            'page'   => (int)($_POST['page'] ?? 1),
+        ]);
+
+        if ($ids === [] || $action === '') {
+            $this->redirect($redirect, 'warning', 'Vyberte komentáře a požadovanou akci.');
+        }
+
+        $existing = DB::query()->table('comments')
+            ->select(['id'])
+            ->whereIn('id', $ids)
+            ->get();
+
+        $targetIds = [];
+        foreach ($existing as $row) {
+            $targetIds[] = (int)($row['id'] ?? 0);
+        }
+        $targetIds = array_values(array_filter($targetIds, static fn (int $id): bool => $id > 0));
+
+        if ($targetIds === []) {
+            $this->redirect($redirect, 'warning', 'Žádné platné komentáře pro hromadnou akci.');
+        }
+
+        try {
+            switch ($action) {
+                case 'published':
+                case 'draft':
+                case 'spam':
+                    DB::query()->table('comments')
+                        ->update(['status' => $action])
+                        ->whereIn('id', $targetIds)
+                        ->execute();
+                    $message = match ($action) {
+                        'published' => 'Komentáře byly schváleny.',
+                        'spam'      => 'Komentáře byly označeny jako spam.',
+                        default     => 'Komentáře byly uloženy jako koncept.',
+                    };
+                    $count = count($targetIds);
+                    break;
+
+                case 'delete':
+                    $allToDelete = [];
+                    foreach ($targetIds as $id) {
+                        $allToDelete = array_merge($allToDelete, $this->collectThreadIds($id));
+                    }
+                    $allToDelete = array_values(array_unique(array_filter($allToDelete, static fn (int $id): bool => $id > 0)));
+
+                    if ($allToDelete !== []) {
+                        DB::query()->table('comments')
+                            ->delete()
+                            ->whereIn('id', $allToDelete)
+                            ->execute();
+                    }
+
+                    $count = count($allToDelete);
+                    $message = 'Komentáře byly odstraněny.';
+                    break;
+
+                default:
+                    $this->redirect($redirect, 'warning', 'Neznámá hromadná akce.');
+            }
+        } catch (\Throwable $e) {
+            $this->redirect($redirect, 'danger', $e->getMessage());
+        }
+
+        $suffix = $count > 0 ? ' (' . $count . ')' : '';
+
+        $this->redirect($redirect, 'success', $message . $suffix);
     }
 
     private function show(): void
@@ -255,6 +350,55 @@ final class CommentsController extends BaseAdminController
         }
 
         return $ids;
+    }
+
+    /**
+     * @return array<string,int>
+     */
+    private function countByStatus(): array
+    {
+        $rows = DB::query()->table('comments')
+            ->select(['status', 'COUNT(*) AS aggregate'])
+            ->groupBy('status')
+            ->get();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $status = (string)($row['status'] ?? '');
+            if ($status === '') {
+                continue;
+            }
+
+            $result[$status] = isset($row['aggregate']) ? (int)$row['aggregate'] : 0;
+        }
+
+        $result['__total'] = array_sum($result);
+
+        return $result;
+    }
+
+    private function listUrl(array $params): string
+    {
+        $query = [
+            'r'      => 'comments',
+            'status' => trim((string)($params['status'] ?? '')),
+            'q'      => trim((string)($params['q'] ?? '')),
+            'post'   => trim((string)($params['post'] ?? '')),
+        ];
+
+        $page = (int)($params['page'] ?? 1);
+        if ($page > 1) {
+            $query['page'] = $page;
+        }
+
+        $query = array_filter(
+            $query,
+            static fn ($value): bool => $value !== '' && $value !== null,
+        );
+
+        $qs = http_build_query($query);
+
+        return $qs === '' ? 'admin.php?r=comments' : 'admin.php?' . $qs;
     }
 
     private function resolveThreadRootId(int $commentId): int
