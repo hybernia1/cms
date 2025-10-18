@@ -8,28 +8,27 @@
 /** @var array<string,array<int,array<string,mixed>>> $termsByType */
 /** @var \Cms\Utils\LinkGenerator $urls */
 
-$h  = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 $cs = new \Cms\Settings\CmsSettings();
 $categories = $termsByType['category'] ?? [];
 $tags       = $termsByType['tag'] ?? [];
 ?>
 <article class="card card--article">
   <header class="article__header">
-    <h1 class="article__title"><?= $h((string)($post['title'] ?? 'Článek')) ?></h1>
-    <div class="article__meta">Publikováno: <?= $h($cs->formatDateTime(new \DateTimeImmutable((string)($post['created_at'] ?? 'now')))) ?></div>
+    <h1 class="article__title"><?= e((string)($post['title'] ?? 'Článek')) ?></h1>
+    <div class="article__meta">Publikováno: <?= e($cs->formatDateTime(new \DateTimeImmutable((string)($post['created_at'] ?? 'now')))) ?></div>
     <?php if ($categories || $tags): ?>
       <div class="article__terms">
         <?php foreach ($categories as $cat): ?>
-          <a class="article__badge" href="<?= $h($urls->category((string)$cat['slug'])) ?>">#<?= $h((string)$cat['name']) ?></a>
+          <a class="article__badge" href="<?= e($urls->category((string)$cat['slug'])) ?>">#<?= e((string)$cat['name']) ?></a>
         <?php endforeach; ?>
         <?php foreach ($tags as $tag): ?>
-          <a class="article__badge article__badge--outline" href="<?= $h($urls->tag((string)$tag['slug'])) ?>">#<?= $h((string)$tag['name']) ?></a>
+          <a class="article__badge article__badge--outline" href="<?= e($urls->tag((string)$tag['slug'])) ?>">#<?= e((string)$tag['name']) ?></a>
         <?php endforeach; ?>
       </div>
     <?php endif; ?>
   </header>
   <div class="article__content">
-    <?= nl2br($h((string)($post['content'] ?? ''))) ?>
+    <?= nl2br(e((string)($post['content'] ?? ''))) ?>
   </div>
 </article>
 
