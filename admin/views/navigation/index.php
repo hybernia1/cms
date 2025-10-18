@@ -13,8 +13,9 @@ declare(strict_types=1);
 /** @var array<string,mixed>|null $editingItem */
 /** @var array<int,array{value:int,label:string,disabled:bool}> $parentOptions */
 /** @var array<int,array{value:string,label:string}> $targets */
+/** @var array<string,array<int,array<string,mixed>>> $quickAddOptions */
 
-$this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($csrf, $tablesReady, $menus, $menu, $menuId, $items, $editingItem, $parentOptions, $targets) {
+$this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($csrf, $tablesReady, $menus, $menu, $menuId, $items, $editingItem, $parentOptions, $targets, $quickAddOptions) {
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $itemsById = [];
     foreach ($items as $it) {
@@ -29,6 +30,26 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
         '_blank' => ['icon' => 'bi-box-arrow-up-right', 'title' => 'Otevřít v novém okně'],
     ];
     $defaultOrder = $editingItem ? (int)($editingItem['sort_order'] ?? 0) : (count($items) + 1);
+    $quickAddOptions = $quickAddOptions ?? ['pages' => [], 'posts' => [], 'categories' => []];
+    $hasQuickAdd = false;
+    foreach ($quickAddOptions as $opts) {
+        if (!empty($opts)) {
+            $hasQuickAdd = true;
+            break;
+        }
+    }
+    $modalTabs = [
+        'pages' => ['label' => 'Stránky', 'icon' => 'bi-file-earmark-text'],
+        'posts' => ['label' => 'Příspěvky', 'icon' => 'bi-journal-text'],
+        'categories' => ['label' => 'Kategorie', 'icon' => 'bi-folder'],
+    ];
+    $activeTab = 'pages';
+    foreach (array_keys($modalTabs) as $key) {
+        if (!empty($quickAddOptions[$key])) {
+            $activeTab = $key;
+            break;
+        }
+    }
 ?>
   <?php if (!$tablesReady): ?>
     <div class="alert alert-warning">
@@ -84,7 +105,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                 <button class="btn btn-primary" type="submit">Uložit změny</button>
               </div>
             </form>
-            <form method="post" action="admin.php?r=navigation&a=delete-menu" onsubmit="return confirm('Opravdu smazat toto menu včetně všech položek?');" data-ajax>
+              <form method="post" action="admin.php?r=navigation&a=delete-menu" data-ajax data-confirm-modal="Opravdu smazat toto menu včetně všech položek?" data-confirm-modal-title="Smazat menu" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne">
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="id" value="<?= $h((string)$menu['id']) ?>">
               <button class="btn btn-outline-danger w-100" type="submit">Smazat menu</button>
@@ -142,7 +163,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
         <div class="card mb-3" id="item-form">
           <div class="card-header"><?= $editingItem ? 'Upravit položku' : 'Přidat položku' ?></div>
           <div class="card-body">
-            <form method="post" action="admin.php?r=navigation&a=<?= $editingItem ? 'update-item' : 'create-item' ?>" data-ajax>
+            <form method="post" id="navigation-item-form" action="admin.php?r=navigation&a=<?= $editingItem ? 'update-item' : 'create-item' ?>" data-ajax>
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
               <?php if ($editingItem): ?>
@@ -150,12 +171,21 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
               <?php endif; ?>
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label">Název</label>
-                  <input type="text" name="title" class="form-control" value="<?= $editingItem ? $h((string)$editingItem['title']) : '' ?>" required>
+                  <label for="navigation-item-title" class="form-label">Název</label>
+                  <input type="text" id="navigation-item-title" name="title" class="form-control" value="<?= $editingItem ? $h((string)$editingItem['title']) : '' ?>" placeholder="např. O nás" required>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">URL</label>
-                  <input type="text" name="url" class="form-control" value="<?= $editingItem ? $h((string)$editingItem['url']) : '' ?>" placeholder="/cesta nebo https://..." required>
+                  <div class="input-group">
+                    <input type="text" id="navigation-item-url" name="url" class="form-control" value="<?= $editingItem ? $h((string)$editingItem['url']) : '' ?>" placeholder="/cesta nebo https://..." required>
+                    <?php if ($hasQuickAdd): ?>
+                      <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#navigationContentModal" title="Vybrat existující obsah">
+                        <i class="bi bi-collection" aria-hidden="true"></i>
+                        <span class="d-none d-sm-inline">Vybrat obsah</span>
+                      </button>
+                    <?php endif; ?>
+                  </div>
+                  <div class="form-text">Zadejte vlastní URL nebo vyberte existující stránku, příspěvek či kategorii.</div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Cíl odkazu</label>
@@ -174,14 +204,17 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                       <option value="<?= $h((string)$opt['value']) ?>" <?= $opt['disabled'] ? 'disabled' : '' ?> <?= $currentParent === (int)$opt['value'] ? 'selected' : '' ?>><?= $h($opt['label']) ?></option>
                     <?php endforeach; ?>
                   </select>
+                  <div class="form-text">Volitelné – položku můžete vnořit pod jinou.</div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Pořadí</label>
                   <input type="number" name="sort_order" class="form-control" value="<?= $h((string)$defaultOrder) ?>">
+                  <div class="form-text">Nižší číslo zobrazí položku výše.</div>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">CSS třída</label>
                   <input type="text" name="css_class" class="form-control" value="<?= $editingItem ? $h((string)($editingItem['css_class'] ?? '')) : '' ?>" placeholder="např. btn-primary">
+                  <div class="form-text">Volitelný styl odkazu (pokročilé použití).</div>
                 </div>
                 <div class="col-12">
                   <div class="d-flex gap-2">
@@ -246,7 +279,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                         <a class="admin-icon-btn" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form" aria-label="Upravit položku" data-bs-toggle="tooltip" data-bs-title="Upravit položku">
                           <i class="bi bi-pencil" aria-hidden="true"></i>
                         </a>
-                        <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" onsubmit="return confirm('Opravdu odstranit tuto položku?');" data-ajax>
+                        <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" data-ajax data-confirm-modal="Opravdu odstranit tuto položku?" data-confirm-modal-title="Smazat položku" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne">
                           <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                           <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
                           <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
@@ -267,6 +300,71 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
             </table>
           </div>
         </div>
+        <?php if ($hasQuickAdd): ?>
+          <div class="modal fade" id="navigationContentModal" tabindex="-1" aria-labelledby="navigationContentModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="navigationContentModalLabel">Vybrat existující obsah</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="text-secondary small">Vyberte existující stránku, příspěvek nebo kategorii. Název i URL se před uložením automaticky vyplní do formuláře, hodnoty můžete dále upravit.</p>
+                  <ul class="nav nav-tabs" id="navigationContentTabs" role="tablist">
+                    <?php foreach ($modalTabs as $key => $tab): ?>
+                      <?php $disabled = empty($quickAddOptions[$key]); ?>
+                      <?php $isActive = !$disabled && $key === $activeTab; ?>
+                      <li class="nav-item" role="presentation">
+                        <button class="nav-link<?= $isActive ? ' active' : '' ?><?= $disabled ? ' disabled' : '' ?>" id="navigation-content-tab-<?= $h($key) ?>" data-bs-toggle="tab" data-bs-target="#navigation-content-pane-<?= $h($key) ?>" type="button" role="tab" aria-controls="navigation-content-pane-<?= $h($key) ?>" aria-selected="<?= $isActive ? 'true' : 'false' ?>" <?= $disabled ? ' tabindex="-1" aria-disabled="true"' : '' ?>>
+                          <?php if (!empty($tab['icon'])): ?>
+                            <i class="bi <?= $h($tab['icon']) ?> me-1" aria-hidden="true"></i>
+                          <?php endif; ?>
+                          <?= $h($tab['label']) ?>
+                        </button>
+                      </li>
+                    <?php endforeach; ?>
+                  </ul>
+                  <div class="tab-content pt-3">
+                    <?php foreach ($modalTabs as $key => $tab): ?>
+                      <?php $itemsList = $quickAddOptions[$key] ?? []; ?>
+                      <?php $isActive = $key === $activeTab && !empty($itemsList); ?>
+                      <div class="tab-pane fade<?= $isActive ? ' show active' : '' ?>" id="navigation-content-pane-<?= $h($key) ?>" role="tabpanel" aria-labelledby="navigation-content-tab-<?= $h($key) ?>">
+                        <?php if ($itemsList): ?>
+                          <div class="list-group list-group-flush">
+                            <?php foreach ($itemsList as $item): ?>
+                              <?php $slug = (string)($item['slug'] ?? ''); ?>
+                              <?php $title = (string)($item['title'] ?? ''); ?>
+                              <?php $url = (string)($item['url'] ?? ''); ?>
+                              <div class="list-group-item">
+                                <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
+                                  <div class="flex-grow-1">
+                                    <div class="fw-semibold"><?= $h($title) ?></div>
+                                    <div class="text-secondary small">Slug: <?= $h($slug) ?></div>
+                                    <div class="text-secondary small text-break">URL: <?= $h($url) ?></div>
+                                  </div>
+                                  <div class="text-nowrap">
+                                    <button type="button" class="btn btn-sm btn-primary" data-nav-fill data-nav-target="#navigation-item-form" data-nav-title="<?= $h($title) ?>" data-nav-url="<?= $h($url) ?>">
+                                      <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Použít v položce
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            <?php endforeach; ?>
+                          </div>
+                        <?php else: ?>
+                          <p class="text-secondary small mb-0">Pro tuto sekci nejsou dostupné žádné položky.</p>
+                        <?php endif; ?>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        <?php endif; ?>
       <?php endif; ?>
     </div>
   </div>

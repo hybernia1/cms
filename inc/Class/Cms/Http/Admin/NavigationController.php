@@ -7,6 +7,7 @@ use Cms\Utils\Slugger;
 use Core\Database\Init as DB;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
+use Cms\Utils\LinkGenerator;
 
 final class NavigationController extends BaseAdminController
 {
@@ -309,7 +310,95 @@ final class NavigationController extends BaseAdminController
             'editingItem' => $editingItem,
             'parentOptions' => $parentOptions,
             'targets' => $this->targetOptions(),
+            'quickAddOptions' => $this->quickAddOptions(),
         ]);
+    }
+
+    private function quickAddOptions(): array
+    {
+        $options = [
+            'pages' => [],
+            'posts' => [],
+            'categories' => [],
+        ];
+
+        $links = new LinkGenerator();
+
+        if ($this->tableExists('posts')) {
+            $options['pages'] = $this->loadQuickPosts('page', $links);
+            $options['posts'] = $this->loadQuickPosts('post', $links);
+        }
+
+        if ($this->tableExists('terms')) {
+            $options['categories'] = $this->loadQuickCategories($links);
+        }
+
+        return $options;
+    }
+
+    private function loadQuickPosts(string $type, LinkGenerator $links): array
+    {
+        $rows = DB::query()
+            ->table('posts')
+            ->select(['id', 'title', 'slug', 'status'])
+            ->where('type', '=', $type)
+            ->where('status', '=', 'publish')
+            ->orderBy('title', 'ASC')
+            ->limit(50)
+            ->get() ?? [];
+
+        $items = [];
+        foreach ($rows as $row) {
+            $title = trim((string)($row['title'] ?? ''));
+            $slug = trim((string)($row['slug'] ?? ''));
+            if ($title === '' || $slug === '') {
+                continue;
+            }
+
+            $url = $type === 'page'
+                ? $links->page($slug)
+                : $links->post($slug);
+
+            $items[] = [
+                'id' => (int)($row['id'] ?? 0),
+                'title' => $title,
+                'slug' => $slug,
+                'url' => $url,
+                'type' => $type,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function loadQuickCategories(LinkGenerator $links): array
+    {
+        $rows = DB::query()
+            ->table('terms')
+            ->select(['id', 'name', 'slug'])
+            ->where('type', '=', 'category')
+            ->orderBy('name', 'ASC')
+            ->limit(50)
+            ->get() ?? [];
+
+        $items = [];
+        foreach ($rows as $row) {
+            $name = trim((string)($row['name'] ?? ''));
+            $slug = trim((string)($row['slug'] ?? ''));
+            if ($name === '' || $slug === '') {
+                continue;
+            }
+
+            $items[] = [
+                'id' => (int)($row['id'] ?? 0),
+                'title' => $name,
+                'slug' => $slug,
+                'url' => $links->category($slug),
+                'type' => 'category',
+            ];
+        }
+
+        return $items;
     }
 
     private function createMenu(): void
