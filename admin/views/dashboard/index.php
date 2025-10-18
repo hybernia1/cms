@@ -7,9 +7,10 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var array<int,array{value:string,label:string}> $quickDraftTypes */
 /** @var array<string,string> $quickDraftOld */
+/** @var array<int,array{id:int,title:string,type:string,created_at_display:string}> $quickDraftRecent */
 
 // pro render použijeme layout s obsahem přes slot $content()
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash','csrf','quickDraftTypes','quickDraftOld'), function () use ($csrf, $quickDraftTypes, $quickDraftOld) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash','csrf','quickDraftTypes','quickDraftOld','quickDraftRecent'), function () use ($csrf, $quickDraftTypes, $quickDraftOld, $quickDraftRecent) {
     $draftValues = is_array($quickDraftOld ?? null) ? $quickDraftOld : [];
 ?>
   <div class="row g-3">
@@ -57,6 +58,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash','c
         'csrf'   => $csrf,
         'types'  => $quickDraftTypes,
         'values' => $draftValues,
+        'recentDrafts' => $quickDraftRecent,
       ]); ?>
     </div>
   </div>

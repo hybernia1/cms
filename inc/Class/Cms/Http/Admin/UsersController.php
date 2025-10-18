@@ -247,13 +247,42 @@ final class UsersController extends BaseAdminController
         $settings = new CmsSettings();
         $templateManager = new TemplateManager();
 
+        $templateData = [
+            'siteTitle' => $settings->siteTitle(),
+            'userName'  => (string)($user['name'] ?? ''),
+            'userEmail' => $email,
+            'user'      => $user,
+        ];
+
+        if ($templateKey === 'lost_password') {
+            try {
+                $token = bin2hex(random_bytes(20));
+            } catch (\Throwable $e) {
+                $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Nepodařilo se vygenerovat resetovací odkaz.');
+            }
+
+            $expiresAt = DateTimeFactory::now()->modify('+1 hour')->format('Y-m-d H:i:s');
+
+            try {
+                DB::query()->table('users')->update([
+                    'token'        => $token,
+                    'token_expire' => $expiresAt,
+                    'updated_at'   => DateTimeFactory::nowString(),
+                ])->where('id','=', $userId)->execute();
+            } catch (\Throwable $e) {
+                $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Nepodařilo se uložit resetovací token.');
+            }
+
+            $user['token'] = $token;
+            $user['token_expire'] = $expiresAt;
+            $templateData['user'] = $user;
+
+            $baseUrl = rtrim($settings->siteUrl(), '/');
+            $templateData['resetUrl'] = $baseUrl . '/reset?token=' . urlencode($token);
+        }
+
         try {
-            $template = $templateManager->render($templateKey, [
-                'siteTitle' => $settings->siteTitle(),
-                'userName'  => (string)($user['name'] ?? ''),
-                'userEmail' => $email,
-                'user'      => $user,
-            ]);
+            $template = $templateManager->render($templateKey, $templateData);
         } catch (\Throwable $e) {
             $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Šablonu se nepodařilo načíst.');
         }

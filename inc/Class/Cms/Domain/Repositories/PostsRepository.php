@@ -74,4 +74,18 @@ final class PostsRepository
 
         return $result;
     }
+
+    /**
+     * @return array<int,array{id:int,title:string,type:string,created_at:?string}>
+     */
+    public function latestDrafts(string $type, int $limit): array
+    {
+        return DB::query()->table('posts')
+            ->select(['id','title','type','created_at'])
+            ->where('type', '=', $type)
+            ->where('status', '=', 'draft')
+            ->orderBy('created_at', 'DESC')
+            ->limit(max(1, $limit))
+            ->get();
+    }
 }
