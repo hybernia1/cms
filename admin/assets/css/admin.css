@@ -345,3 +345,43 @@ body.admin-sidebar-open {
   box-shadow: 0 0 0 0.35rem rgba(114, 174, 230, 0.35);
   transition: box-shadow .3s ease;
 }
+
+.post-workspace-wrapper {
+  position: relative;
+}
+
+.post-workspace-card {
+  border: 1px solid var(--bs-border-color);
+  background-color: var(--bs-body-bg);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.post-workspace-card.is-active {
+  border-color: var(--bs-primary);
+  background-color: rgba(var(--bs-primary-rgb), 0.08);
+}
+
+.post-workspace-card .btn-link {
+  color: inherit;
+}
+
+.post-workspace-card .btn-link:hover,
+.post-workspace-card .btn-link:focus {
+  text-decoration: none;
+}
+
+.post-workspace-card .post-workspace-status {
+  text-transform: capitalize;
+}
+
+.post-workspace-card .post-workspace-dirty-indicator {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.post-workspace-placeholder {
+  border: 1px dashed var(--bs-border-color);
+  border-radius: 0.75rem;
+  background-color: var(--bs-body-bg);
+}

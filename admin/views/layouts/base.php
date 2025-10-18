@@ -144,6 +144,25 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     </div>
   </div>
 </div>
+<div class="modal fade" id="postWorkspaceCloseModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" data-workspace-close-title>Ukončit rozpracovaný příspěvek</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-2" data-workspace-close-message>Chceš uložit změny před zavřením?</p>
+        <p class="text-secondary small mb-0 d-none" data-workspace-close-hint></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-workspace-close-discard>Zavřít bez uložení</button>
+        <button type="button" class="btn btn-primary" data-workspace-close-save>Uložit a zavřít</button>
+        <button type="button" class="btn btn-link" data-bs-dismiss="modal" data-workspace-close-cancel>Zpět</button>
+      </div>
+    </div>
+  </div>
+</div>
 <?php foreach ($jsAssets as $js): ?>
   <?php
     $src = '';

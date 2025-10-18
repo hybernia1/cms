@@ -6,6 +6,10 @@
   var confirmModalElement = null;
   var confirmModalInstance = null;
   var confirmModalCallback = null;
+  var workspaceCloseModalElement = null;
+  var workspaceCloseModalInstance = null;
+  var workspaceCloseCallbacks = null;
+  var workspaceClosePendingAction = null;
   var FLASH_DISMISS_DELAY = 5000;
   var FLASH_DISMISS_ANIMATION = 260;
   var flashActiveElement = null;
@@ -552,6 +556,148 @@
     confirmModalInstance.show();
   }
 
+  function ensureWorkspaceCloseModal() {
+    if (workspaceCloseModalElement) {
+      return workspaceCloseModalElement;
+    }
+    var element = document.getElementById('postWorkspaceCloseModal');
+    if (!element) {
+      return null;
+    }
+    if (typeof bootstrap === 'undefined' || typeof bootstrap.Modal !== 'function') {
+      return null;
+    }
+    workspaceCloseModalElement = element;
+    workspaceCloseModalInstance = bootstrap.Modal.getOrCreateInstance(element);
+    var saveBtn = element.querySelector('[data-workspace-close-save]');
+    var discardBtn = element.querySelector('[data-workspace-close-discard]');
+    var cancelBtn = element.querySelector('[data-workspace-close-cancel]');
+
+    function bindAction(button, action) {
+      if (!button || button.dataset.workspaceCloseBound === '1') {
+        return;
+      }
+      button.dataset.workspaceCloseBound = '1';
+      button.addEventListener('click', function () {
+        workspaceClosePendingAction = action;
+        if (workspaceCloseModalInstance) {
+          workspaceCloseModalInstance.hide();
+        }
+      });
+    }
+
+    bindAction(saveBtn, 'save');
+    bindAction(discardBtn, 'discard');
+    bindAction(cancelBtn, 'cancel');
+
+    if (element.dataset.workspaceCloseHiddenBound !== '1') {
+      element.dataset.workspaceCloseHiddenBound = '1';
+      element.addEventListener('hidden.bs.modal', function () {
+        var action = workspaceClosePendingAction || 'cancel';
+        var callbacks = workspaceCloseCallbacks;
+        workspaceCloseCallbacks = null;
+        workspaceClosePendingAction = null;
+        if (!callbacks) {
+          return;
+        }
+        if (action === 'save' && typeof callbacks.onSave === 'function') {
+          callbacks.onSave();
+          return;
+        }
+        if (action === 'discard' && typeof callbacks.onDiscard === 'function') {
+          callbacks.onDiscard();
+          return;
+        }
+        if (typeof callbacks.onCancel === 'function') {
+          callbacks.onCancel();
+        }
+      });
+    }
+
+    return workspaceCloseModalElement;
+  }
+
+  function showWorkspaceCloseModal(options) {
+    options = options || {};
+    var modalElement = ensureWorkspaceCloseModal();
+    if (!modalElement || !workspaceCloseModalInstance) {
+      var fallback = window.confirm(options.message || 'Uložit změny před zavřením?');
+      if (fallback) {
+        if (typeof options.onSave === 'function') {
+          options.onSave();
+        }
+      } else if (typeof options.onDiscard === 'function') {
+        options.onDiscard();
+      }
+      return;
+    }
+
+    var titleEl = modalElement.querySelector('[data-workspace-close-title]');
+    if (titleEl) {
+      var titleText = (typeof options.title === 'string' && options.title.trim() !== '')
+        ? options.title
+        : 'Zavřít rozepsaný příspěvek';
+      titleEl.textContent = titleText;
+    }
+
+    var messageEl = modalElement.querySelector('[data-workspace-close-message]');
+    if (messageEl) {
+      var messageText = (typeof options.message === 'string' && options.message.trim() !== '')
+        ? options.message
+        : 'Přejete si uložit změny před zavřením?';
+      messageEl.textContent = messageText;
+    }
+
+    var hintEl = modalElement.querySelector('[data-workspace-close-hint]');
+    if (hintEl) {
+      if (typeof options.hint === 'string' && options.hint.trim() !== '') {
+        hintEl.textContent = options.hint;
+        hintEl.classList.remove('d-none');
+      } else {
+        hintEl.textContent = '';
+        hintEl.classList.add('d-none');
+      }
+    }
+
+    var saveBtn = modalElement.querySelector('[data-workspace-close-save]');
+    if (saveBtn && saveBtn.dataset.defaultLabel === undefined) {
+      saveBtn.dataset.defaultLabel = saveBtn.textContent || '';
+    }
+    if (saveBtn) {
+      saveBtn.textContent = (typeof options.saveLabel === 'string' && options.saveLabel.trim() !== '')
+        ? options.saveLabel
+        : (saveBtn.dataset.defaultLabel || saveBtn.textContent || 'Uložit a zavřít');
+    }
+
+    var discardBtn = modalElement.querySelector('[data-workspace-close-discard]');
+    if (discardBtn && discardBtn.dataset.defaultLabel === undefined) {
+      discardBtn.dataset.defaultLabel = discardBtn.textContent || '';
+    }
+    if (discardBtn) {
+      discardBtn.textContent = (typeof options.discardLabel === 'string' && options.discardLabel.trim() !== '')
+        ? options.discardLabel
+        : (discardBtn.dataset.defaultLabel || discardBtn.textContent || 'Zavřít bez uložení');
+    }
+
+    var cancelBtn = modalElement.querySelector('[data-workspace-close-cancel]');
+    if (cancelBtn && cancelBtn.dataset.defaultLabel === undefined) {
+      cancelBtn.dataset.defaultLabel = cancelBtn.textContent || '';
+    }
+    if (cancelBtn) {
+      cancelBtn.textContent = (typeof options.cancelLabel === 'string' && options.cancelLabel.trim() !== '')
+        ? options.cancelLabel
+        : (cancelBtn.dataset.defaultLabel || cancelBtn.textContent || 'Zpět');
+    }
+
+    workspaceCloseCallbacks = {
+      onSave: typeof options.onSave === 'function' ? options.onSave : null,
+      onDiscard: typeof options.onDiscard === 'function' ? options.onDiscard : null,
+      onCancel: typeof options.onCancel === 'function' ? options.onCancel : null
+    };
+    workspaceClosePendingAction = null;
+    workspaceCloseModalInstance.show();
+  }
+
   function initConfirmModals(root) {
     var scope = root || document;
     var forms = [].slice.call(scope.querySelectorAll('form[data-confirm-modal]'));
@@ -686,6 +832,523 @@
     return false;
   }
 
+  function createWorkspaceManager(wrapper) {
+    var body = wrapper.querySelector('[data-post-workspace-body]');
+    if (!body) {
+      return null;
+    }
+    var dock = wrapper.querySelector('[data-post-workspace-dock]');
+    var cardsContainer = wrapper.querySelector('[data-post-workspace-cards]');
+    var emptyHint = wrapper.querySelector('[data-post-workspace-empty]');
+    var newButton = wrapper.querySelector('[data-post-workspace-new]');
+    var listUrl = wrapper.getAttribute('data-post-list-url') || '';
+    var defaultCreateUrl = wrapper.getAttribute('data-post-create-url') || '';
+    var defaultType = wrapper.getAttribute('data-post-type') || '';
+    var workspaces = new Map();
+    var activeId = null;
+
+    var placeholder = document.createElement('div');
+    placeholder.className = 'post-workspace-placeholder text-secondary text-center py-5';
+    placeholder.textContent = 'Žádný příspěvek není aktivní. Vyber ho v panelu nebo vytvoř nový.';
+    body.appendChild(placeholder);
+    placeholder.classList.add('d-none');
+
+    function generateWorkspaceId() {
+      return 'workspace-' + Math.random().toString(36).slice(2, 9);
+    }
+
+    function ensureWorkspaceId(element) {
+      var existing = element.getAttribute('data-workspace-id');
+      if (existing && existing.trim() !== '') {
+        return existing.trim();
+      }
+      var id = generateWorkspaceId();
+      element.setAttribute('data-workspace-id', id);
+      return id;
+    }
+
+    function showPlaceholder() {
+      placeholder.classList.remove('d-none');
+    }
+
+    function hidePlaceholder() {
+      placeholder.classList.add('d-none');
+    }
+
+    function updateDockVisibility() {
+      if (dock) {
+        dock.classList.remove('d-none');
+      }
+      if (emptyHint) {
+        emptyHint.classList.toggle('d-none', workspaces.size > 0);
+      }
+    }
+
+    function updateCardState(workspace) {
+      if (!workspace.card) {
+        return;
+      }
+      workspace.card.classList.toggle('is-active', activeId === workspace.id);
+      workspace.card.classList.toggle('is-minimized', !!workspace.isMinimized);
+      if (workspace.titleButton) {
+        workspace.titleButton.textContent = workspace.title || 'Bez názvu';
+      }
+      if (workspace.statusBadge) {
+        workspace.statusBadge.textContent = workspace.statusText || 'Koncept';
+      }
+      if (workspace.dirtyBadge) {
+        workspace.dirtyBadge.classList.toggle('d-none', !workspace.isDirty);
+      }
+    }
+
+    function updateWorkspaceMetadata(workspace) {
+      if (!workspace) {
+        return;
+      }
+      var title = '';
+      if (workspace.titleInput && typeof workspace.titleInput.value === 'string') {
+        title = workspace.titleInput.value.trim();
+      }
+      if (!title && workspace.titleEl) {
+        title = workspace.titleEl.textContent ? workspace.titleEl.textContent.trim() : '';
+      }
+      if (!title) {
+        title = 'Bez názvu';
+      }
+      workspace.title = title;
+      if (workspace.titleEl) {
+        workspace.titleEl.textContent = title;
+      }
+      if (workspace.element) {
+        workspace.element.setAttribute('data-post-title', title);
+      }
+
+      var statusText = workspace.statusLabelEl && workspace.statusLabelEl.textContent
+        ? workspace.statusLabelEl.textContent.trim()
+        : '';
+      if (!statusText) {
+        statusText = 'Koncept';
+      }
+      workspace.statusText = statusText;
+
+      var typeText = workspace.metaEl && workspace.metaEl.textContent
+        ? workspace.metaEl.textContent.trim()
+        : '';
+      workspace.typeLabel = typeText;
+
+      updateCardState(workspace);
+    }
+
+    function updateWorkspaceStatus(workspace) {
+      if (!workspace) {
+        return;
+      }
+      if (workspace.element && workspace.statusValue) {
+        workspace.element.setAttribute('data-post-status', workspace.statusValue);
+      }
+      updateCardState(workspace);
+    }
+
+    function updateDirtyIndicator(workspace) {
+      if (!workspace) {
+        return;
+      }
+      var dirty = false;
+      if (workspace.form && workspace.form.cmsAutosave && typeof workspace.form.cmsAutosave.isDirty === 'function') {
+        dirty = workspace.form.cmsAutosave.isDirty();
+      } else if (workspace.form && workspace.form.dataset.autosaveDirty === '1') {
+        dirty = true;
+      }
+      workspace.isDirty = dirty;
+      updateCardState(workspace);
+    }
+
+    function createCard(workspace) {
+      var card = document.createElement('div');
+      card.className = 'post-workspace-card badge rounded-pill text-bg-light d-flex align-items-center gap-2 px-3 py-2';
+      card.setAttribute('data-workspace-card', workspace.id);
+
+      var titleBtn = document.createElement('button');
+      titleBtn.type = 'button';
+      titleBtn.className = 'btn btn-link btn-sm text-start text-decoration-none flex-grow-1 px-0';
+      titleBtn.textContent = workspace.title || 'Bez názvu';
+      card.appendChild(titleBtn);
+
+      var statusBadge = document.createElement('span');
+      statusBadge.className = 'post-workspace-status badge text-bg-secondary text-capitalize';
+      statusBadge.textContent = workspace.statusText || 'Koncept';
+      card.appendChild(statusBadge);
+
+      var dirtyBadge = document.createElement('span');
+      dirtyBadge.className = 'post-workspace-dirty-indicator badge rounded-pill text-bg-warning text-dark px-2 py-0 d-none';
+      dirtyBadge.textContent = '•';
+      card.appendChild(dirtyBadge);
+
+      var closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'btn btn-link btn-sm text-danger p-0';
+      closeBtn.setAttribute('aria-label', 'Zavřít');
+      closeBtn.innerHTML = '<i class="bi bi-x-lg"></i>';
+      card.appendChild(closeBtn);
+
+      titleBtn.addEventListener('click', function () {
+        activateWorkspace(workspace.id);
+      });
+      closeBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        requestClose(workspace);
+      });
+
+      workspace.card = card;
+      workspace.titleButton = titleBtn;
+      workspace.statusBadge = statusBadge;
+      workspace.dirtyBadge = dirtyBadge;
+      return card;
+    }
+
+    function setActive(workspaceId) {
+      if (activeId === workspaceId) {
+        return;
+      }
+      if (activeId && workspaces.has(activeId)) {
+        var previous = workspaces.get(activeId);
+        previous.isMinimized = true;
+        if (previous.element) {
+          previous.element.classList.add('d-none');
+        }
+        updateCardState(previous);
+      }
+      activeId = workspaceId;
+      if (workspaces.has(workspaceId)) {
+        var next = workspaces.get(workspaceId);
+        next.isMinimized = false;
+        if (next.element) {
+          next.element.classList.remove('d-none');
+        }
+        updateCardState(next);
+        hidePlaceholder();
+      } else {
+        activeId = null;
+      }
+      updateDockVisibility();
+    }
+
+    function activateWorkspace(workspaceId) {
+      if (!workspaces.has(workspaceId)) {
+        return;
+      }
+      setActive(workspaceId);
+    }
+
+    function minimizeWorkspace(workspaceId) {
+      if (!workspaces.has(workspaceId)) {
+        return;
+      }
+      var workspace = workspaces.get(workspaceId);
+      workspace.isMinimized = true;
+      if (workspace.element) {
+        workspace.element.classList.add('d-none');
+      }
+      updateCardState(workspace);
+      if (activeId === workspaceId) {
+        activeId = null;
+        showPlaceholder();
+      }
+      updateDockVisibility();
+    }
+
+    function removeWorkspace(workspaceId) {
+      if (!workspaces.has(workspaceId)) {
+        return;
+      }
+      var workspace = workspaces.get(workspaceId);
+      if (workspace.card && workspace.card.parentNode) {
+        workspace.card.parentNode.removeChild(workspace.card);
+      }
+      if (workspace.element && workspace.element.parentNode) {
+        workspace.element.parentNode.removeChild(workspace.element);
+      }
+      workspaces.delete(workspaceId);
+      if (activeId === workspaceId) {
+        activeId = null;
+        var remaining = Array.from(workspaces.keys());
+        if (remaining.length > 0) {
+          activateWorkspace(remaining[remaining.length - 1]);
+        } else {
+          showPlaceholder();
+          if (listUrl) {
+            loadAdminPage(listUrl, { pushState: true });
+          }
+        }
+      }
+      updateDockVisibility();
+    }
+
+    function registerWorkspace(element, options) {
+      if (!element) {
+        return null;
+      }
+      var workspaceId = ensureWorkspaceId(element);
+      if (workspaces.has(workspaceId)) {
+        return workspaces.get(workspaceId);
+      }
+      var form = element.querySelector('form[data-autosave-form="1"]');
+      var workspace = {
+        id: workspaceId,
+        element: element,
+        form: form,
+        titleInput: element.querySelector('[data-post-workspace-title-input]'),
+        titleEl: element.querySelector('[data-post-workspace-title]'),
+        statusLabelEl: element.querySelector('[data-post-workspace-status-label]'),
+        metaEl: element.querySelector('[data-post-workspace-meta]'),
+        minimizeBtn: element.querySelector('[data-post-workspace-minimize]'),
+        closeBtn: element.querySelector('[data-post-workspace-close]'),
+        typeLabel: element.querySelector('[data-post-workspace-meta]') ? element.querySelector('[data-post-workspace-meta]').textContent : '',
+        statusText: '',
+        isMinimized: true,
+        isDirty: false,
+        statusValue: element.getAttribute('data-post-status') || '',
+        typeValue: element.getAttribute('data-post-type') || defaultType
+      };
+      workspaces.set(workspaceId, workspace);
+
+      if (cardsContainer) {
+        var card = createCard(workspace);
+        cardsContainer.appendChild(card);
+      }
+
+      if (workspace.minimizeBtn) {
+        workspace.minimizeBtn.addEventListener('click', function () {
+          minimizeWorkspace(workspace.id);
+        });
+      }
+      if (workspace.closeBtn) {
+        workspace.closeBtn.addEventListener('click', function () {
+          requestClose(workspace);
+        });
+      }
+      if (workspace.titleInput) {
+        workspace.titleInput.addEventListener('input', function () {
+          updateWorkspaceMetadata(workspace);
+        });
+      }
+
+      if (workspace.form) {
+        workspace.form.addEventListener('cms:autosave:dirty-change', function (event) {
+          workspace.isDirty = !!(event && event.detail && event.detail.dirty);
+          updateDirtyIndicator(workspace);
+        });
+        workspace.form.addEventListener('cms:autosave:saved', function () {
+          workspace.isDirty = false;
+          updateDirtyIndicator(workspace);
+          updateWorkspaceMetadata(workspace);
+        });
+        workspace.form.addEventListener('cms:workspace:status-updated', function (event) {
+          if (event && event.detail) {
+            if (event.detail.status) {
+              workspace.statusValue = event.detail.status;
+            }
+            if (event.detail.label) {
+              workspace.statusText = event.detail.label;
+            }
+          }
+          updateWorkspaceStatus(workspace);
+        });
+        workspace.form.addEventListener('cms:workspace:status-preview', function (event) {
+          if (event && event.detail) {
+            if (event.detail.status) {
+              workspace.statusValue = event.detail.status;
+            }
+            if (event.detail.label) {
+              workspace.statusText = event.detail.label;
+            }
+          }
+          updateWorkspaceStatus(workspace);
+        });
+      }
+
+      updateWorkspaceMetadata(workspace);
+      updateDirtyIndicator(workspace);
+
+      if (options && options.activate) {
+        element.classList.remove('d-none');
+        workspace.isMinimized = false;
+        activateWorkspace(workspace.id);
+      } else {
+        element.classList.add('d-none');
+        workspace.isMinimized = true;
+      }
+
+      updateDockVisibility();
+      return workspace;
+    }
+
+    function requestClose(workspace) {
+      if (!workspace) {
+        return;
+      }
+      var hasForm = workspace.form && workspace.form.cmsAutosave && typeof workspace.form.cmsAutosave.isDirty === 'function';
+      var dirty = false;
+      if (hasForm) {
+        dirty = workspace.form.cmsAutosave.isDirty();
+      } else {
+        dirty = workspace.isDirty;
+      }
+      if (!dirty) {
+        removeWorkspace(workspace.id);
+        return;
+      }
+      var title = workspace.title || 'rozepsaný příspěvek';
+      showWorkspaceCloseModal({
+        title: 'Zavřít „' + title + '“',
+        message: 'Chcete před zavřením uložit poslední změny?',
+        hint: 'Můžeš se spolehnout na poslední automatické uložení nebo uložit aktuální stav jako koncept.',
+        onSave: function () {
+          if (workspace.form && workspace.form.cmsAutosave && typeof workspace.form.cmsAutosave.forceSave === 'function') {
+            workspace.form.cmsAutosave.forceSave().then(function () {
+              removeWorkspace(workspace.id);
+            }).catch(function (error) {
+              var message = error && error.message ? error.message : 'Nepodařilo se uložit změny.';
+              showFlashMessage('danger', message, workspace.form);
+            });
+          } else {
+            removeWorkspace(workspace.id);
+          }
+        },
+        onDiscard: function () {
+          removeWorkspace(workspace.id);
+        }
+      });
+    }
+
+    function loadWorkspaceFromUrl(url) {
+      if (!url) {
+        return Promise.reject(new Error('Nebyl zadán odkaz na formulář.'));
+      }
+      var targetUrl;
+      try {
+        targetUrl = new URL(url, window.location.href).toString();
+      } catch (err) {
+        targetUrl = url;
+      }
+      return fetch(targetUrl, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Accept': 'text/html,application/xhtml+xml,application/json'
+        }
+      }).then(readResponsePayload).then(function (payload) {
+        if (!payload.response.ok) {
+          var message = extractMessageFromData(payload.data, 'Nepodařilo se načíst formulář.');
+          throw new Error(message);
+        }
+        var html = payload.isJson
+          ? (payload.data && typeof payload.data.html === 'string' ? payload.data.html : (payload.data && typeof payload.data.raw === 'string' ? payload.data.raw : ''))
+          : payload.text;
+        var doc = parseHtmlDocument(html);
+        if (!doc) {
+          throw new Error('Nepodařilo se připravit obsah formuláře.');
+        }
+        var incomingWorkspace = doc.querySelector('[data-post-workspace]');
+        if (!incomingWorkspace) {
+          throw new Error('Obsah formuláře nebyl nalezen.');
+        }
+        var imported = document.importNode(incomingWorkspace, true);
+        imported.classList.add('d-none');
+        body.appendChild(imported);
+        executeScripts(imported);
+        refreshDynamicUI(imported);
+        return registerWorkspace(imported, { activate: true });
+      });
+    }
+
+    function handleNewWorkspace() {
+      if (!defaultCreateUrl) {
+        return;
+      }
+      if (newButton) {
+        newButton.disabled = true;
+      }
+      var activeType = defaultType;
+      if (activeId && workspaces.has(activeId)) {
+        var activeWorkspace = workspaces.get(activeId);
+        if (activeWorkspace && activeWorkspace.element) {
+          var elementType = activeWorkspace.element.getAttribute('data-post-type');
+          if (elementType) {
+            activeType = elementType;
+          }
+        }
+      }
+      var requestUrl;
+      try {
+        var urlObj = new URL(defaultCreateUrl, window.location.href);
+        if (activeType) {
+          urlObj.searchParams.set('type', activeType);
+        }
+        requestUrl = urlObj.toString();
+      } catch (err) {
+        requestUrl = defaultCreateUrl;
+      }
+      loadWorkspaceFromUrl(requestUrl).catch(function (error) {
+        var message = error && error.message ? error.message : 'Nepodařilo se otevřít nový koncept.';
+        showFlashMessage('danger', message, wrapper);
+      }).finally(function () {
+        if (newButton) {
+          newButton.disabled = false;
+        }
+      });
+    }
+
+    if (newButton) {
+      newButton.addEventListener('click', function () {
+        handleNewWorkspace();
+      });
+    }
+
+    updateDockVisibility();
+
+    return {
+      register: registerWorkspace,
+      activate: activateWorkspace,
+      minimize: minimizeWorkspace,
+      remove: removeWorkspace,
+      load: loadWorkspaceFromUrl,
+      bootstrap: function () {
+        var existing = [].slice.call(body.querySelectorAll('[data-post-workspace]'));
+        if (!existing.length) {
+          showPlaceholder();
+        }
+        existing.forEach(function (element, index) {
+          registerWorkspace(element, { activate: index === existing.length - 1 });
+        });
+        if (!activeId && workspaces.size > 0) {
+          var keys = Array.from(workspaces.keys());
+          activateWorkspace(keys[keys.length - 1]);
+        } else if (workspaces.size === 0) {
+          showPlaceholder();
+        }
+      }
+    };
+  }
+
+  function initPostWorkspaces(root) {
+    var scope = root || document;
+    var wrappers = [].slice.call(scope.querySelectorAll('[data-post-workspace-wrapper]'));
+    wrappers.forEach(function (wrapper) {
+      if (!wrapper || wrapper.dataset.postWorkspaceBound === '1') {
+        return;
+      }
+      wrapper.dataset.postWorkspaceBound = '1';
+      var manager = createWorkspaceManager(wrapper);
+      if (!manager) {
+        return;
+      }
+      wrapper.cmsWorkspaceManager = manager;
+      manager.bootstrap();
+    });
+  }
+
   function initPostAutosave(root) {
     var scope = root || document;
     var forms = [].slice.call(scope.querySelectorAll('form[data-autosave-form="1"]'));
@@ -698,9 +1361,11 @@
       var autosaveUrl = form.getAttribute('data-autosave-url') || '';
       var statusEl = form.querySelector('[data-autosave-status]');
       var statusInput = form.querySelector('input[name="status"]');
-      var statusLabelEl = form.querySelector('#status-current-label');
+      var statusLabelEl = form.querySelector('[data-post-workspace-status-label]')
+        || form.querySelector('#status-current-label');
       var idDisplayEl = form.querySelector('[data-post-id-display]');
       var editorTextarea = form.querySelector('textarea[data-content-editor]');
+      var workspaceRoot = form.closest ? form.closest('[data-post-workspace]') : null;
 
       if (!autosaveUrl) {
         var action = form.getAttribute('action') || '';
@@ -732,6 +1397,10 @@
         postId = String(parsed);
         form.setAttribute('data-post-id', postId);
         form.dataset.postId = postId;
+        if (workspaceRoot) {
+          workspaceRoot.setAttribute('data-post-id', postId);
+          workspaceRoot.dataset.postId = postId;
+        }
         if (idDisplayEl) {
           idDisplayEl.textContent = 'ID #' + postId;
           idDisplayEl.classList.remove('d-none');
@@ -739,6 +1408,7 @@
         if (editorTextarea) {
           editorTextarea.setAttribute('data-post-id', postId);
         }
+        dispatchAutosaveEvent('cms:autosave:post-id', { postId: postId });
       }
 
       function updateStatus(message, isError) {
@@ -755,6 +1425,25 @@
         }
       }
 
+      function dispatchAutosaveEvent(name, detail) {
+        var eventName = typeof name === 'string' ? name : '';
+        if (!eventName) {
+          return;
+        }
+        detail = detail || {};
+        try {
+          form.dispatchEvent(new CustomEvent(eventName, { detail: detail }));
+        } catch (err) {
+          try {
+            var legacy = document.createEvent('CustomEvent');
+            legacy.initCustomEvent(eventName, false, false, detail);
+            form.dispatchEvent(legacy);
+          } catch (ignored) {
+            /* noop */
+          }
+        }
+      }
+
       var lastSavedSerialized = serializeAutosaveData((function () {
         var initialData = new FormData(form);
         initialData.delete('thumbnail');
@@ -764,8 +1453,10 @@
         initialData.set('autosave', '1');
         return initialData;
       })());
+      form.dataset.autosaveLastSaved = lastSavedSerialized;
       var lastSentSerialized = null;
       var inFlight = false;
+      var pendingAutosave = null;
       var debounceTimer = null;
 
       function collectFormData() {
@@ -781,6 +1472,21 @@
         return formData;
       }
 
+      function computeSerialized(formData) {
+        return serializeAutosaveData(formData || collectFormData());
+      }
+
+      function setDirtyFlag(isDirty) {
+        if (isDirty) {
+          form.dataset.autosaveDirty = '1';
+        } else {
+          delete form.dataset.autosaveDirty;
+        }
+        dispatchAutosaveEvent('cms:autosave:dirty-change', { dirty: !!isDirty });
+      }
+
+      setDirtyFlag(false);
+
       function cleanupTimers() {
         if (debounceTimer) {
           window.clearTimeout(debounceTimer);
@@ -791,34 +1497,37 @@
       function attemptAutosave() {
         if (!document.body.contains(form)) {
           cleanup();
-          return;
+          return Promise.resolve({ skipped: true });
         }
         if (!autosaveUrl) {
-          return;
+          return Promise.resolve({ skipped: true });
         }
         if (form.classList.contains('is-submitting')) {
-          return;
+          return Promise.resolve({ skipped: true });
         }
         if (inFlight) {
-          return;
+          return pendingAutosave || Promise.resolve({ skipped: true });
         }
 
         var formData = collectFormData();
-        var serialized = serializeAutosaveData(formData);
+        var serialized = computeSerialized(formData);
         var currentPostId = getCurrentPostId();
 
         if (!hasMeaningfulAutosaveData(form, formData, currentPostId)) {
-          return;
+          setDirtyFlag(false);
+          return Promise.resolve({ skipped: true });
         }
 
         if (serialized === lastSavedSerialized || serialized === lastSentSerialized) {
-          return;
+          setDirtyFlag(serialized !== lastSavedSerialized);
+          return Promise.resolve({ skipped: true });
         }
 
         inFlight = true;
         lastSentSerialized = serialized;
+        dispatchAutosaveEvent('cms:autosave:started', {});
 
-        fetch(autosaveUrl, {
+        pendingAutosave = fetch(autosaveUrl, {
           method: 'POST',
           body: formData,
           credentials: 'same-origin',
@@ -851,8 +1560,10 @@
         }).then(function (payload) {
           if (!payload || payload.success === false) {
             if (payload && payload.message === '') {
-              lastSavedSerialized = serializeAutosaveData(collectFormData());
+              lastSavedSerialized = computeSerialized();
               lastSentSerialized = lastSavedSerialized;
+              form.dataset.autosaveLastSaved = lastSavedSerialized;
+              setDirtyFlag(false);
               return;
             }
             var failMessage = payload && typeof payload.message === 'string' && payload.message !== ''
@@ -884,17 +1595,42 @@
             }
           }
 
+          if (workspaceRoot) {
+            if (payload.status) {
+              workspaceRoot.setAttribute('data-post-status', payload.status);
+              workspaceRoot.dataset.postStatus = payload.status;
+            }
+            if (payload.type) {
+              workspaceRoot.setAttribute('data-post-type', payload.type);
+            }
+          }
+
           updateStatus(payload.message || 'Automaticky uloženo.', false);
 
-          lastSavedSerialized = serializeAutosaveData(collectFormData());
+          lastSavedSerialized = computeSerialized();
           lastSentSerialized = lastSavedSerialized;
-        }).catch(function (error) {
+          form.dataset.autosaveLastSaved = lastSavedSerialized;
+          setDirtyFlag(false);
+          dispatchAutosaveEvent('cms:autosave:saved', { response: payload });
+          if (payload.status || payload.statusLabel) {
+            dispatchAutosaveEvent('cms:workspace:status-updated', {
+              status: payload.status || (statusInput ? statusInput.value : ''),
+              label: payload.statusLabel || (statusLabelEl ? statusLabelEl.textContent : '')
+            });
+          }
+          }).catch(function (error) {
           lastSentSerialized = null;
           var message = error && error.message ? error.message : 'Automatické uložení selhalo.';
           updateStatus(message, true);
+          setDirtyFlag(true);
+          dispatchAutosaveEvent('cms:autosave:error', { error: error });
+          throw error;
         }).finally(function () {
           inFlight = false;
+          pendingAutosave = null;
         });
+
+        return pendingAutosave;
       }
 
       function scheduleAutosaveSoon() {
@@ -919,10 +1655,14 @@
         if (statusEl && statusEl.classList.contains('text-danger')) {
           updateStatus('', false);
         }
+        setDirtyFlag(true);
         scheduleAutosaveSoon();
       });
 
-      form.addEventListener('change', scheduleAutosaveSoon);
+      form.addEventListener('change', function () {
+        setDirtyFlag(true);
+        scheduleAutosaveSoon();
+      });
 
       form.addEventListener('submit', function () {
         cleanup();
@@ -934,6 +1674,27 @@
           document.removeEventListener('cms:admin:navigated', handler);
         }
       });
+
+      form.cmsAutosave = {
+        serialize: function () {
+          return computeSerialized();
+        },
+        collect: function () {
+          return collectFormData();
+        },
+        isDirty: function () {
+          return computeSerialized() !== lastSavedSerialized;
+        },
+        hasMeaningfulData: function () {
+          return hasMeaningfulAutosaveData(form, collectFormData(), getCurrentPostId());
+        },
+        forceSave: function () {
+          return attemptAutosave();
+        },
+        getLastSaved: function () {
+          return lastSavedSerialized;
+        }
+      };
     });
   }
 
@@ -943,6 +1704,7 @@
     initBulkForms(root);
     initConfirmModals(root);
     initPostAutosave(root);
+    initPostWorkspaces(root);
     initAdminMenuToggle(root);
     initNavigationQuickAdd(root);
   }
