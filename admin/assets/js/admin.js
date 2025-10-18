@@ -5,6 +5,11 @@
   var confirmModalElement = null;
   var confirmModalInstance = null;
   var confirmModalCallback = null;
+  var FLASH_DISMISS_DELAY = 5000;
+  var FLASH_DISMISS_ANIMATION = 260;
+  var flashActiveElement = null;
+  var flashDismissTimeout = null;
+  var flashRemoveTimeout = null;
 
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
@@ -31,6 +36,96 @@
     return document.querySelector('[data-flash-container]') || document.body;
   }
 
+  function removeFlashElement(element) {
+    if (!element) {
+      return;
+    }
+    if (flashActiveElement === element) {
+      if (flashDismissTimeout) {
+        window.clearTimeout(flashDismissTimeout);
+        flashDismissTimeout = null;
+      }
+      if (flashRemoveTimeout) {
+        window.clearTimeout(flashRemoveTimeout);
+        flashRemoveTimeout = null;
+      }
+      flashActiveElement = null;
+    }
+    if (element.parentNode) {
+      element.parentNode.removeChild(element);
+    }
+  }
+
+  function hideFlashMessage(element) {
+    if (!element) {
+      return;
+    }
+    if (flashDismissTimeout) {
+      window.clearTimeout(flashDismissTimeout);
+      flashDismissTimeout = null;
+    }
+    if (element.classList.contains('is-dismissing')) {
+      return;
+    }
+    element.classList.add('is-dismissing');
+    if (flashRemoveTimeout) {
+      window.clearTimeout(flashRemoveTimeout);
+    }
+    flashRemoveTimeout = window.setTimeout(function () {
+      removeFlashElement(element);
+      flashRemoveTimeout = null;
+    }, FLASH_DISMISS_ANIMATION);
+  }
+
+  function scheduleFlashDismiss(element) {
+    if (!element) {
+      return;
+    }
+    flashActiveElement = element;
+    if (flashDismissTimeout) {
+      window.clearTimeout(flashDismissTimeout);
+    }
+    if (flashRemoveTimeout) {
+      window.clearTimeout(flashRemoveTimeout);
+      flashRemoveTimeout = null;
+    }
+    element.classList.remove('is-dismissing');
+    flashDismissTimeout = window.setTimeout(function () {
+      hideFlashMessage(element);
+    }, FLASH_DISMISS_DELAY);
+  }
+
+  function bindFlashContainerInteractions(container) {
+    if (!container || container.dataset.flashBound === '1') {
+      return;
+    }
+    container.dataset.flashBound = '1';
+    container.addEventListener('click', function (event) {
+      var alert = event.target && event.target.closest ? event.target.closest('.admin-flash') : null;
+      if (alert) {
+        hideFlashMessage(alert);
+      }
+    });
+  }
+
+  function initFlashMessages(root) {
+    var container = null;
+    if (root && typeof root.querySelector === 'function') {
+      container = root.querySelector('[data-flash-container]');
+    }
+    if (!container) {
+      container = document.querySelector('[data-flash-container]');
+    }
+    if (!container) {
+      return;
+    }
+    bindFlashContainerInteractions(container);
+    var alerts = [].slice.call(container.querySelectorAll('.admin-flash'));
+    alerts.forEach(function (alert) {
+      scheduleFlashDismiss(alert);
+    });
+  }
+
   function showFlashMessage(type, message, form) {
     var container = findFlashContainer(form);
     if (!container) {
@@ -38,8 +133,8 @@
     }
 
     var existing = container.querySelector('.admin-flash');
-    if (existing && existing.parentNode) {
-      existing.parentNode.removeChild(existing);
+    if (existing) {
+      removeFlashElement(existing);
     }
 
     if (!message) {
@@ -57,13 +152,7 @@
     } else {
       container.appendChild(alert);
     }
-    if (typeof alert.scrollIntoView === 'function') {
-      try {
-        alert.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } catch (e) {
-        /* noop */
-      }
-    }
+    scheduleFlashDismiss(alert);
   }
 
   function normalizeUrl(url) {
@@ -495,6 +584,7 @@
   }
 
   function refreshDynamicUI(root) {
+    initFlashMessages(root);
     initTooltips(root);
     initBulkForms(root);
     initConfirmModals(root);

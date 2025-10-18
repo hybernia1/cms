@@ -103,27 +103,29 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         </a>
       </div>
     </header>
-    <main class="admin-content" data-flash-container>
+    <main class="admin-content">
       <?php if (!empty($pageTitle)): ?>
         <div class="admin-page-heading">
           <h1 class="admin-page-title"><?= $h((string)$pageTitle) ?></h1>
         </div>
       <?php endif; ?>
-      <?php if (!empty($flash) && is_array($flash)): ?>
-        <?php
-          $flashType = (string)($flash['type'] ?? 'info');
-          $allowedTypes = ['success','danger','warning','info'];
-          if (!in_array($flashType, $allowedTypes, true)) {
-              $flashType = 'info';
-          }
-        ?>
-        <div class="alert alert-<?= $flashType ?> admin-flash" role="alert">
-          <?= $h((string)($flash['msg'] ?? '')) ?>
-        </div>
-      <?php endif; ?>
       <?php $content(); ?>
     </main>
   </div>
+</div>
+<div class="admin-flash-region" data-flash-container aria-live="polite" aria-atomic="true" role="status">
+  <?php if (!empty($flash) && is_array($flash)): ?>
+    <?php
+      $flashType = (string)($flash['type'] ?? 'info');
+      $allowedTypes = ['success','danger','warning','info'];
+      if (!in_array($flashType, $allowedTypes, true)) {
+          $flashType = 'info';
+      }
+    ?>
+    <div class="alert alert-<?= $flashType ?> admin-flash" role="alert">
+      <?= $h((string)($flash['msg'] ?? '')) ?>
+    </div>
+  <?php endif; ?>
 </div>
 <div class="modal fade" id="adminConfirmModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
