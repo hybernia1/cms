@@ -9,6 +9,7 @@ use Cms\Mail\TemplateManager;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
+use Cms\Utils\PermalinkSettings;
 use Cms\Utils\SettingsPresets;
 
 final class SettingsController extends BaseAdminController
@@ -17,6 +18,9 @@ final class SettingsController extends BaseAdminController
     public function handle(string $action): void
     {
         switch ($action) {
+            case 'permalinks':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->savePermalinks(); return; }
+                $this->permalinks(); return;
             case 'mail':
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $intent = (string)($_POST['intent'] ?? 'save');
@@ -182,6 +186,16 @@ final class SettingsController extends BaseAdminController
         return in_array($value, ['high','medium','low'], true) ? $value : 'medium';
     }
 
+    /**
+     * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string}
+     */
+    private function loadPermalinkSettings(): array
+    {
+        $data = $this->readSettingsData();
+        $permalinks = is_array($data['permalinks'] ?? null) ? $data['permalinks'] : [];
+        return PermalinkSettings::normalize($permalinks);
+    }
+
     private function index(): void
     {
         $settings = $this->loadSettings();
@@ -220,6 +234,51 @@ final class SettingsController extends BaseAdminController
             'siteEmail' => (string)($generalSettings['site_email'] ?? ''),
             'siteName'  => (string)($generalSettings['site_title'] ?? ''),
         ]);
+    }
+
+    private function permalinks(): void
+    {
+        $permalinks = $this->loadPermalinkSettings();
+
+        $this->renderAdmin('settings/permalinks', [
+            'pageTitle'  => 'Trvalé odkazy',
+            'nav'        => AdminNavigation::build('settings:permalinks'),
+            'permalinks' => $permalinks,
+            'defaults'   => PermalinkSettings::defaults(),
+        ]);
+    }
+
+    private function savePermalinks(): void
+    {
+        $this->assertCsrf();
+
+        $input = [
+            'seo_urls'      => (int)($_POST['seo_urls_enabled'] ?? 0) === 1,
+            'post_base'     => (string)($_POST['post_base'] ?? ''),
+            'page_base'     => (string)($_POST['page_base'] ?? ''),
+            'tag_base'      => (string)($_POST['tag_base'] ?? ''),
+            'category_base' => (string)($_POST['category_base'] ?? ''),
+        ];
+
+        $permalinks = PermalinkSettings::normalize($input);
+
+        $data = $this->readSettingsData();
+        $data['permalinks'] = $permalinks;
+
+        $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($dataJson === false) {
+            $dataJson = '{}';
+        }
+
+        DB::query()->table('settings')->update([
+            'data'       => $dataJson,
+            'updated_at' => DateTimeFactory::nowString(),
+        ])->where('id','=',1)->execute();
+
+        CmsSettings::refresh();
+
+        $this->flash('success','Trvalé odkazy byly uloženy.');
+        $this->redirect('admin.php?r=settings&a=permalinks');
     }
 
     private function detectSiteUrl(): string

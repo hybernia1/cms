@@ -41,7 +41,7 @@ final class FrontController
         $this->view->setBasePaths($this->tm->templateBases());
         $this->assets     = new Assets($this->tm);
         $this->settings   = new CmsSettings();
-        $this->urls       = new LinkGenerator();
+        $this->urls       = new LinkGenerator(null, $this->settings);
         $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
         $this->navigation = (new NavigationRepository())->treeByLocation('primary');
         $this->mailTemplates = new TemplateManager();
@@ -154,6 +154,12 @@ final class FrontController
     {
         $requireValue = static fn(string $value): bool => $value !== '';
 
+        $permalinks = $this->settings->permalinkBases();
+        $postBase = $permalinks['post_base'];
+        $pageBase = $permalinks['page_base'];
+        $categoryBase = $permalinks['category_base'];
+        $tagBase = $permalinks['tag_base'];
+
         return [
             [
                 'name'    => 'home',
@@ -164,7 +170,7 @@ final class FrontController
             [
                 'name'         => 'post',
                 'query'        => 'post',
-                'path'         => '/post/{slug}',
+                'path'         => '/' . $postBase . '/{slug}',
                 'queryParams'  => ['slug'],
                 'requirements' => ['slug' => $requireValue],
                 'handler'      => function (array $params): void { $this->single('post', $params['slug'] ?? ''); },
@@ -172,7 +178,7 @@ final class FrontController
             [
                 'name'         => 'page',
                 'query'        => 'page',
-                'path'         => '/page/{slug}',
+                'path'         => '/' . $pageBase . '/{slug}',
                 'queryParams'  => ['slug'],
                 'requirements' => ['slug' => $requireValue],
                 'handler'      => function (array $params): void { $this->single('page', $params['slug'] ?? ''); },
@@ -196,7 +202,7 @@ final class FrontController
             [
                 'name'         => 'category',
                 'query'        => 'category',
-                'path'         => '/category/{slug}',
+                'path'         => '/' . $categoryBase . '/{slug}',
                 'queryParams'  => ['slug'],
                 'requirements' => ['slug' => $requireValue],
                 'handler'      => function (array $params): void { $this->archiveByTerm($params['slug'] ?? '', 'category'); },
@@ -204,7 +210,7 @@ final class FrontController
             [
                 'name'         => 'tag',
                 'query'        => 'tag',
-                'path'         => '/tag/{slug}',
+                'path'         => '/' . $tagBase . '/{slug}',
                 'queryParams'  => ['slug'],
                 'requirements' => ['slug' => $requireValue],
                 'handler'      => function (array $params): void { $this->archiveByTerm($params['slug'] ?? '', 'tag'); },

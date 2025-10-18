@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Settings;
 
 use Core\Database\Init as DB;
+use Cms\Utils\PermalinkSettings;
 use Cms\Utils\SettingsPresets;
 
 final class CmsSettings
@@ -11,6 +12,7 @@ final class CmsSettings
     /** Cache jednoho řádku settings */
     private static ?array $row = null;
     private static ?array $dataCache = null;
+    private static ?array $permalinksCache = null;
 
     private static function row(): array
     {
@@ -64,11 +66,30 @@ final class CmsSettings
         return is_array($mail) ? $mail : [];
     }
 
+    /**
+     * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string}
+     */
+    private static function permalinkSettings(): array
+    {
+        if (self::$permalinksCache !== null) {
+            return self::$permalinksCache;
+        }
+
+        $data = self::data();
+        $raw = $data['permalinks'] ?? [];
+        $permalinks = is_array($raw) ? $raw : [];
+
+        self::$permalinksCache = PermalinkSettings::normalize($permalinks);
+
+        return self::$permalinksCache;
+    }
+
     /** Vyvolat po uložení nastavení, aby se promazal cache. */
     public static function refresh(): void
     {
         self::$row = null;
         self::$dataCache = null;
+        self::$permalinksCache = null;
     }
 
     public function siteTitle(): string   { return (string)(self::row()['site_title'] ?? ''); }
@@ -123,6 +144,27 @@ final class CmsSettings
     {
         $mail = self::mailSettings();
         return trim((string)($mail['signature'] ?? ''));
+    }
+
+    public function seoUrlsEnabled(): bool
+    {
+        $permalinks = self::permalinkSettings();
+        return (bool)$permalinks['seo_urls'];
+    }
+
+    /**
+     * @return array{post_base:string,page_base:string,tag_base:string,category_base:string}
+     */
+    public function permalinkBases(): array
+    {
+        $permalinks = self::permalinkSettings();
+
+        return [
+            'post_base'     => $permalinks['post_base'],
+            'page_base'     => $permalinks['page_base'],
+            'tag_base'      => $permalinks['tag_base'],
+            'category_base' => $permalinks['category_base'],
+        ];
     }
 
     /**

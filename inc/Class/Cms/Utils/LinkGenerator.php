@@ -3,13 +3,39 @@ declare(strict_types=1);
 
 namespace Cms\Utils;
 
+use Cms\Settings\CmsSettings;
+
 final class LinkGenerator
 {
     private bool $pretty;
+    private CmsSettings $settings;
+    private string $postBase;
+    private string $pageBase;
+    private string $categoryBase;
+    private string $tagBase;
 
-    public function __construct(?bool $pretty = null)
+    public function __construct(?bool $pretty = null, ?CmsSettings $settings = null)
     {
-        $this->pretty = $pretty ?? $this->detectPretty();
+        $this->settings = $settings ?? new CmsSettings();
+        $bases = $this->settings->permalinkBases();
+        $this->postBase = $bases['post_base'];
+        $this->pageBase = $bases['page_base'];
+        $this->categoryBase = $bases['category_base'];
+        $this->tagBase = $bases['tag_base'];
+        $this->pretty = $this->resolvePretty($pretty);
+    }
+
+    private function resolvePretty(?bool $explicit): bool
+    {
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        if (!$this->settings->seoUrlsEnabled()) {
+            return false;
+        }
+
+        return $this->detectPretty();
     }
 
     private function detectPretty(): bool
@@ -60,7 +86,7 @@ final class LinkGenerator
     {
         $encoded = rawurlencode($slug);
         return $this->pretty
-            ? $this->prettyPath('post/' . $encoded)
+            ? $this->prettyPath($this->postBase . '/' . $encoded)
             : $this->fallback('post', ['slug' => $slug]);
     }
 
@@ -68,7 +94,7 @@ final class LinkGenerator
     {
         $encoded = rawurlencode($slug);
         return $this->pretty
-            ? $this->prettyPath('page/' . $encoded)
+            ? $this->prettyPath($this->pageBase . '/' . $encoded)
             : $this->fallback('page', ['slug' => $slug]);
     }
 
@@ -98,7 +124,7 @@ final class LinkGenerator
     {
         $encoded = rawurlencode($slug);
         return $this->pretty
-            ? $this->prettyPath('category/' . $encoded)
+            ? $this->prettyPath($this->categoryBase . '/' . $encoded)
             : $this->fallback('category', ['slug' => $slug]);
     }
 
@@ -106,7 +132,7 @@ final class LinkGenerator
     {
         $encoded = rawurlencode($slug);
         return $this->pretty
-            ? $this->prettyPath('tag/' . $encoded)
+            ? $this->prettyPath($this->tagBase . '/' . $encoded)
             : $this->fallback('tag', ['slug' => $slug]);
     }
 
