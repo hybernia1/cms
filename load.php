@@ -2,8 +2,9 @@
 declare(strict_types=1);
 
 /**
- * load.php (portable)
- * - Autoload tříd z /inc/Class
+ * load.php (portable, čistý)
+ * - Autoload tříd z /inc/Class (PSR-4 + legacy underscore fallback)
+ * - Volitelné globální helpery z /helpers (každý *.php v adresáři)
  */
 
 // ---------------------------------------------------------
@@ -17,54 +18,16 @@ const HELPERS_DIR = __DIR__ . '/helpers';
 
 // ---------------------------------------------------------
 // Autoload pro /inc/Class (PSR-4 + fallback s podtržítky)
-// + automatické natažení helpers pro knihovny
 // ---------------------------------------------------------
 spl_autoload_register(
     static function (string $class): void {
         $class = ltrim($class, '\\');
-
-        // Pomocná funkce: po načtení třídy zkusit přilinkovat helper soubor knihovny
-        $loadHelpers = static function (string $loadedPath): void {
-            static $loadedLibHelpers = []; // cache: 'libname' => true
-
-            // Najdi kořenový adresář knihovny: první segment za CLASS_DIR
-            // např. inc/Class/Medoo/Medoo.php -> 'Medoo'
-            $rel = str_starts_with($loadedPath, CLASS_DIR . '/')
-                ? substr($loadedPath, strlen(CLASS_DIR) + 1)
-                : $loadedPath;
-
-            $parts = explode('/', $rel);
-            if (count($parts) < 2) return; // neočekávané (není ve tvaru Lib/Class.php)
-
-            $lib = $parts[0];                        // název knihovny = první adresář
-            $libKey = strtolower($lib);
-            if (isset($loadedLibHelpers[$libKey])) return; // už načteno
-
-            $dir = CLASS_DIR . '/' . $lib;
-
-            // Kandidátní názvy helperů (pořadí důležité)
-            $candidates = [
-                $dir . '/' . $lib . '_helpers.php',          // Medoo_helpers.php
-                $dir . '/helpers.php',                       // helpers.php
-                $dir . '/' . strtolower($lib) . '_helpers.php', // medoo_helpers.php
-                $dir . '/' . $lib . 'Helpers.php',           // MedooHelpers.php
-            ];
-
-            foreach ($candidates as $file) {
-                if (is_file($file)) {
-                    require_once $file;
-                    $loadedLibHelpers[$libKey] = true;
-                    break;
-                }
-            }
-        };
 
         // 1) PSR-4: \Foo\Bar -> inc/Class/Foo/Bar.php
         $relativePath = str_replace('\\', '/', $class) . '.php';
         $path = CLASS_DIR . '/' . $relativePath;
         if (is_file($path)) {
             require_once $path;
-            $loadHelpers($path);
             return;
         }
 
@@ -73,7 +36,6 @@ spl_autoload_register(
             $legacyPath = CLASS_DIR . '/' . str_replace('_', '/', $class) . '.php';
             if (is_file($legacyPath)) {
                 require_once $legacyPath;
-                $loadHelpers($legacyPath);
                 return;
             }
         }
@@ -81,6 +43,9 @@ spl_autoload_register(
     prepend: true
 );
 
+// ---------------------------------------------------------
+// Globální helpery (volitelné): načti všechny *.php z /helpers
+// ---------------------------------------------------------
 if (is_dir(HELPERS_DIR)) {
     $entries = scandir(HELPERS_DIR);
     if ($entries !== false) {
@@ -92,7 +57,6 @@ if (is_dir(HELPERS_DIR)) {
             if (!str_ends_with($entry, '.php')) {
                 continue;
             }
-
             $path = HELPERS_DIR . '/' . $entry;
             if (is_file($path)) {
                 require_once $path;
@@ -100,6 +64,10 @@ if (is_dir(HELPERS_DIR)) {
         }
     }
 }
+
+// ---------------------------------------------------------
+// Util: redirecty a bootstrap
+// ---------------------------------------------------------
 
 /**
  * Přesměruj na instalátor a ukonči skript.
