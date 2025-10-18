@@ -8,6 +8,7 @@ use Cms\Auth\AuthService;
 use Cms\Auth\Authorization;
 use Cms\Domain\Repositories\NavigationRepository;
 use Cms\Mail\MailService;
+use Cms\Mail\TemplateManager;
 use Cms\Settings\CmsSettings;
 use Cms\Theming\ThemeManager;
 use Cms\Theming\ThemeResolver;
@@ -24,6 +25,7 @@ final class FrontController
     private Assets $assets;
     private CmsSettings $settings;
     private LinkGenerator $urls;
+    private TemplateManager $mailTemplates;
     private ?array $frontUser = null;
     /** @var array<int,array<string,mixed>> */
     private array $navigation = [];
@@ -40,6 +42,7 @@ final class FrontController
         $this->urls       = new LinkGenerator();
         $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
         $this->navigation = (new NavigationRepository())->treeByLocation('primary');
+        $this->mailTemplates = new TemplateManager();
     }
 
     public function handle(): void
@@ -684,15 +687,19 @@ final class FrontController
             ])->where('id','=', (int)$user['id'])->execute();
 
             // email
-            $cs   = new CmsSettings();
+            $cs = $this->settings;
             $site = $cs->siteTitle();
             $base = (string)(DB::query()->table('settings')->select(['site_url'])->where('id','=',1)->value('site_url') ?? '');
             $resetUrl = rtrim($base, '/') . '/reset?token=' . urlencode($token);
 
-            $html = "<p>Dobrý den,</p><p>pro reset hesla klikněte na odkaz: <a href=\"{$resetUrl}\">{$resetUrl}</a></p><p>Odkaz platí 1 hodinu.</p><p>{$site}</p>";
+            $template = $this->mailTemplates->render('lost_password', [
+                'resetUrl' => $resetUrl,
+                'siteTitle' => $site,
+                'userName' => (string)($user['name'] ?? ''),
+            ]);
 
             (new MailService($cs))
-                ->send((string)$user['email'], "{$site} – obnova hesla", $html, (string)($user['name'] ?? ''));
+                ->sendTemplate((string)$user['email'], $template, (string)($user['name'] ?? ''));
 
             $this->render('lost-done', [], ['pageTitle' => 'Zapomenuté heslo']);
             return;

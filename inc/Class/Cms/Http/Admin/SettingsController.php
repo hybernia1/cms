@@ -5,6 +5,7 @@ namespace Cms\Http\Admin;
 
 use Core\Database\Init as DB;
 use Cms\Mail\MailService;
+use Cms\Mail\TemplateManager;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
@@ -383,10 +384,12 @@ final class SettingsController extends BaseAdminController
             $this->redirect('admin.php?r=settings&a=mail');
         }
 
-        $mailService = new MailService(new CmsSettings());
-        $subject = 'Testovací e-mail';
-        $body = '<p>Toto je testovací e-mail z redakčního systému.</p>';
-        $ok = $mailService->send($email, $subject, $body);
+        $settings = new CmsSettings();
+        $mailService = new MailService($settings);
+        $template = (new TemplateManager())->render('test_message', [
+            'siteTitle' => $settings->siteTitle(),
+        ]);
+        $ok = $mailService->sendTemplate($email, $template);
 
         if ($ok) {
             $this->flash('success', sprintf('Testovací e-mail byl odeslán na %s.', $email));
