@@ -95,6 +95,15 @@ final class CmsSettings
     public function siteTitle(): string   { return (string)(self::row()['site_title'] ?? ''); }
     public function siteEmail(): string   { return (string)(self::row()['site_email'] ?? ''); }
     public function themeSlug(): string   { return (string)(self::row()['theme_slug'] ?? 'classic'); }
+    public function siteUrl(): string
+    {
+        $raw = trim((string)(self::row()['site_url'] ?? ''));
+        if ($raw !== '') {
+            return rtrim($raw, '/');
+        }
+
+        return $this->detectSiteUrl();
+    }
     public function dateFormat(): string  { return (string)(self::row()['date_format'] ?? 'Y-m-d'); }
     public function timeFormat(): string  { return (string)(self::row()['time_format'] ?? 'H:i'); }
     public function timezone(): string    { return SettingsPresets::normalizeTimezone((string)(self::row()['timezone'] ?? 'UTC+01:00')); }
@@ -218,5 +227,18 @@ final class CmsSettings
     private function dateTimeZone(): \DateTimeZone
     {
         return new \DateTimeZone(SettingsPresets::toPhpTimezone($this->timezone()));
+    }
+
+    private function detectSiteUrl(): string
+    {
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443)
+            || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+        $scheme = $isHttps ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+        $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+        $path = $base && $base !== '/' ? $base : '';
+
+        return rtrim("{$scheme}://{$host}{$path}", '/');
     }
 }

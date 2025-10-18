@@ -7,6 +7,7 @@ use Core\Database\Init as DB;
 use Cms\Auth\AuthService;
 use Cms\Auth\Authorization;
 use Cms\Domain\Repositories\NavigationRepository;
+use Cms\Domain\Services\SitemapService;
 use Cms\Mail\MailService;
 use Cms\Mail\TemplateManager;
 use Cms\Settings\CmsSettings;
@@ -25,6 +26,7 @@ final class FrontController
     private Assets $assets;
     private CmsSettings $settings;
     private LinkGenerator $urls;
+    private SitemapService $sitemaps;
     private TemplateManager $mailTemplates;
     private ?array $frontUser = null;
     /** @var array<int,array<string,mixed>> */
@@ -42,6 +44,7 @@ final class FrontController
         $this->assets     = new Assets($this->tm);
         $this->settings   = new CmsSettings();
         $this->urls       = new LinkGenerator(null, $this->settings);
+        $this->sitemaps   = new SitemapService($this->urls, $this->settings);
         $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
         $this->navigation = (new NavigationRepository())->treeByLocation('primary');
         $this->mailTemplates = new TemplateManager();
@@ -160,7 +163,7 @@ final class FrontController
         $categoryBase = $permalinks['category_base'];
         $tagBase = $permalinks['tag_base'];
 
-        return [
+        $routes = [
             [
                 'name'    => 'home',
                 'query'   => 'home',
@@ -264,6 +267,25 @@ final class FrontController
                 'handler' => function (array $params = []): void { $this->logout(); },
             ],
         ];
+
+        $indexMeta = $this->sitemaps->indexMetadata();
+        $routes[] = [
+            'name'    => 'sitemap-index',
+            'query'   => $indexMeta['route'],
+            'path'    => '/' . ltrim($indexMeta['filename'], '/'),
+            'handler' => function (array $params = []): void { $this->sitemapIndex(); },
+        ];
+
+        foreach ($this->sitemaps->sections() as $key => $meta) {
+            $routes[] = [
+                'name'    => 'sitemap-' . $key,
+                'query'   => $meta['route'],
+                'path'    => '/' . ltrim($meta['filename'], '/'),
+                'handler' => function (array $params = []) use ($key): void { $this->sitemapSection($key); },
+            ];
+        }
+
+        return $routes;
     }
 
     /**
@@ -480,6 +502,29 @@ final class FrontController
             echo 'CSRF token invalid';
             exit;
         }
+    }
+
+    private function sitemapIndex(): void
+    {
+        $xml = $this->sitemaps->renderIndex();
+        $this->xmlResponse($xml);
+    }
+
+    private function sitemapSection(string $key): void
+    {
+        $xml = $this->sitemaps->renderSection($key);
+        if ($xml === null) {
+            $this->notFound();
+            return;
+        }
+
+        $this->xmlResponse($xml);
+    }
+
+    private function xmlResponse(string $xml): void
+    {
+        header('Content-Type: application/xml; charset=UTF-8');
+        echo $xml;
     }
 
     // ---------- actions ----------

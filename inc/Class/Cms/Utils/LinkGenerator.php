@@ -195,4 +195,9 @@ final class LinkGenerator
     {
         return $this->pretty ? $this->prettyPath('comment') : $this->fallback('comment');
     }
+
+    public function prettyUrlsEnabled(): bool
+    {
+        return $this->pretty;
+    }
 }
