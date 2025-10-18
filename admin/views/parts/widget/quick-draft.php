@@ -1,9 +1,9 @@
 <?php
 /** @var string $csrf */
-/** @var array<int,array{value:string,label:string}> $types */
 /** @var array<string,string> $values */
+/** @var array<int,array{id:int,title:string,type:string,created_at_display:string}> $recentDrafts */
 $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-$currentType = $values['type'] ?? 'post';
+$currentType = 'post';
 $titleValue = $values['title'] ?? '';
 $contentValue = $values['content'] ?? '';
 ?>
@@ -16,12 +16,9 @@ $contentValue = $values['content'] ?? '';
         <input class="form-control form-control-sm" id="quick-draft-title" name="title" placeholder="Název konceptu" value="<?= $h($titleValue) ?>">
       </div>
       <div class="mb-3">
-        <label class="form-label" for="quick-draft-type">Typ obsahu</label>
-        <select class="form-select form-select-sm" id="quick-draft-type" name="type">
-          <?php foreach ($types as $type): ?>
-            <option value="<?= $h($type['value']) ?>" <?= $currentType === $type['value'] ? 'selected' : '' ?>><?= $h($type['label']) ?></option>
-          <?php endforeach; ?>
-        </select>
+        <label class="form-label">Typ obsahu</label>
+        <div class="form-control-plaintext form-control-sm text-secondary">Příspěvek</div>
+        <input type="hidden" name="type" value="post">
       </div>
       <div class="mb-3">
         <label class="form-label" for="quick-draft-content">Obsah</label>
@@ -35,4 +32,29 @@ $contentValue = $values['content'] ?? '';
       <a class="btn btn-outline-secondary btn-sm" href="admin.php?r=posts&type=<?= $h($currentType) ?>" data-no-ajax>Otevřít přehled</a>
     </div>
   </form>
+  <div class="card-body border-top bg-body-tertiary">
+    <div class="small fw-semibold mb-2">Poslední koncepty</div>
+    <?php if ($recentDrafts): ?>
+      <ul class="list-unstyled mb-0 small">
+        <?php foreach ($recentDrafts as $draft): ?>
+          <?php
+            $title = trim((string)($draft['title'] ?? ''));
+            if ($title === '') {
+                $title = 'Bez názvu';
+            }
+          ?>
+          <li class="mb-1">
+            <a class="link-body-emphasis" href="admin.php?r=posts&a=edit&id=<?= (int)$draft['id'] ?>&type=<?= $h((string)($draft['type'] ?? 'post')) ?>" data-no-ajax>
+              <?= $h($title) ?>
+            </a>
+            <?php if (($draft['created_at_display'] ?? '') !== ''): ?>
+              <div class="text-secondary"><?= $h((string)$draft['created_at_display']) ?></div>
+            <?php endif; ?>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    <?php else: ?>
+      <p class="text-secondary small mb-0">Zatím žádné koncepty.</p>
+    <?php endif; ?>
+  </div>
 </div>

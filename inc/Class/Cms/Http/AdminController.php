@@ -14,7 +14,9 @@ use Cms\Http\Admin\SettingsController;
 use Cms\Http\Admin\TermsController;
 use Cms\Http\Admin\ThemesController;
 use Cms\Http\Admin\UsersController;
+use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
+use Cms\Utils\DateTimeFactory;
 use Cms\View\ViewEngine;
 
 final class AdminController
@@ -77,6 +79,7 @@ final class AdminController
             'csrf'        => $this->csrfToken(),
             'quickDraftTypes' => $this->quickDraftTypes(),
             'quickDraftOld'   => $this->pullQuickDraftOld(),
+            'quickDraftRecent' => $this->recentQuickDrafts(),
         ];
         $this->view->render('dashboard/index', $data);
     }
@@ -93,11 +96,7 @@ final class AdminController
 
         $title = trim((string)($_POST['title'] ?? ''));
         $content = trim((string)($_POST['content'] ?? ''));
-        $type = (string)($_POST['type'] ?? 'post');
-        $allowedTypes = array_map(static fn (array $item): string => (string)$item['value'], $this->quickDraftTypes());
-        if (!in_array($type, $allowedTypes, true)) {
-            $type = 'post';
-        }
+        $type = 'post';
 
         $values = [
             'title'   => $title,
@@ -125,11 +124,7 @@ final class AdminController
 
         $this->storeQuickDraftOld([]);
 
-        $this->redirect(
-            'admin.php?r=posts&a=edit&id=' . (int)$postId . '&type=' . urlencode($type),
-            'success',
-            'Koncept byl vytvořen.'
-        );
+        $this->redirect('admin.php?r=dashboard', 'success', 'Koncept byl vytvořen.');
     }
 
     /**
@@ -139,8 +134,34 @@ final class AdminController
     {
         return [
             ['value' => 'post', 'label' => 'Příspěvek'],
-            ['value' => 'page', 'label' => 'Stránka'],
         ];
+    }
+
+    /**
+     * @return array<int,array{id:int,title:string,type:string,created_at_display:string}>
+     */
+    private function recentQuickDrafts(): array
+    {
+        $service = new PostsService();
+        $settings = new CmsSettings();
+        $items = [];
+        foreach ($service->latestDrafts('post', 5) as $row) {
+            $id = isset($row['id']) ? (int)$row['id'] : 0;
+            if ($id <= 0) {
+                continue;
+            }
+            $title = trim((string)($row['title'] ?? ''));
+            $createdRaw = isset($row['created_at']) ? (string)$row['created_at'] : null;
+            $createdAt = $createdRaw !== null ? DateTimeFactory::fromStorage($createdRaw) : null;
+            $items[] = [
+                'id' => $id,
+                'title' => $title,
+                'type' => (string)($row['type'] ?? 'post'),
+                'created_at_display' => $createdAt ? $settings->formatDateTime($createdAt) : '',
+            ];
+        }
+
+        return $items;
     }
 
     private function isAjax(): bool

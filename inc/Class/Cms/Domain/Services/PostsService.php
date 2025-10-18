@@ -113,4 +113,17 @@ final class PostsService
         $upd['updated_at'] = DateTimeFactory::nowString();
         return $this->posts->update($id, $upd);
     }
+
+    /**
+     * @return array<int,array{id:int,title:string,type:string,created_at:?string}>
+     */
+    public function latestDrafts(string $type = 'post', int $limit = 5): array
+    {
+        $allowed = ['post', 'page'];
+        if (!in_array($type, $allowed, true)) {
+            $type = 'post';
+        }
+
+        return $this->posts->latestDrafts($type, max(1, $limit));
+    }
 }
