@@ -17,6 +17,7 @@ use Cms\Utils\DateTimeFactory;
 use Cms\Utils\LinkGenerator;
 use Cms\View\Assets;
 use Cms\View\ViewEngine;
+use Throwable;
 
 final class FrontController
 {
@@ -944,8 +945,16 @@ final class FrontController
 
     private function register(): void
     {
-        // Bez volání privátní CmsSettings::row()
-        $allow = (int)(DB::query()->table('settings')->select(['allow_registration'])->where('id','=',1)->value('allow_registration') ?? 1);
+        $settingsRow = DB::query()
+            ->table('settings')
+            ->select(['allow_registration', 'registration_auto_approve'])
+            ->where('id','=',1)
+            ->first();
+
+        $allow = (int)($settingsRow['allow_registration'] ?? 1);
+        $autoApproveSetting = (int)($settingsRow['registration_auto_approve'] ?? 1) === 1;
+        $requiresApproval = $allow === 1 ? !$autoApproveSetting : false;
+
         if ($allow !== 1) {
             $this->render('register-disabled', [], ['pageTitle' => 'Registrace']);
             return;
@@ -958,17 +967,19 @@ final class FrontController
             $pass  = (string)($_POST['password'] ?? '');
             if ($name === '' || $email === '' || $pass === '') {
                 $this->render('register', [], $this->withTitle([
-                    'csrfPublic' => $this->tokenPublic(),
-                    'type'       => 'danger',
-                    'msg'        => 'Vyplňte všechna pole.',
+                    'csrfPublic'       => $this->tokenPublic(),
+                    'type'             => 'danger',
+                    'msg'              => 'Vyplňte všechna pole.',
+                    'requiresApproval' => $requiresApproval,
                 ], 'Registrace'));
                 return;
             }
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $this->render('register', [], $this->withTitle([
-                    'csrfPublic' => $this->tokenPublic(),
-                    'type'       => 'danger',
-                    'msg'        => 'Neplatný e-mail.',
+                    'csrfPublic'       => $this->tokenPublic(),
+                    'type'             => 'danger',
+                    'msg'              => 'Neplatný e-mail.',
+                    'requiresApproval' => $requiresApproval,
                 ], 'Registrace'));
                 return;
             }
@@ -976,34 +987,96 @@ final class FrontController
             $exists = DB::query()->table('users')->select(['id'])->where('email','=', $email)->first();
             if ($exists) {
                 $this->render('register', [], $this->withTitle([
-                    'csrfPublic' => $this->tokenPublic(),
-                    'type'       => 'danger',
-                    'msg'        => 'Účet s tímto e-mailem už existuje.',
+                    'csrfPublic'       => $this->tokenPublic(),
+                    'type'             => 'danger',
+                    'msg'              => 'Účet s tímto e-mailem už existuje.',
+                    'requiresApproval' => $requiresApproval,
                 ], 'Registrace'));
                 return;
             }
 
             $hash = password_hash($pass, PASSWORD_DEFAULT);
+            $now = DateTimeFactory::nowString();
+            $active = $autoApproveSetting ? 1 : 0;
+
             DB::query()->table('users')->insertRow([
                 'name'          => $name,
                 'email'         => $email,
                 'password_hash' => $hash,
                 'role'          => 'user',
-                'active'        => 1,
+                'active'        => $active,
                 'token'         => null,
                 'token_expire'  => null,
-                'created_at'    => DateTimeFactory::nowString(),
-                'updated_at'    => DateTimeFactory::nowString(),
+                'created_at'    => $now,
+                'updated_at'    => $now,
             ])->execute();
 
+            if ($autoApproveSetting) {
+                $auth = new AuthService();
+                if ($auth->attempt($email, $pass)) {
+                    $this->frontUser = $auth->user();
+                }
+
+                $this->sendRegistrationMail('registration_welcome', [
+                    'siteTitle' => $this->settings->siteTitle(),
+                    'userName'  => $name,
+                    'userEmail' => $email,
+                    'loginUrl'  => $this->loginUrl(),
+                ], $email, $name);
+
+                $this->render('register-success', [], $this->withTitle([
+                    'email'            => $email,
+                    'pendingApproval'  => false,
+                ], 'Registrace dokončena'));
+                return;
+            }
+
+            $this->sendRegistrationMail('registration_pending', [
+                'siteTitle' => $this->settings->siteTitle(),
+                'userName'  => $name,
+                'userEmail' => $email,
+            ], $email, $name);
+
             $this->render('register-success', [], $this->withTitle([
-                'email' => $email,
-            ], 'Registrace dokončena'));
+                'email'           => $email,
+                'pendingApproval' => true,
+            ], 'Registrace odeslána'));
             return;
         }
+
         $this->render('register', [], $this->withTitle([
-            'csrfPublic' => $this->tokenPublic(),
+            'csrfPublic'       => $this->tokenPublic(),
+            'requiresApproval' => $requiresApproval,
         ], 'Registrace'));
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function sendRegistrationMail(string $templateKey, array $data, string $toEmail, ?string $toName): void
+    {
+        if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        try {
+            $template = $this->mailTemplates->render($templateKey, $data);
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            (new MailService($this->settings))->sendTemplate($toEmail, $template, $toName !== '' ? $toName : null);
+        } catch (Throwable) {
+            // ignore mail delivery failures to avoid interrupting registration
+        }
+    }
+
+    private function loginUrl(): string
+    {
+        $base = rtrim($this->settings->siteUrl(), '/');
+        $path = $this->settings->seoUrlsEnabled() ? '/login' : '/index.php?r=login';
+        return $base . $path;
     }
 
     private function lost(): void

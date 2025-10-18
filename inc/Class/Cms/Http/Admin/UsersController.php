@@ -9,6 +9,7 @@ use Cms\Mail\TemplateManager;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
+use Throwable;
 
 final class UsersController extends BaseAdminController
 {
@@ -18,6 +19,8 @@ final class UsersController extends BaseAdminController
             case 'edit':          $this->edit(); return;
             case 'save':          $this->save(); return;
             case 'bulk':          $this->bulk(); return;
+            case 'delete':        $this->deleteSingle(); return;
+            case 'toggle':        $this->toggle(); return;
             case 'send-template': $this->sendTemplate(); return;
             case 'index':
             default:        $this->index(); return;
@@ -223,6 +226,100 @@ final class UsersController extends BaseAdminController
         $this->redirect($redirect, 'success', 'Uživatelé byli odstraněni. (' . count($targetIds) . ')');
     }
 
+    private function deleteSingle(): void
+    {
+        $this->assertCsrf();
+
+        $userId = (int)($_POST['id'] ?? 0);
+        $sendMail = (int)($_POST['send_email'] ?? 0) === 1;
+        $q = trim((string)($_POST['q'] ?? ''));
+        $page = max(1, (int)($_POST['page'] ?? 1));
+        $redirect = $this->listUrl($q, $page);
+
+        if ($userId <= 0) {
+            $this->redirect($redirect, 'warning', 'Neplatný uživatel.');
+        }
+
+        $user = DB::query()->table('users')->select(['id','role','email','name'])->where('id','=', $userId)->first();
+        if (!$user) {
+            $this->redirect($redirect, 'danger', 'Uživatel nenalezen.');
+        }
+
+        $currentUserId = (int)($this->auth->user()['id'] ?? 0);
+        $role = (string)($user['role'] ?? 'user');
+        if ($role === 'admin' || $userId === $currentUserId) {
+            $this->redirect($redirect, 'warning', 'Tento účet nelze odstranit.');
+        }
+
+        try {
+            DB::query()->table('users')->delete()->where('id','=', $userId)->execute();
+        } catch (\Throwable $e) {
+            $this->redirect($redirect, 'danger', $e->getMessage());
+        }
+
+        if ($sendMail) {
+            $this->notifyUser($user, 'user_account_deleted');
+        }
+
+        $this->redirect($redirect, 'success', 'Uživatel byl odstraněn.');
+    }
+
+    private function toggle(): void
+    {
+        $this->assertCsrf();
+
+        $userId = (int)($_POST['id'] ?? 0);
+        $status = (int)($_POST['status'] ?? 0) === 1 ? 1 : 0;
+        $sendMail = (int)($_POST['send_email'] ?? 0) === 1;
+        $q = trim((string)($_POST['q'] ?? ''));
+        $page = max(1, (int)($_POST['page'] ?? 1));
+        $redirect = $this->listUrl($q, $page);
+
+        if ($userId <= 0) {
+            $this->redirect($redirect, 'warning', 'Neplatný uživatel.');
+        }
+
+        $user = DB::query()->table('users')->select(['id','role','email','name','active'])->where('id','=', $userId)->first();
+        if (!$user) {
+            $this->redirect($redirect, 'danger', 'Uživatel nenalezen.');
+        }
+
+        $currentUserId = (int)($this->auth->user()['id'] ?? 0);
+        $role = (string)($user['role'] ?? 'user');
+        if ($role === 'admin' || $userId === $currentUserId) {
+            $this->redirect($redirect, 'warning', 'Tento účet nelze upravit.');
+        }
+
+        $currentActive = (int)($user['active'] ?? 0);
+        if ($currentActive === $status) {
+            $this->redirect(
+                $redirect,
+                'info',
+                $status === 1 ? 'Uživatel je již aktivní.' : 'Uživatel je již neaktivní.'
+            );
+        }
+
+        try {
+            DB::query()->table('users')->update([
+                'active'     => $status,
+                'updated_at' => DateTimeFactory::nowString(),
+            ])->where('id','=', $userId)->execute();
+        } catch (\Throwable $e) {
+            $this->redirect($redirect, 'danger', $e->getMessage());
+        }
+
+        if ($sendMail) {
+            $template = $status === 1 ? 'user_account_activated' : 'user_account_deactivated';
+            $this->notifyUser($user, $template);
+        }
+
+        $this->redirect(
+            $redirect,
+            'success',
+            $status === 1 ? 'Uživatel byl aktivován.' : 'Uživatel byl deaktivován.'
+        );
+    }
+
     private function sendTemplate(): void
     {
         $this->assertCsrf();
@@ -295,6 +392,47 @@ final class UsersController extends BaseAdminController
         }
 
         $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'E-mail se nepodařilo odeslat.');
+    }
+
+    /**
+     * @param array<string,mixed> $user
+     * @param array<string,mixed> $extra
+     */
+    private function notifyUser(array $user, string $templateKey, array $extra = []): void
+    {
+        $email = (string)($user['email'] ?? '');
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return;
+        }
+
+        $settings = new CmsSettings();
+        $data = array_merge([
+            'siteTitle' => $settings->siteTitle(),
+            'userName'  => (string)($user['name'] ?? ''),
+            'userEmail' => $email,
+            'loginUrl'  => $this->loginUrl($settings),
+        ], $extra);
+
+        $manager = new TemplateManager();
+
+        try {
+            $template = $manager->render($templateKey, $data);
+        } catch (Throwable) {
+            return;
+        }
+
+        try {
+            (new MailService($settings))->sendTemplate($email, $template, (string)($user['name'] ?? '') ?: null);
+        } catch (Throwable) {
+            // ignore mailing errors
+        }
+    }
+
+    private function loginUrl(CmsSettings $settings): string
+    {
+        $base = rtrim($settings->siteUrl(), '/');
+        $path = $settings->seoUrlsEnabled() ? '/login' : '/index.php?r=login';
+        return $base . $path;
     }
 
     private function listUrl(string $q, int $page): string

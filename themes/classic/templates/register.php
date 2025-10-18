@@ -2,13 +2,14 @@
 /** @var string $csrfPublic */
 /** @var string|null $type */
 /** @var string|null $msg */
+/** @var bool $requiresApproval */
 /** @var \Cms\Utils\LinkGenerator $urls */
 
 $this->part('auth', 'card', [
     'title' => 'Registrace',
     'type'  => $type ?? null,
     'msg'   => $msg ?? null,
-    'body'  => function () use ($urls, $csrfPublic): void {
+    'body'  => function () use ($urls, $csrfPublic, $requiresApproval): void {
         ?>
         <form class="form-grid" method="post" action="<?= e($urls->register()) ?>">
           <label class="form-field">
@@ -29,6 +30,13 @@ $this->part('auth', 'card', [
             <a class="btn btn--ghost" href="<?= e($urls->login()) ?>">Mám účet</a>
           </div>
         </form>
+        <p class="muted small mt-3">
+          <?php if ($requiresApproval): ?>
+            Po odeslání registrace počkejte na schválení administrátorem. Informaci vám zašleme e-mailem.
+          <?php else: ?>
+            Po registraci budete automaticky přihlášeni a obdržíte e-mail s přístupovými informacemi.
+          <?php endif; ?>
+        </p>
         <?php
     },
 ]);
