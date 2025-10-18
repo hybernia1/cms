@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS settings (
   time_format VARCHAR(64) NOT NULL DEFAULT 'H:i',
   timezone VARCHAR(64) NOT NULL DEFAULT 'Europe/Prague',
   allow_registration TINYINT(1) NOT NULL DEFAULT 1,
+  registration_auto_approve TINYINT(1) NOT NULL DEFAULT 1,
   site_url VARCHAR(255) NOT NULL DEFAULT '',
   data JSON NULL,
   created_at DATETIME NULL,

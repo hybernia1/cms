@@ -43,13 +43,25 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Registrace &amp; URL</h2>
         <div class="row g-3">
           <div class="col-md-6">
-            <?php $ar = (int)($settings['allow_registration'] ?? 1); ?>
+            <?php
+              $ar = (int)($settings['allow_registration'] ?? 1);
+              $autoApprove = (int)($settings['registration_auto_approve'] ?? 1) === 1;
+            ?>
             <input type="hidden" name="allow_registration" value="0">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" id="allow_registration" name="allow_registration" value="1" <?= $ar===1 ? 'checked' : '' ?>>
               <label class="form-check-label" for="allow_registration">Veřejná registrace</label>
             </div>
             <div class="form-text">Noví uživatelé se mohou registrovat přes frontend formulář.</div>
+            <div class="mt-3">
+              <input type="hidden" id="registration_auto_approve_value" name="registration_auto_approve" value="<?= $autoApprove ? '1' : '0' ?>">
+              <label class="form-label" for="registration_auto_approve_select">Výchozí stav nových uživatelů</label>
+              <select class="form-select" id="registration_auto_approve_select"<?= $ar===1 ? '' : ' disabled' ?>>
+                <option value="1"<?= $autoApprove ? ' selected' : '' ?>>Automaticky schválit</option>
+                <option value="0"<?= !$autoApprove ? ' selected' : '' ?>>Vyžaduje schválení administrátorem</option>
+              </select>
+              <div class="form-text">Při manuálním schvalování zůstanou noví uživatelé neaktivní, dokud je neschválí administrátor.</div>
+            </div>
           </div>
           <div class="col-md-6">
             <label class="form-label" for="site_url">Site URL</label>
@@ -152,6 +164,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       const webpToggle = document.getElementById('webp_enabled');
       const webpCompression = document.getElementById('webp_compression');
       const timezoneSelect = document.getElementById('timezone');
+      const allowRegistrationToggle = document.getElementById('allow_registration');
+      const registrationModeSelect = document.getElementById('registration_auto_approve_select');
+      const registrationModeHidden = document.getElementById('registration_auto_approve_value');
 
       function updatePreview() {
         if (!dateInput || !timeInput || !previewEl) return;
@@ -170,6 +185,17 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         webpCompression.disabled = !webpToggle.checked;
       }
 
+      function updateRegistrationModeState() {
+        if (!allowRegistrationToggle || !registrationModeSelect) return;
+        registrationModeSelect.disabled = !allowRegistrationToggle.checked;
+      }
+
+      function syncRegistrationModeValue() {
+        if (!registrationModeSelect || !registrationModeHidden) return;
+        const value = registrationModeSelect.value === '1' ? '1' : '0';
+        registrationModeHidden.value = value;
+      }
+
       if (dateInput) {
         dateInput.addEventListener('input', updatePreview);
         dateInput.addEventListener('change', updatePreview);
@@ -184,9 +210,20 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       if (timezoneSelect) {
         timezoneSelect.addEventListener('change', updatePreview);
       }
+      if (registrationModeSelect) {
+        registrationModeSelect.addEventListener('change', syncRegistrationModeValue);
+      }
+      if (allowRegistrationToggle) {
+        allowRegistrationToggle.addEventListener('change', function () {
+          updateRegistrationModeState();
+          syncRegistrationModeValue();
+        });
+      }
 
       updatePreview();
       updateWebpState();
+      updateRegistrationModeState();
+      syncRegistrationModeValue();
     })();
   </script>
 <?php

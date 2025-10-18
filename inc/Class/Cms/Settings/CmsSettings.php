@@ -27,8 +27,12 @@ final class CmsSettings
                     'date_format' => 'Y-m-d',
                     'time_format' => 'H:i',
                     'timezone'    => 'UTC+01:00',
+                    'allow_registration' => 1,
+                    'registration_auto_approve' => 1,
                 ];
             }
+            $row['allow_registration'] = isset($row['allow_registration']) ? (int)$row['allow_registration'] : 1;
+            $row['registration_auto_approve'] = isset($row['registration_auto_approve']) ? (int)$row['registration_auto_approve'] : 1;
             $row['timezone'] = SettingsPresets::normalizeTimezone((string)($row['timezone'] ?? 'UTC+01:00'));
             self::$row = $row;
         }
@@ -103,6 +107,10 @@ final class CmsSettings
         }
 
         return $this->detectSiteUrl();
+    }
+    public function registrationAutoApprove(): bool
+    {
+        return (int)(self::row()['registration_auto_approve'] ?? 1) === 1;
     }
     public function dateFormat(): string  { return (string)(self::row()['date_format'] ?? 'Y-m-d'); }
     public function timeFormat(): string  { return (string)(self::row()['time_format'] ?? 'H:i'); }

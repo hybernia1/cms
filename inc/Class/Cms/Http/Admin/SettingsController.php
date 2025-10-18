@@ -50,6 +50,7 @@ final class SettingsController extends BaseAdminController
                 'timezone'     => 'UTC+01:00',
                 'allow_registration' => 1,
                 'site_url'     => $this->detectSiteUrl(),
+                'registration_auto_approve' => 1,
                 'created_at'   => DateTimeFactory::nowString(),
                 'updated_at'   => DateTimeFactory::nowString()
             ])->execute();
@@ -60,6 +61,7 @@ final class SettingsController extends BaseAdminController
             $row['time_format']        = $row['time_format']        ?? 'H:i';
             $row['timezone']           = $row['timezone']           ?? 'UTC+01:00';
             $row['allow_registration'] = isset($row['allow_registration']) ? (int)$row['allow_registration'] : 1;
+            $row['registration_auto_approve'] = isset($row['registration_auto_approve']) ? (int)$row['registration_auto_approve'] : 1;
             $row['site_url']           = ($row['site_url'] ?? '') !== '' ? (string)$row['site_url'] : $this->detectSiteUrl();
         }
 
@@ -311,6 +313,8 @@ final class SettingsController extends BaseAdminController
     {
         $this->assertCsrf();
 
+        $currentSettings = $this->loadSettings();
+
         $title = trim((string)($_POST['site_title'] ?? ''));
         $email = trim((string)($_POST['site_email'] ?? ''));
 
@@ -330,6 +334,13 @@ final class SettingsController extends BaseAdminController
 
         // nové: allow_registration + site_url
         $allowReg = (int)($_POST['allow_registration'] ?? 0) === 1 ? 1 : 0;
+        $autoApproveInput = (int)($_POST['registration_auto_approve'] ?? (int)($currentSettings['registration_auto_approve'] ?? 1));
+        $autoApprove = $autoApproveInput === 1 ? 1 : 0;
+        if ($allowReg !== 1) {
+            $autoApprove = isset($currentSettings['registration_auto_approve'])
+                ? (int)$currentSettings['registration_auto_approve']
+                : 1;
+        }
 
         $siteUrlIn = trim((string)($_POST['site_url'] ?? ''));
         if ($siteUrlIn === '') {
@@ -365,6 +376,7 @@ final class SettingsController extends BaseAdminController
             'time_format'        => $timeFormat,
             'timezone'           => $tz,
             'allow_registration' => $allowReg,
+            'registration_auto_approve' => $autoApprove,
             'site_url'           => $siteUrl,
             'data'               => $dataJson,
             'updated_at'         => DateTimeFactory::nowString(),
