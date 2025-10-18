@@ -29,6 +29,8 @@ final class FrontController
     private ?array $frontUser = null;
     /** @var array<int,array<string,mixed>> */
     private array $navigation = [];
+    /** @var array<int,array<string,mixed>> */
+    private array $routes;
 
     public function __construct()
     {
@@ -43,6 +45,7 @@ final class FrontController
         $this->frontUser  = (new AuthService())->user(); // sdílíme admin login i na frontendu
         $this->navigation = (new NavigationRepository())->treeByLocation('primary');
         $this->mailTemplates = new TemplateManager();
+        $this->routes     = $this->buildRouteDefinitions();
     }
 
     public function handle(): void
@@ -140,6 +143,14 @@ final class FrontController
      * @return array<int,array<string,mixed>>
      */
     private function routeDefinitions(): array
+    {
+        return $this->routes;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function buildRouteDefinitions(): array
     {
         $requireValue = static fn(string $value): bool => $value !== '';
 

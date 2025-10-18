@@ -9,8 +9,9 @@ declare(strict_types=1);
 // ---------------------------------------------------------
 // Konstanty
 // ---------------------------------------------------------
-const BASE_DIR  = __DIR__;
-const CLASS_DIR = __DIR__ . '/inc/Class';
+const BASE_DIR    = __DIR__;
+const CLASS_DIR   = __DIR__ . '/inc/Class';
+const HELPERS_DIR = __DIR__ . '/helpers';
 
 //require_once BASE_DIR . '/inc/general_functions.php';
 
@@ -79,6 +80,26 @@ spl_autoload_register(
     },
     prepend: true
 );
+
+if (is_dir(HELPERS_DIR)) {
+    $entries = scandir(HELPERS_DIR);
+    if ($entries !== false) {
+        sort($entries, SORT_STRING);
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if (!str_ends_with($entry, '.php')) {
+                continue;
+            }
+
+            $path = HELPERS_DIR . '/' . $entry;
+            if (is_file($path)) {
+                require_once $path;
+            }
+        }
+    }
+}
 
 /**
  * Přesměruj na instalátor a ukonči skript.
