@@ -21,6 +21,17 @@ final class MailService
         return $this->buildMailer()->send($toEmail, $subject, $htmlWithSignature, $toName, $textWithSignature);
     }
 
+    public function sendTemplate(string $toEmail, MailTemplate $template, ?string $toName = null): bool
+    {
+        return $this->send(
+            $toEmail,
+            $template->subject(),
+            $template->htmlBody(),
+            $toName,
+            $template->textBody()
+        );
+    }
+
     private function buildMailer(): Mailer
     {
         $fromEmail = $this->settings->mailFromEmail() ?: ($this->settings->siteEmail() ?: 'no-reply@localhost');
