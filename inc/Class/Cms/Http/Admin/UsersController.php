@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Cms\Http\Admin;
 
 use Core\Database\Init as DB;
+use Cms\Mail\MailService;
+use Cms\Mail\TemplateManager;
 use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
@@ -13,8 +15,10 @@ final class UsersController extends BaseAdminController
     public function handle(string $action): void
     {
         switch ($action) {
-            case 'edit':    $this->edit(); return;
-            case 'save':    $this->save(); return;
+            case 'edit':          $this->edit(); return;
+            case 'save':          $this->save(); return;
+            case 'bulk':          $this->bulk(); return;
+            case 'send-template': $this->sendTemplate(); return;
             case 'index':
             default:        $this->index(); return;
         }
@@ -70,10 +74,34 @@ final class UsersController extends BaseAdminController
         $id = (int)($_GET['id'] ?? 0);
         $user = $id ? DB::query()->table('users')->select(['*'])->where('id','=', $id)->first() : null;
 
+        $templateManager = new TemplateManager();
+        $settings = new CmsSettings();
+        $mailTemplates = [];
+        foreach ($templateManager->availableKeys() as $key) {
+            $label = $key;
+            try {
+                $template = $templateManager->render($key, [
+                    'siteTitle' => $settings->siteTitle(),
+                    'userName'  => (string)($user['name'] ?? ''),
+                    'userEmail' => (string)($user['email'] ?? ''),
+                    'user'      => $user,
+                ]);
+                $label = $template->subject();
+            } catch (\Throwable $e) {
+                // keep default label
+            }
+
+            $mailTemplates[] = [
+                'key'   => $key,
+                'label' => $label,
+            ];
+        }
+
         $this->renderAdmin('users/edit', [
-            'pageTitle' => $id ? 'Upravit uživatele' : 'Nový uživatel',
-            'nav'       => AdminNavigation::build('users'),
-            'user'      => $user,
+            'pageTitle'     => $id ? 'Upravit uživatele' : 'Nový uživatel',
+            'nav'           => AdminNavigation::build('users'),
+            'user'          => $user,
+            'mailTemplates' => $mailTemplates,
         ]);
     }
 
@@ -138,5 +166,120 @@ final class UsersController extends BaseAdminController
             DB::query()->table('users')->insertRow($data)->execute();
             $this->redirect('admin.php?r=users', 'success', 'Uživatel vytvořen.');
         }
+    }
+
+    private function bulk(): void
+    {
+        $this->assertCsrf();
+
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
+
+        $q = trim((string)($_POST['q'] ?? ''));
+        $page = max(1, (int)($_POST['page'] ?? 1));
+        $redirect = $this->listUrl($q, $page);
+
+        if ($ids === []) {
+            $this->redirect($redirect, 'warning', 'Vyberte uživatele k odstranění.');
+        }
+
+        $rows = DB::query()->table('users')
+            ->select(['id','role'])
+            ->whereIn('id', $ids)
+            ->get();
+
+        $currentUserId = (int)($this->auth->user()['id'] ?? 0);
+        $targetIds = [];
+        foreach ($rows as $row) {
+            $rowId = (int)($row['id'] ?? 0);
+            $role = (string)($row['role'] ?? 'user');
+            if ($rowId <= 0) {
+                continue;
+            }
+            if ($role === 'admin' || $rowId === $currentUserId) {
+                continue;
+            }
+            $targetIds[] = $rowId;
+        }
+        $targetIds = array_values(array_unique($targetIds));
+
+        if ($targetIds === []) {
+            $this->redirect($redirect, 'warning', 'Žádní vybraní uživatelé pro smazání.');
+        }
+
+        try {
+            DB::query()->table('users')
+                ->delete()
+                ->whereIn('id', $targetIds)
+                ->execute();
+        } catch (\Throwable $e) {
+            $this->redirect($redirect, 'danger', $e->getMessage());
+        }
+
+        $this->redirect($redirect, 'success', 'Uživatelé byli odstraněni. (' . count($targetIds) . ')');
+    }
+
+    private function sendTemplate(): void
+    {
+        $this->assertCsrf();
+
+        $userId = (int)($_POST['id'] ?? 0);
+        $templateKey = trim((string)($_POST['template'] ?? ''));
+
+        if ($userId <= 0 || $templateKey === '') {
+            $this->redirect('admin.php?r=users', 'danger', 'Vyberte uživatele a šablonu.');
+        }
+
+        $user = DB::query()->table('users')->select(['*'])->where('id','=', $userId)->first();
+        if (!$user) {
+            $this->redirect('admin.php?r=users', 'danger', 'Uživatel nenalezen.');
+        }
+
+        $email = (string)($user['email'] ?? '');
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Uživatel nemá platný e-mail.');
+        }
+
+        $settings = new CmsSettings();
+        $templateManager = new TemplateManager();
+
+        try {
+            $template = $templateManager->render($templateKey, [
+                'siteTitle' => $settings->siteTitle(),
+                'userName'  => (string)($user['name'] ?? ''),
+                'userEmail' => $email,
+                'user'      => $user,
+            ]);
+        } catch (\Throwable $e) {
+            $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Šablonu se nepodařilo načíst.');
+        }
+
+        $mailService = new MailService($settings);
+        $ok = $mailService->sendTemplate($email, $template, (string)($user['name'] ?? '') ?: null);
+
+        if ($ok) {
+            $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'success', 'E-mail byl odeslán.');
+        }
+
+        $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'E-mail se nepodařilo odeslat.');
+    }
+
+    private function listUrl(string $q, int $page): string
+    {
+        $query = ['r' => 'users'];
+        if ($q !== '') {
+            $query['q'] = $q;
+        }
+        if ($page > 1) {
+            $query['page'] = $page;
+        }
+
+        $qs = http_build_query($query);
+
+        return $qs === '' ? 'admin.php?r=users' : 'admin.php?' . $qs;
     }
 }

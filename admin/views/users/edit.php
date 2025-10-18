@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 /** @var array|null $user */
+/** @var array<int,array{key:string,label:string}> $mailTemplates */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf) {
+$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates) {
   $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
   $sel = fn($a,$b)=>$a===$b?' selected':'';
 ?>
@@ -44,4 +45,32 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
     <button class="btn btn-primary" type="submit">Uložit</button>
   </div>
 </form>
+<?php if ($user): ?>
+  <div class="card mt-3">
+    <div class="card-header">Odeslat e-mail uživateli</div>
+    <?php if ($mailTemplates): ?>
+      <form class="card-body row gy-2 gx-2 align-items-end" method="post" action="admin.php?r=users&a=send-template" data-ajax>
+        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+        <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
+        <div class="col-md-8">
+          <label class="form-label" for="mail-template">Šablona e-mailu</label>
+          <select class="form-select" name="template" id="mail-template" required>
+            <option value="">-- Vyberte šablonu --</option>
+            <?php foreach ($mailTemplates as $tpl): ?>
+              <option value="<?= $h((string)$tpl['key']) ?>"><?= $h((string)$tpl['label']) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div class="form-text">Odešle na adresu <?= $h((string)($user['email'] ?? '')) ?>.</div>
+        </div>
+        <div class="col-md-4 text-md-end">
+          <button class="btn btn-outline-primary mt-3 mt-md-0" type="submit">
+            <i class="bi bi-send me-1"></i>Odeslat e-mail
+          </button>
+        </div>
+      </form>
+    <?php else: ?>
+      <div class="card-body text-secondary">Žádné e-mailové šablony nejsou k dispozici.</div>
+    <?php endif; ?>
+  </div>
+<?php endif; ?>
 <?php }); ?>

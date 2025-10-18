@@ -11,7 +11,35 @@ final class TemplateManager
 
     public function __construct(?string $basePath = null)
     {
-        $this->basePath = $basePath ?? dirname(__DIR__, 4) . '/resources/mail';
+        $this->basePath = $basePath ?? dirname(__DIR__, 3) . '/resources/mail';
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function availableKeys(): array
+    {
+        if (!is_dir($this->basePath)) {
+            return [];
+        }
+
+        $files = glob($this->basePath . '/*.php');
+        if ($files === false) {
+            return [];
+        }
+
+        $keys = [];
+        foreach ($files as $file) {
+            if (!is_string($file) || $file === '' || !is_file($file)) {
+                continue;
+            }
+
+            $keys[] = basename($file, '.php');
+        }
+
+        sort($keys, SORT_NATURAL | SORT_FLAG_CASE);
+
+        return $keys;
     }
 
     /**
