@@ -10,11 +10,10 @@ $items = $navigation ?: [
     ['title' => 'Termy',    'url' => $urls->terms(),      'target' => '_self', 'css_class' => '', 'children' => []],
 ];
 
-$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
 <header class="site-header">
   <div class="site-header__branding">
-    <a class="site-header__title" href="<?= $h($urls->home()) ?>"><?= $h($siteTitle) ?></a>
+    <a class="site-header__title" href="<?= e($urls->home()) ?>"><?= e($siteTitle) ?></a>
     <p class="site-header__subtitle">Ponořte se do obsahu – šablona Ocean Breeze.</p>
   </div>
   <nav class="site-nav" aria-label="Hlavní navigace">
@@ -22,10 +21,10 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       $class = trim('site-nav__link ' . (string)($item['css_class'] ?? ''));
       ?>
       <a
-        href="<?= $h((string)$item['url']) ?>"
-        class="<?= $h($class) ?>"
-        <?php if (!empty($item['target']) && $item['target'] !== '_self'): ?>target="<?= $h((string)$item['target']) ?>" rel="noopener"<?php endif; ?>
-      ><?= $h((string)$item['title']) ?></a>
+        href="<?= e((string)$item['url']) ?>"
+        class="<?= e($class) ?>"
+        <?php if (!empty($item['target']) && $item['target'] !== '_self'): ?>target="<?= e((string)$item['target']) ?>" rel="noopener"<?php endif; ?>
+      ><?= e((string)$item['title']) ?></a>
     <?php endforeach; ?>
   </nav>
 </header>

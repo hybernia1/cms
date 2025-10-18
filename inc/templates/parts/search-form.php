@@ -22,16 +22,14 @@ $stringDefaults = [
     'submit'      => 'Hledat',
 ];
 $strings = $strings + $stringDefaults;
-
-$esc = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
-<form class="<?= $esc((string)$classes['form']) ?>" method="get" action="<?= $esc($action) ?>">
+<form class="<?= e((string)$classes['form']) ?>" method="get" action="<?= e($action) ?>">
   <input
     type="text"
-    class="<?= $esc((string)$classes['input']) ?>"
+    class="<?= e((string)$classes['input']) ?>"
     name="s"
-    value="<?= $esc($query) ?>"
-    placeholder="<?= $esc((string)$strings['placeholder']) ?>"
+    value="<?= e($query) ?>"
+    placeholder="<?= e((string)$strings['placeholder']) ?>"
   >
-  <button class="<?= $esc((string)$classes['button']) ?>" type="submit"><?= $esc((string)$strings['submit']) ?></button>
+  <button class="<?= e((string)$classes['button']) ?>" type="submit"><?= e((string)$strings['submit']) ?></button>
 </form>

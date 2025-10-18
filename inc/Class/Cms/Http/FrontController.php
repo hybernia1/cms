@@ -53,77 +53,364 @@ final class FrontController
             return;
         }
 
-        $r = (string)($_GET['r'] ?? '');
-        if ($r !== '') {
-            $this->dispatchByQuery($r);
+        $routeKey = (string)($_GET['r'] ?? '');
+        $matched = $routeKey !== ''
+            ? $this->matchRouteByQuery($routeKey)
+            : $this->matchRouteByPath($this->currentPath());
+
+        if ($matched === null) {
+            $this->notFound();
             return;
         }
 
-        $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-        $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-        if ($base && $base !== '/') {
-            if (str_starts_with((string)$path, $base)) {
-                $path = substr((string)$path, strlen($base));
-                if ($path === false) $path = '/';
-            }
-        }
-        $path = '/' . ltrim((string)$path, '/');
-        $this->dispatchByPath($path);
+        $handler = $matched['handler'];
+        $params  = $matched['params'] ?? [];
+        $handler($params);
     }
 
     private function isPath(string $want): bool
     {
+        $current = rtrim($this->currentPath(), '/') ?: '/';
+        $target  = rtrim($want, '/') ?: '/';
+        return $current === $target;
+    }
+
+    private function currentPath(): string
+    {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/';
         $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
         if ($base && $base !== '/' && str_starts_with($path, $base)) {
-            $path = substr($path, strlen($base)) ?: '/';
+            $trimmed = substr($path, strlen($base));
+            $path = $trimmed !== false && $trimmed !== '' ? $trimmed : '/';
         }
-        $path = '/' . ltrim($path, '/');
-        return rtrim($path, '/') === rtrim($want, '/');
+        $normalized = '/' . ltrim($path, '/');
+        return $normalized === '//' ? '/' : $normalized;
     }
 
-    private function dispatchByQuery(string $r): void
+    /**
+     * @return array{handler: callable, params: array<string,string>}|null
+     */
+    private function matchRouteByQuery(string $routeKey): ?array
     {
-        switch ($r) {
-            case 'home':     $this->home(); return;
-            case 'post':     $this->single('post', (string)($_GET['slug'] ?? '')); return;
-            case 'page':     $this->single('page', (string)($_GET['slug'] ?? '')); return;
-            case 'type':     $this->archive((string)($_GET['type'] ?? 'post')); return;
-            case 'term':     $this->archiveByTerm((string)($_GET['slug'] ?? ''), null); return;
-            case 'category': $this->archiveByTerm((string)($_GET['slug'] ?? ''), 'category'); return;
-            case 'tag':      $this->archiveByTerm((string)($_GET['slug'] ?? ''), 'tag'); return;
-            case 'terms':    $this->terms((string)($_GET['type'] ?? '')); return;
-            case 'search':   $this->search((string)($_GET['s'] ?? '')); return;
-            case 'register': $this->register(); return;
-            case 'lost':     $this->lost(); return;
-            case 'reset':    $this->reset(); return;
-            case 'login':    $this->login(); return;
-            case 'logout':   $this->logout(); return;
-            default:         $this->notFound(); return;
+        foreach ($this->routeDefinitions() as $route) {
+            if (($route['query'] ?? null) !== $routeKey) {
+                continue;
+            }
+
+            $params = $this->extractQueryParams($route);
+            if (!$this->validateParams($route, $params)) {
+                return ['handler' => function (): void { $this->notFound(); }, 'params' => []];
+            }
+
+            return ['handler' => $route['handler'], 'params' => $params];
         }
+
+        return null;
     }
 
-    private function dispatchByPath(string $path): void
+    /**
+     * @return array{handler: callable, params: array<string,string>}|null
+     */
+    private function matchRouteByPath(string $path): ?array
     {
-        if ($path === '/' || $path === '') { $this->home(); return; }
+        $segments = $this->segments($path);
 
-        $parts = array_values(array_filter(explode('/', $path)));
+        foreach ($this->routeDefinitions() as $route) {
+            if (!isset($route['path'])) {
+                continue;
+            }
 
-        if ($parts[0] === 'post'   && !empty($parts[1])) { $this->single('post', $parts[1]); return; }
-        if ($parts[0] === 'page'   && !empty($parts[1])) { $this->single('page', $parts[1]); return; }
-        if ($parts[0] === 'type'   && !empty($parts[1])) { $this->archive($parts[1]); return; }
-        if ($parts[0] === 'term'   && !empty($parts[1])) { $this->archiveByTerm($parts[1], null); return; }
-        if ($parts[0] === 'category' && !empty($parts[1])) { $this->archiveByTerm($parts[1], 'category'); return; }
-        if ($parts[0] === 'tag'   && !empty($parts[1])) { $this->archiveByTerm($parts[1], 'tag'); return; }
-        if ($parts[0] === 'terms')                       { $this->terms($parts[1] ?? ''); return; }
-        if ($parts[0] === 'search')                      { $this->search((string)($_GET['s'] ?? '')); return; }
-        if ($parts[0] === 'register')                    { $this->register(); return; }
-        if ($parts[0] === 'lost')                        { $this->lost(); return; }
-        if ($parts[0] === 'reset')                       { $this->reset(); return; }
-        if ($parts[0] === 'login')                       { $this->login(); return; }
-        if ($parts[0] === 'logout')                      { $this->logout(); return; }
+            $pattern = $this->parsePathPattern((string)$route['path']);
+            $params  = $this->matchPathPattern($pattern, $segments);
+            if ($params === null) {
+                continue;
+            }
 
-        $this->notFound();
+            if (!$this->validateParams($route, $params)) {
+                return ['handler' => function (): void { $this->notFound(); }, 'params' => []];
+            }
+
+            return ['handler' => $route['handler'], 'params' => $params];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function routeDefinitions(): array
+    {
+        $requireValue = static fn(string $value): bool => $value !== '';
+
+        return [
+            [
+                'name'    => 'home',
+                'query'   => 'home',
+                'path'    => '/',
+                'handler' => function (array $params = []): void { $this->home(); },
+            ],
+            [
+                'name'         => 'post',
+                'query'        => 'post',
+                'path'         => '/post/{slug}',
+                'queryParams'  => ['slug'],
+                'requirements' => ['slug' => $requireValue],
+                'handler'      => function (array $params): void { $this->single('post', $params['slug'] ?? ''); },
+            ],
+            [
+                'name'         => 'page',
+                'query'        => 'page',
+                'path'         => '/page/{slug}',
+                'queryParams'  => ['slug'],
+                'requirements' => ['slug' => $requireValue],
+                'handler'      => function (array $params): void { $this->single('page', $params['slug'] ?? ''); },
+            ],
+            [
+                'name'         => 'type',
+                'query'        => 'type',
+                'path'         => '/type/{type}',
+                'queryParams'  => ['type'],
+                'requirements' => ['type' => $requireValue],
+                'handler'      => function (array $params): void { $this->archive($params['type'] ?? 'post'); },
+            ],
+            [
+                'name'         => 'term',
+                'query'        => 'term',
+                'path'         => '/term/{slug}',
+                'queryParams'  => ['slug'],
+                'requirements' => ['slug' => $requireValue],
+                'handler'      => function (array $params): void { $this->archiveByTerm($params['slug'] ?? '', null); },
+            ],
+            [
+                'name'         => 'category',
+                'query'        => 'category',
+                'path'         => '/category/{slug}',
+                'queryParams'  => ['slug'],
+                'requirements' => ['slug' => $requireValue],
+                'handler'      => function (array $params): void { $this->archiveByTerm($params['slug'] ?? '', 'category'); },
+            ],
+            [
+                'name'         => 'tag',
+                'query'        => 'tag',
+                'path'         => '/tag/{slug}',
+                'queryParams'  => ['slug'],
+                'requirements' => ['slug' => $requireValue],
+                'handler'      => function (array $params): void { $this->archiveByTerm($params['slug'] ?? '', 'tag'); },
+            ],
+            [
+                'name'        => 'terms',
+                'query'       => 'terms',
+                'path'        => '/terms/{type?}',
+                'queryParams' => [
+                    'type' => ['key' => 'type', 'optional' => true],
+                ],
+                'handler'     => function (array $params): void { $this->terms($params['type'] ?? ''); },
+            ],
+            [
+                'name'        => 'search',
+                'query'       => 'search',
+                'path'        => '/search',
+                'queryParams' => [
+                    's' => ['key' => 's', 'optional' => true],
+                ],
+                'handler'     => function (array $params): void { $this->search($params['s'] ?? ''); },
+            ],
+            [
+                'name'    => 'register',
+                'query'   => 'register',
+                'path'    => '/register',
+                'handler' => function (array $params = []): void { $this->register(); },
+            ],
+            [
+                'name'    => 'lost',
+                'query'   => 'lost',
+                'path'    => '/lost',
+                'handler' => function (array $params = []): void { $this->lost(); },
+            ],
+            [
+                'name'    => 'reset',
+                'query'   => 'reset',
+                'path'    => '/reset',
+                'handler' => function (array $params = []): void { $this->reset(); },
+            ],
+            [
+                'name'    => 'login',
+                'query'   => 'login',
+                'path'    => '/login',
+                'handler' => function (array $params = []): void { $this->login(); },
+            ],
+            [
+                'name'    => 'logout',
+                'query'   => 'logout',
+                'path'    => '/logout',
+                'handler' => function (array $params = []): void { $this->logout(); },
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $route
+     * @return array<string,string>
+     */
+    private function extractQueryParams(array $route): array
+    {
+        $params = [];
+        foreach ($route['queryParams'] ?? [] as $key => $definition) {
+            if (is_int($key)) {
+                $paramName = (string)$definition;
+                $sourceKey = (string)$definition;
+                $optional  = false;
+            } elseif (is_array($definition)) {
+                $paramName = (string)$key;
+                $sourceKey = (string)($definition['key'] ?? $key);
+                $optional  = (bool)($definition['optional'] ?? false);
+            } else {
+                $paramName = (string)$key;
+                $sourceKey = (string)$definition;
+                $optional  = false;
+            }
+
+            $value = isset($_GET[$sourceKey]) ? (string)$_GET[$sourceKey] : '';
+            if ($value === '' && !$optional) {
+                $params[$paramName] = '';
+                continue;
+            }
+
+            $params[$paramName] = $value;
+        }
+
+        return $params;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $pattern
+     * @param string[] $segments
+     * @return array<string,string>|null
+     */
+    private function matchPathPattern(array $pattern, array $segments): ?array
+    {
+        if ($pattern === []) {
+            return $segments === [] ? [] : null;
+        }
+
+        $required = 0;
+        foreach ($pattern as $part) {
+            if ($part['type'] === 'literal' || ($part['type'] === 'parameter' && !$part['optional'])) {
+                $required++;
+            }
+        }
+
+        $segmentCount = count($segments);
+        if ($segmentCount < $required || $segmentCount > count($pattern)) {
+            return null;
+        }
+
+        $params = [];
+        foreach ($pattern as $index => $part) {
+            $segment = $segments[$index] ?? null;
+
+            if ($part['type'] === 'literal') {
+                if ($segment !== $part['value']) {
+                    return null;
+                }
+                continue;
+            }
+
+            if ($segment === null) {
+                if ($part['optional']) {
+                    $params[$part['name']] = '';
+                    continue;
+                }
+                return null;
+            }
+
+            $params[$part['name']] = $segment;
+        }
+
+        foreach ($pattern as $part) {
+            if ($part['type'] === 'parameter' && $part['optional'] && !array_key_exists($part['name'], $params)) {
+                $params[$part['name']] = '';
+            }
+        }
+
+        return $params;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function parsePathPattern(string $pattern): array
+    {
+        $trimmed = trim($pattern);
+        if ($trimmed === '' || $trimmed === '/') {
+            return [];
+        }
+
+        $segments = array_values(array_filter(explode('/', trim($trimmed, '/')), static fn($part) => $part !== ''));
+        $result = [];
+
+        foreach ($segments as $segment) {
+            if (preg_match('/^\{([a-zA-Z0-9_]+)(\?)?\}$/', $segment, $matches)) {
+                $result[] = [
+                    'type'     => 'parameter',
+                    'name'     => $matches[1],
+                    'optional' => ($matches[2] ?? '') === '?',
+                ];
+                continue;
+            }
+
+            $result[] = [
+                'type'  => 'literal',
+                'value' => $segment,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string,mixed> $route
+     * @param array<string,string> $params
+     */
+    private function validateParams(array $route, array $params): bool
+    {
+        if (!isset($route['requirements'])) {
+            return true;
+        }
+
+        foreach ($route['requirements'] as $key => $rule) {
+            $value = $params[$key] ?? '';
+            if ($value === '') {
+                return false;
+            }
+
+            if (is_callable($rule)) {
+                if (!$rule($value)) {
+                    return false;
+                }
+                continue;
+            }
+
+            if (!preg_match('#^' . $rule . '$#u', $value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return string[]
+     */
+    private function segments(string $path): array
+    {
+        $trimmed = trim($path, '/');
+        if ($trimmed === '') {
+            return [];
+        }
+
+        return array_values(array_filter(explode('/', $trimmed), static fn($part) => $part !== ''));
     }
 
     private function siteTitle(): string { return $this->settings->siteTitle(); }

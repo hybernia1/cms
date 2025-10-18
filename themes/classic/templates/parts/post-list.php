@@ -4,12 +4,11 @@
 /** @var \Cms\Utils\LinkGenerator $urls */
 /** @var bool|null $showType */
 
-$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 $showType = $showType ?? false;
 $message = $emptyMessage ?? 'Nic zde zatím není.';
 ?>
 <?php if (!$posts): ?>
-  <p class="muted"><?= $h($message) ?></p>
+  <p class="muted"><?= e($message) ?></p>
 <?php else: ?>
   <ul class="post-list">
     <?php foreach ($posts as $post):
@@ -19,11 +18,11 @@ $message = $emptyMessage ?? 'Nic zde zatím není.';
       $created = (string)($post['created_at'] ?? '');
       ?>
       <li class="post-list__item">
-        <a class="post-list__title" href="<?= $h($url) ?>"><?= $h((string)($post['title'] ?? 'Bez názvu')) ?></a>
+        <a class="post-list__title" href="<?= e($url) ?>"><?= e((string)($post['title'] ?? 'Bez názvu')) ?></a>
         <div class="post-list__meta">
-          <span><?= $h($created) ?></span>
+          <span><?= e($created) ?></span>
           <?php if ($showType): ?>
-            <span class="post-list__badge"><?= $h($type === 'post' ? 'Článek' : ucfirst($type)) ?></span>
+            <span class="post-list__badge"><?= e($type === 'post' ? 'Článek' : ucfirst($type)) ?></span>
           <?php endif; ?>
         </div>
       </li>

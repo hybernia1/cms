@@ -3,8 +3,6 @@
 /** @var string|null $activeType */
 /** @var array<int,string> $availableTypes */
 /** @var \Cms\Utils\LinkGenerator $urls */
-
-$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 $grouped = [];
 foreach ($terms as $term) {
     $group = (string)($term['type'] ?? 'ostatní');
@@ -17,12 +15,12 @@ ksort($grouped);
     <h1 class="card__title">Termy</h1>
     <?php if ($availableTypes): ?>
       <nav class="pill-nav" aria-label="Typ termu">
-        <a class="pill-nav__link<?= $activeType === null ? ' pill-nav__link--active' : '' ?>" href="<?= $h($urls->terms()) ?>">Vše</a>
+        <a class="pill-nav__link<?= $activeType === null ? ' pill-nav__link--active' : '' ?>" href="<?= e($urls->terms()) ?>">Vše</a>
         <?php foreach ($availableTypes as $type): ?>
           <a
             class="pill-nav__link<?= $activeType === $type ? ' pill-nav__link--active' : '' ?>"
-            href="<?= $h($urls->terms($type)) ?>"
-          ><?= $h(ucfirst($type)) ?></a>
+            href="<?= e($urls->terms($type)) ?>"
+          ><?= e(ucfirst($type)) ?></a>
         <?php endforeach; ?>
       </nav>
     <?php endif; ?>
@@ -34,15 +32,15 @@ ksort($grouped);
     <?php foreach ($grouped as $type => $items): ?>
       <?php if ($activeType !== null && $activeType !== $type) { continue; } ?>
       <section class="term-group">
-        <h2 class="term-group__title"><?= $h(ucfirst($type)) ?></h2>
+        <h2 class="term-group__title"><?= e(ucfirst($type)) ?></h2>
         <ul class="term-grid">
           <?php foreach ($items as $item): ?>
             <li class="term-card">
-              <a class="term-card__title" href="<?= $h($urls->term((string)$item['slug'], (string)$item['type'])) ?>">
-                <?= $h((string)($item['name'] ?? 'Bez názvu')) ?>
+              <a class="term-card__title" href="<?= e($urls->term((string)$item['slug'], (string)$item['type'])) ?>">
+                <?= e((string)($item['name'] ?? 'Bez názvu')) ?>
               </a>
               <?php if (!empty($item['description'])): ?>
-                <p class="term-card__description"><?= $h((string)$item['description']) ?></p>
+                <p class="term-card__description"><?= e((string)$item['description']) ?></p>
               <?php endif; ?>
               <span class="term-card__meta">Příspěvků: <?= (int)($item['posts_count'] ?? 0) ?></span>
             </li>

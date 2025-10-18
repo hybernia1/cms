@@ -11,13 +11,12 @@ $site = $siteTitle !== '' ? $siteTitle : 'Můj web';
 $title = isset($pageTitle) && $pageTitle !== ''
     ? $pageTitle . ' • ' . $site
     : $site;
-$h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="cs">
 <head>
   <meta charset="utf-8">
-  <title><?= $h($title) ?></title>
+  <title><?= e($title) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <?= $assets->css(['assets/css/main.css']) ?>
 </head>
