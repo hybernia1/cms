@@ -343,3 +343,8 @@ body.admin-sidebar-open {
   background: #e7f1ff;
   color: #0d6efd;
 }
+
+.card.navigation-item-filled {
+  box-shadow: 0 0 0 0.35rem rgba(114, 174, 230, 0.35);
+  transition: box-shadow .3s ease;
+}

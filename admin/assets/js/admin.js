@@ -499,6 +499,78 @@
     initBulkForms(root);
     initConfirmModals(root);
     initAdminMenuToggle(root);
+    initNavigationQuickAdd(root);
+  }
+
+  function initNavigationQuickAdd(root) {
+    var modal = document.getElementById('navigationContentModal');
+    if (!modal) {
+      return;
+    }
+
+    var fillButtons = [].slice.call(modal.querySelectorAll('[data-nav-fill]'));
+    fillButtons.forEach(function (btn) {
+      if (btn.dataset.navFillBound === '1') {
+        return;
+      }
+      btn.dataset.navFillBound = '1';
+      btn.addEventListener('click', function () {
+        var targetSelector = btn.getAttribute('data-nav-target') || '#navigation-item-form';
+        var form;
+        try {
+          form = document.querySelector(targetSelector);
+        } catch (err) {
+          form = document.getElementById('navigation-item-form');
+        }
+        if (!form) {
+          return;
+        }
+
+        var titleInput = form.querySelector('[name="title"]');
+        var urlInput = form.querySelector('[name="url"]');
+        var titleValue = btn.getAttribute('data-nav-title') || '';
+        var urlValue = btn.getAttribute('data-nav-url') || '';
+
+        if (titleInput && typeof titleInput.value !== 'undefined') {
+          titleInput.value = titleValue;
+        }
+
+        if (urlInput && typeof urlInput.value !== 'undefined') {
+          urlInput.value = urlValue;
+        }
+
+        if (typeof bootstrap !== 'undefined' && typeof bootstrap.Modal === 'function') {
+          bootstrap.Modal.getOrCreateInstance(modal).hide();
+        }
+
+        var focusTarget = titleInput || urlInput;
+        if (focusTarget && typeof focusTarget.focus === 'function') {
+          try {
+            focusTarget.focus();
+            if (typeof focusTarget.select === 'function' && focusTarget.value) {
+              focusTarget.select();
+            }
+          } catch (err) {
+            /* ignore focus issues */
+          }
+        }
+
+        var highlightTarget = form;
+        if (form && typeof form.closest === 'function') {
+          var closestCard = form.closest('.card');
+          if (closestCard) {
+            highlightTarget = closestCard;
+          }
+        }
+
+        if (highlightTarget && highlightTarget.classList) {
+          highlightTarget.classList.add('navigation-item-filled');
+          window.setTimeout(function () {
+            highlightTarget.classList.remove('navigation-item-filled');
+          }, 1500);
+        }
+      });
+    });
   }
 
   function loadAdminPage(url, options) {
