@@ -20,6 +20,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     ? ['r'=>'posts','a'=>'edit','id'=>(int)($post['id'] ?? 0),'type'=>$type]
     : ['r'=>'posts','a'=>'create','type'=>$type];
   $actionUrl = 'admin.php?'.http_build_query($actionParams);
+  $autosaveUrl = 'admin.php?'.http_build_query(['r' => 'posts', 'a' => 'autosave', 'type' => $type]);
   $checked  = fn(bool $b) => $b ? 'checked' : '';
   $currentStatus = $isEdit ? (string)($post['status'] ?? 'draft') : 'draft';
   $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
@@ -88,7 +89,18 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     }
   }
 ?>
-  <form id="post-edit-form" class="post-edit-form" method="post" action="<?= $h($actionUrl) ?>" enctype="multipart/form-data" data-ajax>
+  <form
+    id="post-edit-form"
+    class="post-edit-form"
+    method="post"
+    action="<?= $h($actionUrl) ?>"
+    enctype="multipart/form-data"
+    data-ajax
+    data-autosave-form="1"
+    data-autosave-url="<?= $h($autosaveUrl) ?>"
+    data-post-type="<?= $h($type) ?>"
+    data-post-id="<?= $isEdit ? $h((string)($post['id'] ?? '')) : '' ?>"
+  >
     <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
     <input type="hidden" name="status" id="status-input" value="<?= $h($currentStatus) ?>">
     <div class="row g-4 align-items-start">
@@ -126,9 +138,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4">
           <a class="btn btn-outline-secondary" href="<?= $h('admin.php?'.http_build_query(['r' => 'posts', 'type' => $type])) ?>">Zpět na seznam</a>
-          <?php if ($isEdit): ?>
-            <span class="text-secondary small">ID #<?= $h((string)($post['id'] ?? '')) ?></span>
-          <?php endif; ?>
+          <span class="text-secondary small<?= $isEdit ? '' : ' d-none' ?>" data-post-id-display><?= $isEdit ? 'ID #' . $h((string)($post['id'] ?? '')) : '' ?></span>
         </div>
       </div>
 
@@ -145,6 +155,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <div class="text-secondary small mb-1">Aktuální stav</div>
                 <div id="status-current-label" class="fw-semibold text-capitalize" data-status-labels='<?= $encodeJson($statusLabels) ?>'><?= $h($currentStatusLabel) ?></div>
               </div>
+              <div class="text-secondary small" data-autosave-status aria-live="polite"></div>
             </div>
             <div class="card-footer d-flex flex-wrap gap-2">
               <button class="btn btn-outline-secondary btn-sm" type="submit" data-status-value="draft">Uložit koncept</button>

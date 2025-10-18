@@ -12,6 +12,7 @@ use Cms\Settings\CmsSettings;
 use Cms\Utils\AdminNavigation;
 use Cms\Utils\DateTimeFactory;
 use Cms\Utils\LinkGenerator;
+use Cms\Utils\Slugger;
 use Core\Database\Init as DB;
 
 final class PostsController extends BaseAdminController
@@ -34,6 +35,11 @@ final class PostsController extends BaseAdminController
 
             case 'bulk':
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->bulk(); return; }
+                $this->index();
+                return;
+
+            case 'autosave':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->autosave(); return; }
                 $this->index();
                 return;
 
@@ -497,6 +503,184 @@ final class PostsController extends BaseAdminController
                 'danger',
                 $e->getMessage()
             );
+        }
+    }
+
+    private function autosave(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        $sessionToken = $_SESSION['csrf_admin'] ?? '';
+        $incomingToken = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
+        if ($sessionToken === '' || !hash_equals((string)$sessionToken, (string)$incomingToken)) {
+            http_response_code(419);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Neplatný CSRF token.',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return;
+        }
+
+        try {
+            $user = $this->auth->user();
+            if (!$user) {
+                throw new \RuntimeException('Nejste přihlášeni.');
+            }
+
+            $requestedType = $this->requestedType();
+            $repo = new PostsRepository();
+
+            $rawId = $_POST['id'] ?? $_POST['post_id'] ?? null;
+            $id = is_scalar($rawId) ? (int)$rawId : 0;
+            $title = (string)($_POST['title'] ?? '');
+            $content = (string)($_POST['content'] ?? '');
+
+            $status = (string)($_POST['status'] ?? 'draft');
+            $allowedStatus = ['draft', 'publish'];
+            if (!in_array($status, $allowedStatus, true)) {
+                $status = 'draft';
+            }
+
+            $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
+            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
+            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+
+            $catIds = [];
+            $tagIds = [];
+            $newCatNames = [];
+            $newTagNames = [];
+            if ($requestedType === 'post') {
+                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
+            }
+
+            if ($newCatNames !== []) {
+                $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
+            }
+            if ($newTagNames !== []) {
+                $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
+            }
+
+            $attachedMedia = $this->parseAttachedMedia((string)($_POST['attached_media'] ?? ''));
+
+            $now = DateTimeFactory::nowString();
+            $type = $requestedType;
+            $currentStatus = $status;
+
+            if ($id > 0) {
+                $existing = $repo->find($id);
+                if (!$existing) {
+                    throw new \RuntimeException('Položku se nepodařilo načíst.');
+                }
+
+                $rowType = (string)($existing['type'] ?? '');
+                if ($rowType !== '' && array_key_exists($rowType, $this->typeConfig())) {
+                    $type = $rowType;
+                }
+
+                $currentStatus = (string)($existing['status'] ?? $currentStatus);
+
+                $updates = [
+                    'title'            => $title,
+                    'content'          => $content,
+                    'comments_allowed' => $commentsAllowed,
+                    'updated_at'       => $now,
+                ];
+
+                if ($removeThumb) {
+                    $updates['thumbnail_id'] = null;
+                } elseif ($selectedThumbId > 0) {
+                    $updates['thumbnail_id'] = $selectedThumbId;
+                }
+
+                if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
+                    $updates['slug'] = Slugger::uniqueInPosts((string)$_POST['slug'], $type, $id);
+                }
+
+                if ($status !== $currentStatus) {
+                    $updates['status'] = $status;
+                    $currentStatus = $status;
+                }
+
+                $repo->update($id, $updates);
+            } else {
+                $contentPlain = trim(strip_tags($content));
+                $hasMeaningful = $title !== ''
+                    || $contentPlain !== ''
+                    || $attachedMedia !== []
+                    || $selectedThumbId > 0
+                    || $commentsAllowed === 0
+                    || $catIds !== []
+                    || $tagIds !== []
+                    || $status !== 'draft';
+
+                if (!$hasMeaningful) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => '',
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    return;
+                }
+
+                $type = $requestedType;
+                $slugSource = $title !== '' ? $title : ('koncept-' . bin2hex(random_bytes(3)));
+                $slug = Slugger::uniqueInPosts($slugSource, $type);
+
+                $data = [
+                    'title'            => $title,
+                    'slug'             => $slug,
+                    'type'             => $type,
+                    'status'           => 'draft',
+                    'content'          => $content,
+                    'author_id'        => (int)$user['id'],
+                    'thumbnail_id'     => $removeThumb ? null : ($selectedThumbId > 0 ? $selectedThumbId : null),
+                    'comments_allowed' => $commentsAllowed,
+                    'published_at'     => null,
+                    'created_at'       => $now,
+                    'updated_at'       => null,
+                ];
+
+                $id = $repo->create($data);
+                $currentStatus = 'draft';
+            }
+
+            if ($id <= 0) {
+                throw new \RuntimeException('Nepodařilo se uložit koncept.');
+            }
+
+            $this->syncPostMedia($id, $attachedMedia);
+            if ($type === 'post') {
+                $this->syncTerms($id, $catIds, $tagIds);
+            } else {
+                $this->syncTerms($id, [], []);
+            }
+
+            $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
+            $statusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
+
+            $response = [
+                'success'     => true,
+                'message'     => 'Automaticky uloženo v ' . date('H:i:s'),
+                'postId'      => $id,
+                'status'      => $currentStatus,
+                'statusLabel' => $statusLabel,
+                'actionUrl'   => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'edit', 'id' => $id, 'type' => $type]),
+                'type'        => $type,
+            ];
+
+            if (isset($updates['slug']) && $updates['slug'] !== '') {
+                $response['slug'] = $updates['slug'];
+            }
+
+            echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
     }
 
