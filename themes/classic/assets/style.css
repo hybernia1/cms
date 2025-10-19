@@ -721,6 +721,12 @@ img {
     color: var(--classic-accent);
 }
 
+.comment-form__reply-note-info {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--classic-muted);
+}
+
 .comment-form__reply-cancel {
     background: none;
     border: none;

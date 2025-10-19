@@ -8,6 +8,8 @@ $created = trim((string)($commentNode['created_at'] ?? ''));
 $createdIso = trim((string)($commentNode['created_at_iso'] ?? ''));
 $content = (string)($commentNode['content'] ?? '');
 $commentId = isset($commentNode['id']) ? (int)$commentNode['id'] : 0;
+$threadRootId = isset($commentNode['thread_root_id']) ? (int)$commentNode['thread_root_id'] : 0;
+$replyTargetId = $threadRootId > 0 ? $threadRootId : $commentId;
 $replyEnabled = !empty($commentsAllowed ?? false) && $commentId > 0;
 ?>
 <li class="comment" id="comment-<?= $commentId > 0 ? $commentId : 'x'; ?>">
@@ -30,6 +32,7 @@ $replyEnabled = !empty($commentsAllowed ?? false) && $commentId > 0;
                     type="button"
                     data-comment-reply
                     data-comment-id="<?= $commentId; ?>"
+                    data-comment-target="<?= $replyTargetId; ?>"
                 >
                     Odpovědět
                 </button>

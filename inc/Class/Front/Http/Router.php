@@ -307,13 +307,14 @@ final class Router
                     $errors['general'][] = 'Komentář se nepodařilo ověřit. Obnovte stránku a zkuste to prosím znovu.';
                 }
 
-                $parentId = $input['parent_id'] > 0 ? $input['parent_id'] : null;
-                if ($parentId !== null) {
+                $requestedParentId = $input['parent_id'] > 0 ? $input['parent_id'] : null;
+                $parentId = $requestedParentId;
+                if ($requestedParentId !== null) {
                     try {
                         $parent = DB::query()
                             ->table('comments')
-                            ->select(['id','post_id'])
-                            ->where('id','=', $parentId)
+                            ->select(['id','post_id','parent_id'])
+                            ->where('id','=', $requestedParentId)
                             ->first();
                     } catch (Throwable $e) {
                         error_log('Failed to validate comment parent: ' . $e->getMessage());
@@ -322,6 +323,21 @@ final class Router
 
                     if (!$parent || (int)($parent['post_id'] ?? 0) !== (int)($post['id'] ?? 0)) {
                         $errors['parent'][] = 'Na komentář nelze odpovědět.';
+                        $parentId = null;
+                        $commentForm['old']['parent_id'] = null;
+                    } else {
+                        $parentRootId = (int)($parent['parent_id'] ?? 0) > 0
+                            ? $this->resolveCommentThreadRoot((int)$parent['id'])
+                            : (int)$parent['id'];
+
+                        if ($parentRootId <= 0) {
+                            $errors['parent'][] = 'Na komentář nelze odpovědět.';
+                            $parentId = null;
+                            $commentForm['old']['parent_id'] = null;
+                        } else {
+                            $parentId = $parentRootId;
+                            $commentForm['old']['parent_id'] = $parentId;
+                        }
                     }
                 }
 
@@ -412,6 +428,43 @@ final class Router
             'commentForm' => $commentForm,
             'meta' => $meta->toArray(),
         ], $status);
+    }
+
+    private function resolveCommentThreadRoot(int $commentId): int
+    {
+        if ($commentId <= 0) {
+            return 0;
+        }
+
+        $currentId = $commentId;
+        $guard = 0;
+
+        while ($currentId > 0 && $guard < 20) {
+            try {
+                $row = DB::query()
+                    ->table('comments')
+                    ->select(['id','parent_id'])
+                    ->where('id','=', $currentId)
+                    ->first();
+            } catch (Throwable $e) {
+                error_log('Failed to resolve comment thread root: ' . $e->getMessage());
+                return 0;
+            }
+
+            if (!$row) {
+                return 0;
+            }
+
+            $parentId = isset($row['parent_id']) ? (int)$row['parent_id'] : 0;
+            if ($parentId <= 0 || $parentId === $currentId) {
+                return (int)($row['id'] ?? 0);
+            }
+
+            $currentId = $parentId;
+            $guard++;
+        }
+
+        return $guard >= 20 ? 0 : $currentId;
     }
 
     private function handlePage(string $slug): RouteResult
