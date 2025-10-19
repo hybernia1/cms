@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 1) {
             'password' => (string)($_POST['db_pass'] ?? ''),
             'charset'  => 'utf8mb4',
         ];
-        $debug = isset($_POST['debug']) ? (bool)$_POST['debug'] : true;
+        $debug = isset($_POST['debug']) ? (bool)$_POST['debug'] : false;
 
         if ($db['database'] === '' || $db['user'] === '') {
             throw new RuntimeException('Vyplň název databáze a uživatele.');

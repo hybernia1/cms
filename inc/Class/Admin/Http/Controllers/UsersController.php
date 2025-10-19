@@ -9,6 +9,7 @@ use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
+use Cms\Admin\Utils\LinkGenerator;
 use Throwable;
 
 final class UsersController extends BaseAdminController
@@ -341,6 +342,7 @@ final class UsersController extends BaseAdminController
         ];
 
         if ($templateKey === 'lost_password') {
+            $links = new LinkGenerator(null, $settings);
             try {
                 $token = bin2hex(random_bytes(20));
             } catch (\Throwable $e) {
@@ -363,12 +365,7 @@ final class UsersController extends BaseAdminController
             $user['token_expire'] = $expiresAt;
             $templateData['user'] = $user;
 
-            $baseUrl = rtrim($settings->siteUrl(), '/');
-            $resetQuery = http_build_query([
-                'token' => $token,
-                'id'    => $userId,
-            ]);
-            $templateData['resetUrl'] = $baseUrl . '/reset?' . $resetQuery;
+            $templateData['resetUrl'] = $this->absoluteUrl($settings, $links->reset($token, $userId));
         }
 
         try {
@@ -423,9 +420,44 @@ final class UsersController extends BaseAdminController
 
     private function loginUrl(CmsSettings $settings): string
     {
-        $base = rtrim($settings->siteUrl(), '/');
-        $path = $settings->seoUrlsEnabled() ? '/login' : '/index.php?r=login';
-        return $base . $path;
+        $links = new LinkGenerator(null, $settings);
+        return $this->absoluteUrl($settings, $links->login());
+    }
+
+    private function absoluteUrl(CmsSettings $settings, string $path): string
+    {
+        $trimmed = trim($path);
+        if ($trimmed === '') {
+            return $settings->siteUrl();
+        }
+
+        if (preg_match('~^https?://~i', $trimmed)) {
+            return $trimmed;
+        }
+
+        $siteUrl = trim($settings->siteUrl());
+        if ($siteUrl === '') {
+            return $trimmed;
+        }
+
+        if (str_starts_with($trimmed, '/')) {
+            $parts = parse_url($siteUrl);
+            if (is_array($parts) && isset($parts['scheme'], $parts['host'])) {
+                $base = $parts['scheme'] . '://' . $parts['host'];
+                if (isset($parts['port'])) {
+                    $base .= ':' . $parts['port'];
+                }
+
+                return rtrim($base, '/') . $trimmed;
+            }
+        }
+
+        $normalized = $trimmed;
+        if (str_starts_with($normalized, './')) {
+            $normalized = substr($normalized, 2);
+        }
+
+        return rtrim($siteUrl, '/') . '/' . ltrim($normalized, '/');
     }
 
     private function listUrl(string $q, int $page): string
