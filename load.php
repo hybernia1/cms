@@ -18,6 +18,7 @@ const CLASS_DIR = __DIR__ . '/inc/Class';
  */
 const CLASS_NAMESPACE_MAP = [
     'Cms\\Admin\\' => __DIR__ . '/inc/Class/Admin',
+    'Cms\\Front\\' => __DIR__ . '/inc/Class/Front',
     'Core\\'        => __DIR__ . '/inc/Class/Core',
 ];
 
