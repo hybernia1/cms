@@ -128,6 +128,12 @@ final class Router
         }
 
         $segments = array_values(array_filter(explode('/', $path), static fn ($part) => $part !== ''));
+        if ($segments !== []) {
+            $segments = array_map(
+                static fn ($part) => rawurldecode((string)$part),
+                $segments
+            );
+        }
         $bases = $this->settings->permalinkBases();
 
         if ($segments !== []) {
