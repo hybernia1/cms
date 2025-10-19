@@ -52,19 +52,19 @@ $renderMenu = static function (array $items): string {
     <?php foreach ($metaExtra as $key => $value): ?>
         <?php
             if (is_array($value)) {
-                $content = isset($value['content']) ? (string)$value['content'] : '';
+                $metaContent = isset($value['content']) ? (string)$value['content'] : '';
                 $attr = isset($value['property']) ? 'property' : (isset($value['name']) ? 'name' : (str_starts_with((string)$key, 'og:') ? 'property' : 'name'));
                 $attrValue = (string)($value['property'] ?? ($value['name'] ?? $key));
             } else {
-                $content = (string)$value;
+                $metaContent = (string)$value;
                 $attr = str_starts_with((string)$key, 'og:') ? 'property' : 'name';
                 $attrValue = (string)$key;
             }
-            if ($content === '') {
+            if ($metaContent === '') {
                 continue;
             }
         ?>
-        <meta <?= $attr; ?>="<?= htmlspecialchars($attrValue, ENT_QUOTES, 'UTF-8'); ?>" content="<?= htmlspecialchars($content, ENT_QUOTES, 'UTF-8'); ?>">
+        <meta <?= $attr; ?>="<?= htmlspecialchars($attrValue, ENT_QUOTES, 'UTF-8'); ?>" content="<?= htmlspecialchars($metaContent, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endforeach; ?>
     <style>
         body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin:0; background:#f3f4f6; color:#1f2933; line-height:1.6; }
