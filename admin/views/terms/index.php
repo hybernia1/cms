@@ -19,7 +19,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 ?>
   <?php
     $queryValue = (string)($filters['q'] ?? '');
-    $this->part('listing/toolbar', [
+    $this->render('parts/listing/toolbar', [
       'search' => [
         'action'        => 'admin.php',
         'wrapperClass'  => 'order-1 flex-grow-1',
@@ -40,7 +40,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     ]);
   ?>
 
-  <?php $this->part('listing/bulk-form', [
+  <?php $this->render('parts/listing/bulk-form', [
     'formId'       => 'terms-bulk-form',
     'action'       => 'admin.php?' . http_build_query(['r' => 'terms', 'a' => 'bulk', 'type' => $type]),
     'csrf'         => $csrf,
@@ -51,7 +51,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     'counter'      => '#terms-bulk-counter',
   ]); ?>
   <div class="card">
-    <?php $this->part('listing/bulk-header', [
+    <?php $this->render('parts/listing/bulk-header', [
       'formId'         => 'terms-bulk-form',
       'actionSelectId' => 'terms-bulk-action',
       'applyButtonId'  => 'terms-bulk-apply',
@@ -128,7 +128,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       </div>
     </div>
 
-  <?php $this->part('listing/pagination', [
+  <?php $this->render('parts/listing/pagination', [
     'page'      => (int)($pagination['page'] ?? 1),
     'pages'     => (int)($pagination['pages'] ?? 1),
     'buildUrl'  => $buildUrl,

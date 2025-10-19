@@ -50,7 +50,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       ];
     }
 
-    $this->part('listing/toolbar', [
+    $this->render('parts/listing/toolbar', [
       'tabs'    => $tabLinks,
       'tabsClass' => 'order-2 order-md-1',
       'search'  => [
@@ -74,7 +74,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   ?>
 
   <!-- Tabulka bez #ID a bez status sloupce -->
-  <?php $this->part('listing/bulk-form', [
+  <?php $this->render('parts/listing/bulk-form', [
     'formId'       => 'posts-bulk-form',
     'action'       => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'bulk', 'type' => $type]),
     'csrf'         => $csrf,
@@ -85,7 +85,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     'counter'      => '#bulk-selection-counter',
   ]); ?>
   <div class="card">
-    <?php $this->part('listing/bulk-header', [
+    <?php $this->render('parts/listing/bulk-header', [
       'formId'         => 'posts-bulk-form',
       'actionSelectId' => 'bulk-action-select',
       'applyButtonId'  => 'bulk-apply',
@@ -196,7 +196,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
 
   <!-- Stránkování -->
-  <?php $this->part('listing/pagination', [
+  <?php $this->render('parts/listing/pagination', [
     'page'      => (int)($pagination['page'] ?? 1),
     'pages'     => (int)($pagination['pages'] ?? 1),
     'buildUrl'  => $buildUrl,

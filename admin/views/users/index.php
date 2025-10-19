@@ -15,7 +15,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $currentUserId = (int)($currentUser['id'] ?? 0);
 ?>
   <?php
-    $this->part('listing/toolbar', [
+    $this->render('parts/listing/toolbar', [
       'search' => [
         'action'        => 'admin.php',
         'wrapperClass'  => 'order-1 order-md-1',
@@ -36,7 +36,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     ]);
   ?>
 
-  <?php $this->part('listing/bulk-form', [
+  <?php $this->render('parts/listing/bulk-form', [
     'formId'       => 'users-bulk-form',
     'action'       => 'admin.php?r=users&a=bulk',
     'csrf'         => $csrf,
@@ -52,7 +52,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   ]); ?>
 
   <div class="card">
-    <?php $this->part('listing/bulk-header', [
+    <?php $this->render('parts/listing/bulk-header', [
       'formId'         => 'users-bulk-form',
       'actionSelectId' => 'users-bulk-select',
       'applyButtonId'  => 'users-bulk-apply',
@@ -235,7 +235,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     <?= $modal ?>
   <?php endforeach; ?>
 
-  <?php $this->part('listing/pagination', [
+  <?php $this->render('parts/listing/pagination', [
     'page'      => (int)($pagination['page'] ?? 1),
     'pages'     => (int)($pagination['pages'] ?? 1),
     'buildUrl'  => $buildUrl,
