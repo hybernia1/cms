@@ -1,0 +1,21 @@
+{
+    "slug": "classic",
+    "name": "Classic",
+    "version": "1.0.0",
+    "description": "Elegantní výchozí šablona s důrazem na čitelnost obsahu a přehlednou navigaci.",
+    "author": "CMS Team",
+    "supports": {
+        "menus": ["primary", "footer"],
+        "custom_logo": true,
+        "social_image": true
+    },
+    "palette": {
+        "background": "#f9f7f1",
+        "card": "#ffffff",
+        "accent": "#2a4d69",
+        "accent_light": "#4b86b4",
+        "text": "#1f1f1f",
+        "muted": "#6f6f6f",
+        "border": "#d9c9a3"
+    }
+}

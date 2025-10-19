@@ -17,6 +17,14 @@ final class UsersRepository
         return DB::query()->table('users')->select(['*'])->where('email','=',$email)->first();
     }
 
+    public function findByResetToken(int $userId, string $token): ?array
+    {
+        return DB::query()->table('users')->select(['id','name','email','token','token_expire'])
+            ->where('id','=', $userId)
+            ->where('token','=', $token)
+            ->first();
+    }
+
     public function create(array $data): int
     {
         return (int) DB::query()->table('users')->insert($data)->insertGetId();

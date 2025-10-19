@@ -1,25 +1,38 @@
 <?php
 /** @var array<int,array<string,mixed>> $posts */
-/** @var \Cms\Admin\Utils\LinkGenerator $links */
+/** @var array<string,mixed> $site */
+
+$siteTitle = (string)($site['title'] ?? 'Web');
+$siteTagline = trim((string)($site['description'] ?? ''));
+$lead = $siteTagline !== ''
+    ? $siteTagline
+    : 'Prohlédněte si nejnovější články, aktuality a příběhy, které na ' . $siteTitle . ' právě vznikají.';
+$postCardTemplate = __DIR__ . '/partials/post-card.php';
 ?>
-<section>
-    <header>
-        <h1 class="section-title">Čerstvé čtení</h1>
-        <p class="breadcrumbs">Nejnovější články a novinky z redakce.</p>
+<section class="section section--home">
+    <header class="section__header">
+        <p class="section__eyebrow">Aktuálně</p>
+        <h1 class="section__title">Čerstvé čtení</h1>
+        <p class="section__lead">
+            <?= htmlspecialchars($lead, ENT_QUOTES, 'UTF-8'); ?>
+        </p>
     </header>
+
     <?php if ($posts === []): ?>
-        <p>Obsah pro úvodní stránku se teprve připravuje. Zkuste se vrátit později.</p>
+        <div class="notice notice--info">
+            <p>Úvodní stránka zatím nemá žádné zveřejněné články. Jakmile redakce něco připraví, objeví se to právě zde.</p>
+        </div>
     <?php else: ?>
-        <div class="post-list">
+        <div class="post-grid">
             <?php foreach ($posts as $post): ?>
-                <article class="post-card">
-                    <h3><a href="<?= htmlspecialchars((string)$post['permalink'], ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string)$post['title'], ENT_QUOTES, 'UTF-8'); ?></a></h3>
-                    <?php if (!empty($post['published_at'])): ?>
-                        <p class="post-meta"><?= htmlspecialchars((string)$post['published_at'], ENT_QUOTES, 'UTF-8'); ?></p>
-                    <?php endif; ?>
-                    <p><?= htmlspecialchars((string)$post['excerpt'], ENT_QUOTES, 'UTF-8'); ?></p>
-                    <p><a href="<?= htmlspecialchars((string)$post['permalink'], ENT_QUOTES, 'UTF-8'); ?>">Pokračovat ve čtení &rarr;</a></p>
-                </article>
+                <?php
+                    $postCardHeading = 2;
+                    $postCardShowExcerpt = true;
+                    $postCardShowMeta = true;
+                    $postCardClass = 'post-card--featured';
+                    $postCardReadMore = 'Pokračovat ve čtení';
+                    include $postCardTemplate;
+                ?>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
