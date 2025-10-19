@@ -107,28 +107,3 @@ function cms_bootstrap_config_or_redirect(): array
     return $config;
 }
 
-/**
- * Přesměruj na veřejnou login stránku. Pro AJAX požadavky vrať JSON odpověď.
- */
-function cms_redirect_to_front_login(bool $success = false): never
-{
-    $target = 'login.php';
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-
-    if (!$isAjax) {
-        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
-        $isAjax = str_contains($accept, 'application/json');
-    }
-
-    if ($isAjax) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'success'  => $success,
-            'redirect' => $target,
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    header('Location: ' . $target);
-    exit;
-}
