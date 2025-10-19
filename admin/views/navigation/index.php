@@ -14,6 +14,8 @@ declare(strict_types=1);
 /** @var array<int,array{value:int,label:string,disabled:bool}> $parentOptions */
 /** @var array<int,array{value:string,label:string}> $targets */
 /** @var array<string,array<int,array<string,mixed>>> $quickAddOptions */
+/** @var array<string,string> $linkTypeLabels */
+/** @var array<string,string> $linkStatusMessages */
 
 $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($csrf, $tablesReady, $menus, $menu, $menuId, $items, $editingItem, $parentOptions, $targets, $quickAddOptions) {
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
@@ -30,7 +32,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
         '_blank' => ['icon' => 'bi-box-arrow-up-right', 'title' => 'Otevřít v novém okně'],
     ];
     $defaultOrder = $editingItem ? (int)($editingItem['sort_order'] ?? 0) : (count($items) + 1);
-    $quickAddOptions = $quickAddOptions ?? ['pages' => [], 'posts' => [], 'categories' => []];
+    $quickAddOptions = $quickAddOptions ?? ['pages' => [], 'posts' => [], 'categories' => [], 'system' => []];
     $hasQuickAdd = false;
     foreach ($quickAddOptions as $opts) {
         if (!empty($opts)) {
@@ -38,10 +40,13 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
             break;
         }
     }
+    $linkTypeLabels = $linkTypeLabels ?? [];
+    $linkStatusMessages = $linkStatusMessages ?? [];
     $modalTabs = [
         'pages' => ['label' => 'Stránky', 'icon' => 'bi-file-earmark-text'],
         'posts' => ['label' => 'Příspěvky', 'icon' => 'bi-journal-text'],
         'categories' => ['label' => 'Kategorie', 'icon' => 'bi-folder'],
+        'system' => ['label' => 'Systém', 'icon' => 'bi-gear'],
     ];
     $activeTab = 'pages';
     foreach (array_keys($modalTabs) as $key) {
@@ -169,6 +174,13 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
               <?php if ($editingItem): ?>
                 <input type="hidden" name="id" value="<?= $h((string)$editingItem['id']) ?>">
               <?php endif; ?>
+              <?php $currentLinkType = $editingItem ? (string)($editingItem['link_type'] ?? 'custom') : 'custom'; ?>
+              <?php $currentLinkReference = $editingItem ? (string)($editingItem['link_reference'] ?? '') : ''; ?>
+              <?php $currentLinkValid = $editingItem ? (bool)($editingItem['link_valid'] ?? true) : true; ?>
+              <?php $currentLinkReason = $editingItem['link_reason'] ?? null; ?>
+              <?php $currentLinkMeta = $editingItem['link_meta'] ?? []; ?>
+              <input type="hidden" name="link_type" id="navigation-item-link-type" value="<?= $h($currentLinkType) ?>">
+              <input type="hidden" name="link_reference" id="navigation-item-link-reference" value="<?= $h($currentLinkReference) ?>">
               <div class="row g-3">
                 <div class="col-md-6">
                   <label for="navigation-item-title" class="form-label">Název</label>
@@ -177,7 +189,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                 <div class="col-md-6">
                   <label class="form-label">URL</label>
                   <div class="input-group">
-                    <input type="text" id="navigation-item-url" name="url" class="form-control" value="<?= $editingItem ? $h((string)$editingItem['url']) : '' ?>" placeholder="/cesta nebo https://..." required>
+                    <input type="text" id="navigation-item-url" name="url" class="form-control" value="<?= $editingItem ? $h((string)$editingItem['url']) : '' ?>" placeholder="/cesta nebo https://...">
                     <?php if ($hasQuickAdd): ?>
                       <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#navigationContentModal" title="Vybrat existující obsah">
                         <i class="bi bi-collection" aria-hidden="true"></i>
@@ -185,7 +197,28 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                       </button>
                     <?php endif; ?>
                   </div>
-                  <div class="form-text">Zadejte vlastní URL nebo vyberte existující stránku, příspěvek či kategorii.</div>
+                  <?php $typeLabel = $linkTypeLabels[$currentLinkType] ?? ucfirst($currentLinkType); ?>
+                  <?php $clearLabel = $currentLinkType === 'custom' ? 'Přepnout na vlastní URL' : 'Zrušit napojení'; ?>
+                  <?php $slugInfo = ''; ?>
+                  <?php if ($currentLinkType !== 'custom'): ?>
+                    <?php if (is_array($currentLinkMeta) && !empty($currentLinkMeta['slug'])): ?>
+                      <?php $slugInfo = 'Slug: ' . (string)$currentLinkMeta['slug']; ?>
+                    <?php elseif (is_array($currentLinkMeta) && !empty($currentLinkMeta['route'])): ?>
+                      <?php $slugInfo = 'Klíč: ' . (string)$currentLinkMeta['route']; ?>
+                    <?php elseif ($currentLinkReference !== ''): ?>
+                      <?php $slugInfo = 'Reference: ' . $currentLinkReference; ?>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                  <?php $warning = (!$currentLinkValid && is_string($currentLinkReason)) ? ($linkStatusMessages[$currentLinkReason] ?? 'Odkaz má problém a může vést na neplatnou stránku.') : ''; ?>
+                  <div class="form-text">
+                    Zadejte vlastní URL nebo vyberte existující stránku, příspěvek, kategorii či systémový odkaz.
+                    <span class="badge text-bg-info ms-1<?= $currentLinkType === 'custom' ? ' d-none' : '' ?>" data-nav-link-badge>
+                      Dynamický: <span data-nav-link-type-label><?= $h($typeLabel) ?></span>
+                    </span>
+                    <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-nav-clear-source><?= $h($clearLabel) ?></button>
+                  </div>
+                  <div class="form-text text-secondary<?= $slugInfo !== '' ? '' : ' d-none' ?>" data-nav-link-meta><?= $slugInfo !== '' ? $h($slugInfo) : '' ?></div>
+                  <div class="form-text text-danger<?= $warning !== '' ? '' : ' d-none' ?>" data-nav-link-warning><?= $warning !== '' ? $h($warning) : '' ?></div>
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Cíl odkazu</label>
@@ -249,6 +282,26 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                     <td>
                       <div style="padding-left: <?= $indent ?>px">
                         <div class="fw-semibold"><?= $h((string)$it['title']) ?></div>
+                        <?php $itemLinkType = (string)($it['link_type'] ?? 'custom'); ?>
+                        <?php $itemLinkLabel = $linkTypeLabels[$itemLinkType] ?? ucfirst($itemLinkType); ?>
+                        <?php $itemLinkMeta = $it['link_meta'] ?? []; ?>
+                        <div class="small text-secondary">
+                          <?= $h($itemLinkLabel) ?>
+                          <?php if (is_array($itemLinkMeta) && !empty($itemLinkMeta['slug'])): ?>
+                            · Slug: <?= $h((string)$itemLinkMeta['slug']) ?>
+                          <?php elseif (is_array($itemLinkMeta) && !empty($itemLinkMeta['route'])): ?>
+                            · Klíč: <?= $h((string)$itemLinkMeta['route']) ?>
+                          <?php elseif (!empty($it['link_reference']) && $itemLinkType !== 'custom'): ?>
+                            · <?= $h((string)$it['link_reference']) ?>
+                          <?php endif; ?>
+                        </div>
+                        <?php if (!empty($it['link_reason'])): ?>
+                          <?php $reasonKey = (string)$it['link_reason']; ?>
+                          <?php $reasonText = $linkStatusMessages[$reasonKey] ?? 'Odkaz má problém a může vést na neplatnou stránku.'; ?>
+                          <div class="small text-danger">
+                            <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i><?= $h($reasonText) ?>
+                          </div>
+                        <?php endif; ?>
                         <?php if (!empty($it['css_class'])): ?>
                           <span class="badge text-bg-secondary mt-1"><?= $h((string)$it['css_class']) ?></span>
                         <?php endif; ?>
@@ -309,7 +362,7 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
                 </div>
                 <div class="modal-body">
-                  <p class="text-secondary small">Vyberte existující stránku, příspěvek nebo kategorii. Název i URL se před uložením automaticky vyplní do formuláře, hodnoty můžete dále upravit.</p>
+                  <p class="text-secondary small">Vyberte existující stránku, příspěvek, kategorii nebo systémový odkaz. Název i URL se před uložením automaticky vyplní do formuláře, hodnoty můžete dále upravit.</p>
                   <ul class="nav nav-tabs" id="navigationContentTabs" role="tablist">
                     <?php foreach ($modalTabs as $key => $tab): ?>
                       <?php $disabled = empty($quickAddOptions[$key]); ?>
@@ -335,15 +388,37 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
                               <?php $slug = (string)($item['slug'] ?? ''); ?>
                               <?php $title = (string)($item['title'] ?? ''); ?>
                               <?php $url = (string)($item['url'] ?? ''); ?>
+                              <?php $linkType = (string)($item['link_type'] ?? ($item['type'] ?? 'custom')); ?>
+                              <?php $linkReference = (string)($item['link_reference'] ?? ($item['id'] ?? '')); ?>
+                              <?php $typeLabel = $linkTypeLabels[$linkType] ?? ucfirst($linkType); ?>
+                              <?php $description = (string)($item['description'] ?? ''); ?>
+                              <?php $status = (string)($item['status'] ?? ''); ?>
+                              <?php $metaText = ''; ?>
+                              <?php if ($linkType === 'route'): ?>
+                                <?php $metaText = 'Klíč: ' . $linkReference; ?>
+                              <?php elseif ($slug !== ''): ?>
+                                <?php $metaText = 'Slug: ' . $slug; ?>
+                              <?php elseif ($description !== ''): ?>
+                                <?php $metaText = $description; ?>
+                              <?php endif; ?>
                               <div class="list-group-item">
                                 <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
                                   <div class="flex-grow-1">
                                     <div class="fw-semibold"><?= $h($title) ?></div>
-                                    <div class="text-secondary small">Slug: <?= $h($slug) ?></div>
+                                    <div class="text-secondary small">Typ: <?= $h($typeLabel) ?></div>
+                                    <?php if ($slug !== ''): ?>
+                                      <div class="text-secondary small">Slug: <?= $h($slug) ?></div>
+                                    <?php endif; ?>
+                                    <?php if ($description !== '' && $description !== $metaText): ?>
+                                      <div class="text-secondary small"><?= $h($description) ?></div>
+                                    <?php endif; ?>
                                     <div class="text-secondary small text-break">URL: <?= $h($url) ?></div>
+                                    <?php if ($status !== '' && $status !== 'publish'): ?>
+                                      <div class="text-danger small">Stav: <?= $h($status) ?></div>
+                                    <?php endif; ?>
                                   </div>
                                   <div class="text-nowrap">
-                                    <button type="button" class="btn btn-sm btn-primary" data-nav-fill data-nav-target="#navigation-item-form" data-nav-title="<?= $h($title) ?>" data-nav-url="<?= $h($url) ?>">
+                                    <button type="button" class="btn btn-sm btn-primary" data-nav-fill data-nav-target="#navigation-item-form" data-nav-title="<?= $h($title) ?>" data-nav-url="<?= $h($url) ?>" data-nav-type="<?= $h($linkType) ?>" data-nav-reference="<?= $h($linkReference) ?>" data-nav-type-label="<?= $h($typeLabel) ?>" data-nav-meta="<?= $h($metaText) ?>">
                                       <i class="bi bi-plus-circle me-1" aria-hidden="true"></i>Použít v položce
                                     </button>
                                   </div>

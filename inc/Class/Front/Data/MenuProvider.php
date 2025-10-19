@@ -4,12 +4,19 @@ declare(strict_types=1);
 namespace Cms\Front\Data;
 
 use Core\Database\Init as DB;
+use Core\Navigation\LinkResolver;
 use Throwable;
 
 final class MenuProvider
 {
     /** @var array<string,mixed> */
     private array $cache = [];
+    private LinkResolver $linkResolver;
+
+    public function __construct(?LinkResolver $resolver = null)
+    {
+        $this->linkResolver = $resolver ?? new LinkResolver();
+    }
 
     /**
      * @return array<string,array<int,array<string,mixed>>>
@@ -64,7 +71,7 @@ final class MenuProvider
         try {
             $items = DB::query()
                 ->table('navigation_items')
-                ->select(['id','menu_id','parent_id','title','url','target','css_class','sort_order'])
+                ->select(['id','menu_id','parent_id','title','link_type','link_reference','url','target','css_class','sort_order'])
                 ->whereIn('menu_id', $menuIds)
                 ->orderBy('sort_order', 'ASC')
                 ->get() ?? [];
@@ -80,16 +87,27 @@ final class MenuProvider
             if (!isset($menuMap[$menuId])) {
                 continue;
             }
+
+            $link = $this->linkResolver->resolve($item);
+            if (!$link['valid'] || $link['url'] === '') {
+                continue;
+            }
+
             $parent = isset($item['parent_id']) ? (int)$item['parent_id'] : 0;
             $grouped[$menuId][$parent][] = [
                 'id' => (int)($item['id'] ?? 0),
                 'menu_id' => $menuId,
                 'parent_id' => $parent > 0 ? $parent : null,
                 'title' => (string)($item['title'] ?? ''),
-                'url' => (string)($item['url'] ?? ''),
+                'url' => $link['url'],
                 'target' => (string)($item['target'] ?? '_self'),
                 'css_class' => (string)($item['css_class'] ?? ''),
                 'sort_order' => (int)($item['sort_order'] ?? 0),
+                'link_type' => $link['type'],
+                'link_reference' => $link['reference'],
+                'link_meta' => $link['meta'],
+                'link_valid' => $link['valid'],
+                'link_reason' => $link['reason'],
             ];
         }
 

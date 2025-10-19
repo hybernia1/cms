@@ -8,9 +8,11 @@ use Core\Database\Init as DB;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
+use Core\Navigation\LinkResolver;
 
 final class NavigationController extends BaseAdminController
 {
+    private ?LinkResolver $linkResolver = null;
 
     public function handle(string $action): void
     {
@@ -88,6 +90,15 @@ final class NavigationController extends BaseAdminController
         return (bool) $stmt->fetchColumn();
     }
 
+    private function linkResolver(): LinkResolver
+    {
+        if ($this->linkResolver === null) {
+            $this->linkResolver = new LinkResolver();
+        }
+
+        return $this->linkResolver;
+    }
+
     private function loadMenus(): array
     {
         if (!$this->tablesReady()) {
@@ -119,11 +130,33 @@ final class NavigationController extends BaseAdminController
         }
         return DB::query()
             ->table('navigation_items')
-            ->select(['id', 'menu_id', 'parent_id', 'title', 'url', 'target', 'css_class', 'sort_order', 'created_at'])
+            ->select(['id', 'menu_id', 'parent_id', 'title', 'link_type', 'link_reference', 'url', 'target', 'css_class', 'sort_order', 'created_at'])
             ->where('menu_id', '=', $menuId)
             ->orderBy('sort_order', 'ASC')
             ->orderBy('id', 'ASC')
             ->get() ?? [];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $items
+     * @return array<int,array<string,mixed>>
+     */
+    private function resolveItems(array $items): array
+    {
+        $resolver = $this->linkResolver();
+        $resolved = [];
+        foreach ($items as $item) {
+            $linkData = $resolver->resolve($item);
+            $item['link_type'] = $linkData['type'];
+            $item['link_reference'] = $linkData['reference'];
+            $item['url'] = $linkData['url'];
+            $item['link_valid'] = $linkData['valid'];
+            $item['link_reason'] = $linkData['reason'];
+            $item['link_meta'] = $linkData['meta'];
+            $resolved[] = $item;
+        }
+
+        return $resolved;
     }
 
     private function buildTree(array $items): array
@@ -136,7 +169,12 @@ final class NavigationController extends BaseAdminController
                 'menu_id' => (int)$item['menu_id'],
                 'parent_id' => $parent > 0 ? $parent : null,
                 'title' => (string)$item['title'],
-                'url' => (string)$item['url'],
+                'link_type' => (string)($item['link_type'] ?? 'custom'),
+                'link_reference' => (string)($item['link_reference'] ?? ''),
+                'link_valid' => (bool)($item['link_valid'] ?? false) || (string)($item['link_type'] ?? 'custom') === 'custom',
+                'link_reason' => $item['link_reason'] ?? null,
+                'link_meta' => is_array($item['link_meta'] ?? null) ? $item['link_meta'] : [],
+                'url' => (string)($item['url'] ?? ''),
                 'target' => (string)($item['target'] ?? '_self'),
                 'css_class' => (string)($item['css_class'] ?? ''),
                 'sort_order' => (int)$item['sort_order'],
@@ -262,6 +300,68 @@ final class NavigationController extends BaseAdminController
         ];
     }
 
+    /**
+     * @return array<string,string>
+     */
+    private function linkTypeLabels(): array
+    {
+        return [
+            'custom' => 'Vlastní URL',
+            'page' => 'Stránka',
+            'post' => 'Příspěvek',
+            'category' => 'Kategorie',
+            'route' => 'Systémová stránka',
+        ];
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function linkStatusMessages(): array
+    {
+        return [
+            'custom-empty' => 'URL není vyplněné.',
+            'invalid-reference' => 'Vybraný obsah již neexistuje.',
+            'missing' => 'Vybraný obsah nebyl nalezen.',
+            'unpublished' => 'Obsah není publikován.',
+            'unknown-route' => 'Neznámý typ systémového odkazu.',
+            'error' => 'Nepodařilo se ověřit odkaz.',
+        ];
+    }
+
+    private function sanitizeLinkType(string $type): string
+    {
+        $allowed = array_keys($this->linkTypeLabels());
+        return in_array($type, $allowed, true) ? $type : 'custom';
+    }
+
+    /**
+     * @return array{type:string,reference:string,url:string,valid:bool,reason:?string}
+     */
+    private function prepareLinkData(string $type, string $reference, string $url): array
+    {
+        $normalizedType = $this->sanitizeLinkType($type);
+        $normalizedReference = $normalizedType === 'custom' ? '' : trim($reference);
+        $candidate = [
+            'link_type' => $normalizedType,
+            'link_reference' => $normalizedReference,
+            'url' => $url,
+        ];
+
+        $resolved = $this->linkResolver()->resolve($candidate);
+        $finalType = $resolved['type'];
+        $finalReference = $finalType === 'custom' ? '' : $resolved['reference'];
+        $finalUrl = $finalType === 'custom' ? trim($resolved['url']) : $resolved['url'];
+
+        return [
+            'type' => $finalType,
+            'reference' => $finalReference,
+            'url' => $finalUrl,
+            'valid' => $resolved['valid'],
+            'reason' => $resolved['reason'],
+        ];
+    }
+
     private function index(): void
     {
         $tablesReady = $this->tablesReady();
@@ -277,7 +377,8 @@ final class NavigationController extends BaseAdminController
         }
 
         $itemsRaw = $menu ? $this->allItemsForMenu((int)$menu['id']) : [];
-        $tree = $this->buildTree($itemsRaw);
+        $itemsResolved = $itemsRaw ? $this->resolveItems($itemsRaw) : [];
+        $tree = $this->buildTree($itemsResolved);
         $flat = $this->flattenTree($tree);
 
         $editingItem = null;
@@ -285,17 +386,25 @@ final class NavigationController extends BaseAdminController
         if ($itemId > 0 && $menu) {
             $editingItem = DB::query()
                 ->table('navigation_items')
-                ->select(['id', 'menu_id', 'parent_id', 'title', 'url', 'target', 'css_class', 'sort_order'])
+                ->select(['id', 'menu_id', 'parent_id', 'title', 'link_type', 'link_reference', 'url', 'target', 'css_class', 'sort_order'])
                 ->where('id', '=', $itemId)
                 ->first() ?: null;
             if (!$editingItem || (int)$editingItem['menu_id'] !== (int)$menu['id']) {
                 $editingItem = null;
+            } else {
+                $resolved = $this->linkResolver()->resolve($editingItem);
+                $editingItem['link_type'] = $resolved['type'];
+                $editingItem['link_reference'] = $resolved['reference'];
+                $editingItem['url'] = $resolved['url'];
+                $editingItem['link_valid'] = $resolved['valid'];
+                $editingItem['link_reason'] = $resolved['reason'];
+                $editingItem['link_meta'] = $resolved['meta'];
             }
         }
 
         $invalidParents = [];
         if ($editingItem) {
-            $invalidParents = $this->descendantIdsFromList($itemsRaw, (int)$editingItem['id']);
+            $invalidParents = $this->descendantIdsFromList($itemsResolved ?: $itemsRaw, (int)$editingItem['id']);
         }
         $parentOptions = $this->parentOptions($flat, $editingItem ? (int)$editingItem['id'] : null, $invalidParents);
 
@@ -311,6 +420,8 @@ final class NavigationController extends BaseAdminController
             'parentOptions' => $parentOptions,
             'targets' => $this->targetOptions(),
             'quickAddOptions' => $this->quickAddOptions(),
+            'linkTypeLabels' => $this->linkTypeLabels(),
+            'linkStatusMessages' => $this->linkStatusMessages(),
         ]);
     }
 
@@ -320,6 +431,7 @@ final class NavigationController extends BaseAdminController
             'pages' => [],
             'posts' => [],
             'categories' => [],
+            'system' => [],
         ];
 
         $links = new LinkGenerator();
@@ -332,6 +444,8 @@ final class NavigationController extends BaseAdminController
         if ($this->tableExists('terms')) {
             $options['categories'] = $this->loadQuickCategories($links);
         }
+
+        $options['system'] = $this->loadQuickSystem($links);
 
         return $options;
     }
@@ -351,7 +465,11 @@ final class NavigationController extends BaseAdminController
         foreach ($rows as $row) {
             $title = trim((string)($row['title'] ?? ''));
             $slug = trim((string)($row['slug'] ?? ''));
+            $id = (int)($row['id'] ?? 0);
             if ($title === '' || $slug === '') {
+                continue;
+            }
+            if ($id <= 0) {
                 continue;
             }
 
@@ -360,11 +478,42 @@ final class NavigationController extends BaseAdminController
                 : $links->post($slug);
 
             $items[] = [
-                'id' => (int)($row['id'] ?? 0),
+                'id' => $id,
                 'title' => $title,
                 'slug' => $slug,
                 'url' => $url,
                 'type' => $type,
+                'link_type' => $type,
+                'link_reference' => (string)$id,
+                'status' => (string)($row['status'] ?? ''),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function loadQuickSystem(LinkGenerator $links): array
+    {
+        $items = [];
+        $routes = [
+            ['Domů', 'home', $links->home(), 'Úvodní stránka webu'],
+            ['Administrace', 'admin', $links->admin(), 'Přihlášená sekce pro správu obsahu'],
+            ['Přihlášení', 'login', $links->login(), 'Formulář pro přihlášení'],
+            ['Registrace', 'register', $links->register(), 'Formulář pro vytvoření účtu'],
+            ['Odhlášení', 'logout', $links->logout(), 'Odkaz k odhlášení uživatele'],
+            ['Zapomenuté heslo', 'lost', $links->lost(), 'Stránka pro obnovu hesla'],
+            ['Vyhledávání', 'search', $links->search(), 'Výsledky vyhledávání'],
+        ];
+
+        foreach ($routes as [$title, $route, $url, $description]) {
+            $items[] = [
+                'title' => $title,
+                'slug' => $route,
+                'url' => $url,
+                'description' => $description,
+                'link_type' => 'route',
+                'link_reference' => $route,
+                'type' => 'route',
             ];
         }
 
@@ -385,16 +534,22 @@ final class NavigationController extends BaseAdminController
         foreach ($rows as $row) {
             $name = trim((string)($row['name'] ?? ''));
             $slug = trim((string)($row['slug'] ?? ''));
+            $id = (int)($row['id'] ?? 0);
             if ($name === '' || $slug === '') {
+                continue;
+            }
+            if ($id <= 0) {
                 continue;
             }
 
             $items[] = [
-                'id' => (int)($row['id'] ?? 0),
+                'id' => $id,
                 'title' => $name,
                 'slug' => $slug,
                 'url' => $links->category($slug),
                 'type' => 'category',
+                'link_type' => 'category',
+                'link_reference' => (string)$id,
             ];
         }
 
@@ -533,16 +688,37 @@ final class NavigationController extends BaseAdminController
         }
 
         $title = trim((string)($_POST['title'] ?? ''));
-        $url = trim((string)($_POST['url'] ?? ''));
+        $urlInput = trim((string)($_POST['url'] ?? ''));
+        $linkTypeInput = (string)($_POST['link_type'] ?? 'custom');
+        $linkReferenceInput = trim((string)($_POST['link_reference'] ?? ''));
         $target = $this->sanitizeTarget((string)($_POST['target'] ?? '_self'));
         $cssClass = trim((string)($_POST['css_class'] ?? ''));
         $parentId = (int)($_POST['parent_id'] ?? 0);
         $sortOrder = (int)($_POST['sort_order'] ?? 0);
 
-        if ($title === '' || $url === '') {
-            $this->flash('danger', 'Název i URL položky jsou povinné.');
+        if ($title === '') {
+            $this->flash('danger', 'Název položky je povinný.');
             $this->redirectTo($menuId);
         }
+
+        $linkData = $this->prepareLinkData($linkTypeInput, $linkReferenceInput, $urlInput);
+
+        if ($linkData['type'] === 'custom' && $linkData['url'] === '') {
+            $this->flash('danger', 'Pro vlastní odkaz musíte vyplnit URL adresu.');
+            $this->redirectTo($menuId);
+        }
+
+        if ($linkData['type'] !== 'custom' && !$linkData['valid']) {
+            $messages = $this->linkStatusMessages();
+            $reason = $linkData['reason'] ?? 'missing';
+            $message = $messages[$reason] ?? 'Vybraný obsah není možné použít v navigaci.';
+            $this->flash('danger', $message);
+            $this->redirectTo($menuId);
+        }
+
+        $linkType = $linkData['type'];
+        $linkReference = $linkData['reference'];
+        $url = $linkData['url'];
 
         $parent = null;
         if ($parentId > 0) {
@@ -562,6 +738,8 @@ final class NavigationController extends BaseAdminController
                 'menu_id' => $menuId,
                 'parent_id' => $parentId > 0 ? $parentId : null,
                 'title' => $title,
+                'link_type' => $linkType,
+                'link_reference' => $linkReference !== '' ? $linkReference : null,
                 'url' => $url,
                 'target' => $target,
                 'css_class' => $cssClass !== '' ? $cssClass : null,
@@ -596,16 +774,37 @@ final class NavigationController extends BaseAdminController
         }
 
         $title = trim((string)($_POST['title'] ?? ''));
-        $url = trim((string)($_POST['url'] ?? ''));
+        $urlInput = trim((string)($_POST['url'] ?? ''));
+        $linkTypeInput = (string)($_POST['link_type'] ?? 'custom');
+        $linkReferenceInput = trim((string)($_POST['link_reference'] ?? ''));
         $target = $this->sanitizeTarget((string)($_POST['target'] ?? '_self'));
         $cssClass = trim((string)($_POST['css_class'] ?? ''));
         $parentId = (int)($_POST['parent_id'] ?? 0);
         $sortOrder = (int)($_POST['sort_order'] ?? 0);
 
-        if ($title === '' || $url === '') {
-            $this->flash('danger', 'Název i URL položky jsou povinné.');
+        if ($title === '') {
+            $this->flash('danger', 'Název položky je povinný.');
             $this->redirectTo($menuId, ['item_id' => $itemId]);
         }
+
+        $linkData = $this->prepareLinkData($linkTypeInput, $linkReferenceInput, $urlInput);
+
+        if ($linkData['type'] === 'custom' && $linkData['url'] === '') {
+            $this->flash('danger', 'Pro vlastní odkaz musíte vyplnit URL adresu.');
+            $this->redirectTo($menuId, ['item_id' => $itemId]);
+        }
+
+        if ($linkData['type'] !== 'custom' && !$linkData['valid']) {
+            $messages = $this->linkStatusMessages();
+            $reason = $linkData['reason'] ?? 'missing';
+            $message = $messages[$reason] ?? 'Vybraný obsah není možné použít v navigaci.';
+            $this->flash('danger', $message);
+            $this->redirectTo($menuId, ['item_id' => $itemId]);
+        }
+
+        $linkType = $linkData['type'];
+        $linkReference = $linkData['reference'];
+        $url = $linkData['url'];
 
         $itemsRaw = $this->allItemsForMenu($menuId);
         $invalidParents = $this->descendantIdsFromList($itemsRaw, $itemId);
@@ -630,6 +829,8 @@ final class NavigationController extends BaseAdminController
             ->table('navigation_items')
             ->update([
                 'title' => $title,
+                'link_type' => $linkType,
+                'link_reference' => $linkReference !== '' ? $linkReference : null,
                 'url' => $url,
                 'target' => $target,
                 'css_class' => $cssClass !== '' ? $cssClass : null,

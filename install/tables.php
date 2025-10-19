@@ -152,6 +152,8 @@ CREATE TABLE IF NOT EXISTS navigation_items (
   menu_id BIGINT UNSIGNED NOT NULL,
   parent_id BIGINT UNSIGNED NULL,
   title VARCHAR(150) NOT NULL,
+  link_type VARCHAR(50) NOT NULL DEFAULT 'custom',
+  link_reference VARCHAR(150) NULL,
   url VARCHAR(500) NOT NULL,
   target VARCHAR(20) NOT NULL DEFAULT '_self',
   css_class VARCHAR(150) NULL,
@@ -177,8 +179,8 @@ SQL
 
 /** DEFAULT NAVIGATION ITEMS */
 <<<SQL
-INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
-SELECT m.id, NULL, 'Index', '/', '_self', NULL, 1, NOW()
+INSERT INTO navigation_items (menu_id, parent_id, title, link_type, link_reference, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Index', 'route', 'home', '/', '_self', NULL, 1, NOW()
 FROM navigation_menus m
 WHERE m.slug = 'primary'
   AND NOT EXISTS (
@@ -188,8 +190,8 @@ WHERE m.slug = 'primary'
 SQL
 ,
 <<<SQL
-INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
-SELECT m.id, NULL, 'Admin', '/admin', '_self', NULL, 2, NOW()
+INSERT INTO navigation_items (menu_id, parent_id, title, link_type, link_reference, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Admin', 'route', 'admin', '/admin', '_self', NULL, 2, NOW()
 FROM navigation_menus m
 WHERE m.slug = 'primary'
   AND NOT EXISTS (
@@ -199,8 +201,8 @@ WHERE m.slug = 'primary'
 SQL
 ,
 <<<SQL
-INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
-SELECT m.id, NULL, 'Register', '/register', '_self', NULL, 3, NOW()
+INSERT INTO navigation_items (menu_id, parent_id, title, link_type, link_reference, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Register', 'route', 'register', '/register', '_self', NULL, 3, NOW()
 FROM navigation_menus m
 WHERE m.slug = 'primary'
   AND NOT EXISTS (
@@ -210,8 +212,8 @@ WHERE m.slug = 'primary'
 SQL
 ,
 <<<SQL
-INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
-SELECT m.id, NULL, 'Login', '/login', '_self', NULL, 4, NOW()
+INSERT INTO navigation_items (menu_id, parent_id, title, link_type, link_reference, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Login', 'route', 'login', '/login', '_self', NULL, 4, NOW()
 FROM navigation_menus m
 WHERE m.slug = 'primary'
   AND NOT EXISTS (
@@ -221,8 +223,8 @@ WHERE m.slug = 'primary'
 SQL
 ,
 <<<SQL
-INSERT INTO navigation_items (menu_id, parent_id, title, url, target, css_class, sort_order, created_at)
-SELECT m.id, NULL, 'Search', '/search', '_self', NULL, 5, NOW()
+INSERT INTO navigation_items (menu_id, parent_id, title, link_type, link_reference, url, target, css_class, sort_order, created_at)
+SELECT m.id, NULL, 'Search', 'route', 'search', '/search', '_self', NULL, 5, NOW()
 FROM navigation_menus m
 WHERE m.slug = 'primary'
   AND NOT EXISTS (

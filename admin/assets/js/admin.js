@@ -953,6 +953,11 @@
       return;
     }
 
+    var defaultForm = document.getElementById('navigation-item-form');
+    if (defaultForm) {
+      initNavigationLinkSourceControls(defaultForm);
+    }
+
     var fillButtons = [].slice.call(modal.querySelectorAll('[data-nav-fill]'));
     fillButtons.forEach(function (btn) {
       if (btn.dataset.navFillBound === '1') {
@@ -971,10 +976,20 @@
           return;
         }
 
+        initNavigationLinkSourceControls(form);
+
         var titleInput = form.querySelector('[name="title"]');
         var urlInput = form.querySelector('[name="url"]');
+        var typeInput = form.querySelector('[name="link_type"]');
+        var referenceInput = form.querySelector('[name="link_reference"]');
+        var badge = form.querySelector('[data-nav-link-badge]');
+        var badgeLabel = form.querySelector('[data-nav-link-type-label]');
+        var metaInfo = form.querySelector('[data-nav-link-meta]');
+        var warningInfo = form.querySelector('[data-nav-link-warning]');
         var titleValue = btn.getAttribute('data-nav-title') || '';
         var urlValue = btn.getAttribute('data-nav-url') || '';
+        var typeValue = btn.getAttribute('data-nav-type') || 'custom';
+        var referenceValue = btn.getAttribute('data-nav-reference') || '';
 
         if (titleInput && typeof titleInput.value !== 'undefined') {
           titleInput.value = titleValue;
@@ -983,6 +998,48 @@
         if (urlInput && typeof urlInput.value !== 'undefined') {
           urlInput.value = urlValue;
         }
+
+        if (typeInput && typeof typeInput.value !== 'undefined') {
+          typeInput.value = typeValue;
+        }
+
+        if (referenceInput && typeof referenceInput.value !== 'undefined') {
+          referenceInput.value = referenceValue;
+        }
+
+        if (badge && badge.classList) {
+          if (typeValue === 'custom') {
+            badge.classList.add('d-none');
+          } else {
+            badge.classList.remove('d-none');
+          }
+        }
+
+        if (badgeLabel && typeof badgeLabel.textContent !== 'undefined') {
+          badgeLabel.textContent = btn.getAttribute('data-nav-type-label') || typeValue;
+        }
+
+        if (metaInfo && typeof metaInfo.textContent !== 'undefined') {
+          var meta = btn.getAttribute('data-nav-meta') || '';
+          if (meta === '' && metaInfo.classList) {
+            metaInfo.classList.add('d-none');
+          } else {
+            metaInfo.textContent = meta;
+            if (metaInfo.classList) {
+              metaInfo.classList.remove('d-none');
+            }
+          }
+        }
+
+        if (warningInfo && warningInfo.classList) {
+          warningInfo.textContent = '';
+          warningInfo.classList.add('d-none');
+        }
+
+        var clearButtons = [].slice.call(form.querySelectorAll('[data-nav-clear-source]'));
+        clearButtons.forEach(function (clearBtn) {
+          clearBtn.textContent = typeValue === 'custom' ? 'Přepnout na vlastní URL' : 'Zrušit napojení';
+        });
 
         if (typeof bootstrap !== 'undefined' && typeof bootstrap.Modal === 'function') {
           bootstrap.Modal.getOrCreateInstance(modal).hide();
@@ -1016,6 +1073,77 @@
         }
       });
     });
+  }
+
+  function initNavigationLinkSourceControls(form) {
+    if (!form || form.dataset.navLinkBound === '1') {
+      return;
+    }
+    form.dataset.navLinkBound = '1';
+
+    var typeInput = form.querySelector('[name="link_type"]');
+    var referenceInput = form.querySelector('[name="link_reference"]');
+    var urlInput = form.querySelector('[name="url"]');
+    var badge = form.querySelector('[data-nav-link-badge]');
+    var badgeLabel = form.querySelector('[data-nav-link-type-label]');
+    var metaInfo = form.querySelector('[data-nav-link-meta]');
+    var warningInfo = form.querySelector('[data-nav-link-warning]');
+
+    var clearButtons = [].slice.call(form.querySelectorAll('[data-nav-clear-source]'));
+    clearButtons.forEach(function (btn) {
+      btn.addEventListener('click', function (event) {
+        event.preventDefault();
+        if (typeInput && typeof typeInput.value !== 'undefined') {
+          typeInput.value = 'custom';
+        }
+        if (referenceInput && typeof referenceInput.value !== 'undefined') {
+          referenceInput.value = '';
+        }
+        if (badge && badge.classList) {
+          badge.classList.add('d-none');
+        }
+        if (badgeLabel && typeof badgeLabel.textContent !== 'undefined') {
+          badgeLabel.textContent = '';
+        }
+        if (metaInfo && metaInfo.classList) {
+          metaInfo.classList.add('d-none');
+          metaInfo.textContent = '';
+        }
+        if (warningInfo && warningInfo.classList) {
+          warningInfo.classList.add('d-none');
+          warningInfo.textContent = '';
+        }
+        btn.textContent = 'Přepnout na vlastní URL';
+      });
+    });
+
+    if (urlInput) {
+      urlInput.addEventListener('input', function () {
+        if (typeInput && typeof typeInput.value !== 'undefined') {
+          typeInput.value = 'custom';
+        }
+        if (referenceInput && typeof referenceInput.value !== 'undefined') {
+          referenceInput.value = '';
+        }
+        if (badge && badge.classList) {
+          badge.classList.add('d-none');
+        }
+        if (badgeLabel && typeof badgeLabel.textContent !== 'undefined') {
+          badgeLabel.textContent = '';
+        }
+        if (metaInfo && metaInfo.classList) {
+          metaInfo.classList.add('d-none');
+          metaInfo.textContent = '';
+        }
+        if (warningInfo && warningInfo.classList) {
+          warningInfo.classList.add('d-none');
+          warningInfo.textContent = '';
+        }
+        clearButtons.forEach(function (btn) {
+          btn.textContent = 'Přepnout na vlastní URL';
+        });
+      });
+    }
   }
 
   function loadAdminPage(url, options) {
