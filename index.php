@@ -11,6 +11,7 @@ $view = new Cms\Front\View\ThemeViewEngine($settings, $links);
 $posts = new Cms\Front\Data\PostProvider($links);
 $terms = new Cms\Front\Data\TermProvider();
 $menus = new Cms\Front\Data\MenuProvider();
+$comments = new Cms\Front\Data\CommentProvider($settings);
 
-$router = new Cms\Front\Http\Router($view, $posts, $terms, $menus, $settings, $links);
+$router = new Cms\Front\Http\Router($view, $posts, $terms, $menus, $comments, $settings, $links);
 $router->dispatch();

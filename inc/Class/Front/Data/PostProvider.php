@@ -212,6 +212,10 @@ final class PostProvider
         $slug = (string)($row['slug'] ?? '');
         $type = (string)($row['type'] ?? 'post');
         $content = (string)($row['content'] ?? '');
+        $commentsAllowed = null;
+        if (array_key_exists('comments_allowed', $row)) {
+            $commentsAllowed = (int)$row['comments_allowed'] === 1;
+        }
 
         $permalink = match ($type) {
             'page' => $this->links->page($slug),
@@ -243,12 +247,13 @@ final class PostProvider
             'published_at_iso' => $publishedIso,
             'published_at_raw' => $publishedRaw,
             'permalink' => $permalink,
+            'comments_allowed' => $commentsAllowed,
         ];
     }
 
     private function now(): string
     {
-        return gmdate('Y-m-d H:i:s');
+        return DateTimeFactory::nowString();
     }
 
     /**

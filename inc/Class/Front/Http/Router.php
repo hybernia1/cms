@@ -12,11 +12,13 @@ use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Validation\Validator;
+use Cms\Front\Data\CommentProvider;
 use Cms\Front\Data\MenuProvider;
 use Cms\Front\Data\PostProvider;
 use Cms\Front\Data\TermProvider;
 use Cms\Front\Support\SeoMeta;
 use Cms\Front\View\ThemeViewEngine;
+use Core\Database\Init as DB;
 use Throwable;
 
 final class Router
@@ -25,6 +27,7 @@ final class Router
     private PostProvider $posts;
     private TermProvider $terms;
     private MenuProvider $menus;
+    private CommentProvider $comments;
     private CmsSettings $settings;
     private LinkGenerator $links;
     private UsersRepository $users;
@@ -37,6 +40,7 @@ final class Router
         PostProvider $posts,
         TermProvider $terms,
         MenuProvider $menus,
+        ?CommentProvider $comments = null,
         ?CmsSettings $settings = null,
         ?LinkGenerator $links = null,
         ?UsersRepository $users = null,
@@ -49,7 +53,8 @@ final class Router
         $this->terms = $terms;
         $this->menus = $menus;
         $this->settings = $settings ?? new CmsSettings();
-        $this->links = $links ?? new LinkGenerator();
+        $this->links = $links ?? new LinkGenerator(null, $this->settings);
+        $this->comments = $comments ?? new CommentProvider($this->settings);
         $this->users = $users ?? new UsersRepository();
         $this->mail = $mail ?? new MailService($this->settings);
         $this->templates = $templates ?? new TemplateManager();
@@ -226,6 +231,137 @@ final class Router
             return $this->notFound();
         }
 
+        $commentsAllowed = isset($post['comments_allowed']) ? (bool)$post['comments_allowed'] : false;
+        $commentForm = [
+            'success' => false,
+            'message' => null,
+            'errors' => [],
+            'old' => [
+                'name' => '',
+                'email' => '',
+                'content' => '',
+                'parent_id' => null,
+            ],
+        ];
+        $status = 200;
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+
+        if ($method === 'POST' && isset($_POST['comment_form'])) {
+            if (!$commentsAllowed) {
+                $commentForm['message'] = 'Komentáře jsou u tohoto článku uzavřeny.';
+                $status = 403;
+            } else {
+                $input = [
+                    'name' => trim((string)($_POST['comment_name'] ?? '')),
+                    'email' => trim((string)($_POST['comment_email'] ?? '')),
+                    'content' => trim((string)($_POST['comment_content'] ?? '')),
+                    'parent_id' => (int)($_POST['comment_parent'] ?? 0),
+                    'post_id' => (int)($_POST['comment_post'] ?? 0),
+                ];
+
+                $commentForm['old']['name'] = $input['name'];
+                $commentForm['old']['email'] = $input['email'];
+                $commentForm['old']['content'] = $input['content'];
+                $commentForm['old']['parent_id'] = $input['parent_id'] > 0 ? $input['parent_id'] : null;
+
+                $validator = (new Validator())
+                    ->require($input, 'name', 'Zadejte své jméno.')
+                    ->require($input, 'content', 'Napište komentář.')
+                    ->email($input, 'email', 'Zadejte platný e-mail.');
+
+                $errors = $validator->errors();
+
+                if ($input['post_id'] !== (int)($post['id'] ?? 0)) {
+                    $errors['general'][] = 'Komentář se nepodařilo ověřit. Obnovte stránku a zkuste to prosím znovu.';
+                }
+
+                $parentId = $input['parent_id'] > 0 ? $input['parent_id'] : null;
+                if ($parentId !== null) {
+                    try {
+                        $parent = DB::query()
+                            ->table('comments')
+                            ->select(['id','post_id'])
+                            ->where('id','=', $parentId)
+                            ->first();
+                    } catch (Throwable $e) {
+                        error_log('Failed to validate comment parent: ' . $e->getMessage());
+                        $parent = null;
+                    }
+
+                    if (!$parent || (int)($parent['post_id'] ?? 0) !== (int)($post['id'] ?? 0)) {
+                        $errors['parent'][] = 'Na komentář nelze odpovědět.';
+                    }
+                }
+
+                if ($errors !== []) {
+                    $commentForm['errors'] = $errors;
+                    $commentForm['message'] = 'Zkontrolujte zvýrazněná pole.';
+                    $status = 422;
+                } else {
+                    $limit = static function (string $value, int $max): string {
+                        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+                            if (mb_strlen($value) <= $max) {
+                                return $value;
+                            }
+
+                            return mb_substr($value, 0, $max);
+                        }
+
+                        if (strlen($value) <= $max) {
+                            return $value;
+                        }
+
+                        return substr($value, 0, $max);
+                    };
+
+                    $name = $limit($input['name'], 150);
+                    $email = $limit($input['email'], 190);
+                    $ipRaw = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+                    $uaRaw = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+                    $ip = $limit($ipRaw, 45);
+                    $ua = $limit($uaRaw, 255);
+                    $ip = $ip !== '' ? $ip : null;
+                    $ua = $ua !== '' ? $ua : null;
+
+                    $timestamp = DateTimeFactory::nowString();
+
+                    try {
+                        DB::query()
+                            ->table('comments')
+                            ->insert([
+                                'post_id' => (int)($post['id'] ?? 0),
+                                'user_id' => null,
+                                'parent_id' => $parentId,
+                                'author_name' => $name,
+                                'author_email' => $email !== '' ? $email : null,
+                                'content' => $input['content'],
+                                'status' => 'draft',
+                                'ip' => $ip,
+                                'ua' => $ua,
+                                'created_at' => $timestamp,
+                                'updated_at' => $timestamp,
+                            ])
+                            ->insertGetId();
+
+                        $commentForm['success'] = true;
+                        $commentForm['message'] = 'Komentář byl odeslán ke schválení.';
+                        $commentForm['old'] = [
+                            'name' => '',
+                            'email' => '',
+                            'content' => '',
+                            'parent_id' => null,
+                        ];
+                    } catch (Throwable $e) {
+                        error_log('Failed to store comment: ' . $e->getMessage());
+                        $commentForm['message'] = 'Komentář se nepodařilo uložit. Zkuste to prosím znovu.';
+                        $status = 500;
+                    }
+                }
+            }
+        }
+
+        $commentData = $this->comments->publishedForPost((int)($post['id'] ?? 0));
+
         $meta = new SeoMeta(
             $post['title'] . ' | ' . $this->settings->siteTitle(),
             $post['excerpt'],
@@ -234,8 +370,12 @@ final class Router
 
         return new RouteResult('single', [
             'post' => $post,
+            'comments' => $commentData['items'],
+            'commentCount' => $commentData['total'],
+            'commentsAllowed' => $commentsAllowed,
+            'commentForm' => $commentForm,
             'meta' => $meta->toArray(),
-        ]);
+        ], $status);
     }
 
     private function handlePage(string $slug): RouteResult
@@ -490,7 +630,9 @@ final class Router
             }
 
             if (is_array($reset) && isset($reset['token'], $reset['user_id'])) {
-                $resetUrl = $this->links->reset((string)$reset['token'], (int)$reset['user_id']);
+                $resetUrl = $this->links->absolute(
+                    $this->links->reset((string)$reset['token'], (int)$reset['user_id'])
+                );
                 $mailData = [
                     'siteTitle' => $this->settings->siteTitle(),
                     'userName' => (string)($user['name'] ?? ''),

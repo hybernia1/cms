@@ -1,6 +1,10 @@
 <?php
 /** @var array<string,mixed> $post */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
+/** @var array<int,array<string,mixed>> $comments */
+/** @var array<string,mixed> $commentForm */
+/** @var bool $commentsAllowed */
+/** @var int $commentCount */
 
 $title = (string)($post['title'] ?? '');
 $author = trim((string)($post['author'] ?? ''));
@@ -9,6 +13,18 @@ $publishedIso = trim((string)($post['published_at_iso'] ?? ''));
 $terms = is_array($post['terms'] ?? null) ? $post['terms'] : [];
 $categories = array_values(array_filter($terms, static fn ($term) => ($term['type'] ?? '') === 'category'));
 $tags = array_values(array_filter($terms, static fn ($term) => ($term['type'] ?? '') === 'tag'));
+$comments = is_array($comments ?? null) ? $comments : [];
+$commentCount = isset($commentCount) ? (int)$commentCount : count($comments);
+$commentsAllowed = isset($commentsAllowed) ? (bool)$commentsAllowed : false;
+$commentForm = is_array($commentForm ?? null) ? $commentForm : [];
+$commentErrors = is_array($commentForm['errors'] ?? null) ? $commentForm['errors'] : [];
+$commentOld = is_array($commentForm['old'] ?? null) ? $commentForm['old'] : [];
+$commentMessage = isset($commentForm['message']) ? trim((string)$commentForm['message']) : '';
+$commentSuccess = !empty($commentForm['success']);
+$commentTemplate = __DIR__ . '/partials/comment.php';
+$renderComment = static function (array $commentNode) use (&$renderComment, $commentTemplate): void {
+    include $commentTemplate;
+};
 ?>
 <article class="entry entry--single">
     <header class="entry__header">
@@ -72,3 +88,112 @@ $tags = array_values(array_filter($terms, static fn ($term) => ($term['type'] ??
         </footer>
     <?php endif; ?>
 </article>
+
+<?php
+    $oldName = trim((string)($commentOld['name'] ?? ''));
+    $oldEmail = trim((string)($commentOld['email'] ?? ''));
+    $oldContent = trim((string)($commentOld['content'] ?? ''));
+    $oldParent = isset($commentOld['parent_id']) ? (int)$commentOld['parent_id'] : 0;
+    $nameErrors = is_array($commentErrors['name'] ?? null) ? $commentErrors['name'] : [];
+    $emailErrors = is_array($commentErrors['email'] ?? null) ? $commentErrors['email'] : [];
+    $contentErrors = is_array($commentErrors['content'] ?? null) ? $commentErrors['content'] : [];
+    $generalErrors = is_array($commentErrors['general'] ?? null) ? $commentErrors['general'] : [];
+    $parentErrors = is_array($commentErrors['parent'] ?? null) ? $commentErrors['parent'] : [];
+    $noticeType = $commentSuccess ? 'success' : (!empty($commentErrors) ? 'warning' : 'info');
+?>
+<section class="comments" id="comments">
+    <header class="comments__header">
+        <h2 class="comments__title">
+            Komentáře
+            <?php if ($commentCount > 0): ?>
+                <span class="comments__count">(<?= (int)$commentCount; ?>)</span>
+            <?php endif; ?>
+        </h2>
+    </header>
+
+    <?php if ($commentCount === 0): ?>
+        <p class="comments__empty">Buďte první, kdo napíše komentář.</p>
+    <?php else: ?>
+        <ol class="comment-list">
+            <?php foreach ($comments as $commentItem): ?>
+                <?php $renderComment($commentItem); ?>
+            <?php endforeach; ?>
+        </ol>
+    <?php endif; ?>
+
+    <?php if ($commentMessage !== ''): ?>
+        <div class="notice notice--<?= htmlspecialchars($noticeType, ENT_QUOTES, 'UTF-8'); ?>">
+            <p><?= htmlspecialchars($commentMessage, ENT_QUOTES, 'UTF-8'); ?></p>
+            <?php if ($generalErrors !== []): ?>
+                <p><?= htmlspecialchars((string)$generalErrors[0], ENT_QUOTES, 'UTF-8'); ?></p>
+            <?php endif; ?>
+            <?php if ($parentErrors !== []): ?>
+                <p><?= htmlspecialchars((string)$parentErrors[0], ENT_QUOTES, 'UTF-8'); ?></p>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($commentsAllowed): ?>
+        <div class="comment-form" id="respond">
+            <h3 class="comment-form__title">Přidat komentář</h3>
+
+            <form class="comment-form__body" method="post" action="" id="comment-form">
+                <input type="hidden" name="comment_form" value="1">
+                <input type="hidden" name="comment_post" value="<?= (int)($post['id'] ?? 0); ?>">
+                <input type="hidden" name="comment_parent" value="<?= $oldParent > 0 ? $oldParent : 0; ?>">
+
+                <div class="comment-form__row">
+                    <label class="comment-form__label" for="comment-name">Jméno</label>
+                    <input
+                        class="comment-form__input"
+                        type="text"
+                        id="comment-name"
+                        name="comment_name"
+                        value="<?= htmlspecialchars($oldName, ENT_QUOTES, 'UTF-8'); ?>"
+                        required
+                    >
+                    <?php if ($nameErrors !== []): ?>
+                        <p class="comment-form__error"><?= htmlspecialchars((string)$nameErrors[0], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="comment-form__row">
+                    <label class="comment-form__label" for="comment-email">E-mail</label>
+                    <input
+                        class="comment-form__input"
+                        type="email"
+                        id="comment-email"
+                        name="comment_email"
+                        value="<?= htmlspecialchars($oldEmail, ENT_QUOTES, 'UTF-8'); ?>"
+                        placeholder="např. jana@example.cz"
+                    >
+                    <?php if ($emailErrors !== []): ?>
+                        <p class="comment-form__error"><?= htmlspecialchars((string)$emailErrors[0], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="comment-form__row">
+                    <label class="comment-form__label" for="comment-content">Komentář</label>
+                    <textarea
+                        class="comment-form__textarea"
+                        id="comment-content"
+                        name="comment_content"
+                        rows="6"
+                        required
+                    ><?= htmlspecialchars($oldContent, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    <?php if ($contentErrors !== []): ?>
+                        <p class="comment-form__error"><?= htmlspecialchars((string)$contentErrors[0], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <button class="comment-form__submit" type="submit">Odeslat komentář</button>
+            </form>
+        </div>
+    <?php else: ?>
+        <?php if ($commentMessage === ''): ?>
+            <div class="notice notice--muted">
+                <p>Komentáře jsou u tohoto článku uzavřeny.</p>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+</section>
