@@ -108,6 +108,10 @@ final class CmsSettings
 
         return $this->detectSiteUrl();
     }
+    public function registrationAllowed(): bool
+    {
+        return (int)(self::row()['allow_registration'] ?? 1) === 1;
+    }
     public function registrationAutoApprove(): bool
     {
         return (int)(self::row()['registration_auto_approve'] ?? 1) === 1;

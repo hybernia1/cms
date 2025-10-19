@@ -4,12 +4,19 @@ declare(strict_types=1);
 namespace Cms\Front\Http;
 
 use Cms\Admin\Settings\CmsSettings;
+use Cms\Admin\Auth\Passwords;
+use Cms\Admin\Domain\Repositories\UsersRepository;
+use Cms\Admin\Mail\MailService;
+use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Utils\LinkGenerator;
+use Cms\Admin\Utils\DateTimeFactory;
+use Cms\Admin\Validation\Validator;
 use Cms\Front\Data\MenuProvider;
 use Cms\Front\Data\PostProvider;
 use Cms\Front\Data\TermProvider;
 use Cms\Front\Support\SeoMeta;
 use Cms\Front\View\ThemeViewEngine;
+use Throwable;
 
 final class Router
 {
@@ -19,6 +26,9 @@ final class Router
     private MenuProvider $menus;
     private CmsSettings $settings;
     private LinkGenerator $links;
+    private UsersRepository $users;
+    private MailService $mail;
+    private TemplateManager $templates;
 
     public function __construct(
         ThemeViewEngine $view,
@@ -26,7 +36,10 @@ final class Router
         TermProvider $terms,
         MenuProvider $menus,
         ?CmsSettings $settings = null,
-        ?LinkGenerator $links = null
+        ?LinkGenerator $links = null,
+        ?UsersRepository $users = null,
+        ?MailService $mail = null,
+        ?TemplateManager $templates = null
     ) {
         $this->view = $view;
         $this->posts = $posts;
@@ -34,6 +47,9 @@ final class Router
         $this->menus = $menus;
         $this->settings = $settings ?? new CmsSettings();
         $this->links = $links ?? new LinkGenerator();
+        $this->users = $users ?? new UsersRepository();
+        $this->mail = $mail ?? new MailService($this->settings);
+        $this->templates = $templates ?? new TemplateManager();
 
         $this->view->share([
             'navigation' => $this->menus->menusByLocation(),
@@ -61,6 +77,7 @@ final class Router
             'category' => $this->handleTerm((string)($params['slug'] ?? ''), 'category'),
             'tag' => $this->handleTerm((string)($params['slug'] ?? ''), 'tag'),
             'search' => $this->handleSearch((string)($params['query'] ?? ($params['s'] ?? ''))),
+            'register' => $this->handleRegister(),
             default => $this->notFound(),
         };
     }
@@ -124,6 +141,9 @@ final class Router
             if ($first === 'search') {
                 $query = $_GET['s'] ?? ($_GET['q'] ?? '');
                 return ['name' => 'search', 'params' => ['query' => (string)$query]];
+            }
+            if ($first === 'register') {
+                return ['name' => 'register', 'params' => []];
             }
         }
 
@@ -277,6 +297,127 @@ final class Router
             'posts' => $posts,
             'meta' => $meta->toArray(),
         ]);
+    }
+
+    private function handleRegister(): RouteResult
+    {
+        $allowed = $this->settings->registrationAllowed();
+        $autoApprove = $this->settings->registrationAutoApprove();
+        $meta = new SeoMeta('Registrace | ' . $this->settings->siteTitle(), canonical: $this->links->register());
+
+        $data = [
+            'meta' => $meta->toArray(),
+            'errors' => [],
+            'old' => ['name' => '', 'email' => ''],
+            'success' => false,
+            'message' => null,
+            'allowed' => $allowed,
+            'autoApprove' => $autoApprove,
+            'loginUrl' => $this->links->login(),
+        ];
+
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if ($method !== 'POST') {
+            if (!$allowed) {
+                $data['message'] = 'Registrace je aktuálně vypnutá.';
+                return new RouteResult('register', $data, 403);
+            }
+
+            return new RouteResult('register', $data);
+        }
+
+        if (!$allowed) {
+            $data['message'] = 'Registrace je aktuálně vypnutá.';
+            return new RouteResult('register', $data, 403);
+        }
+
+        $input = [
+            'name' => trim((string)($_POST['name'] ?? '')),
+            'email' => trim((string)($_POST['email'] ?? '')),
+            'password' => (string)($_POST['password'] ?? ''),
+            'password_confirm' => (string)($_POST['password_confirm'] ?? ''),
+        ];
+
+        $data['old']['name'] = $input['name'];
+        $data['old']['email'] = $input['email'];
+
+        $validator = (new Validator())
+            ->require($input, 'name', 'Zadejte jméno.')
+            ->require($input, 'email', 'Zadejte e-mail.')
+            ->email($input, 'email', 'Zadejte platný e-mail.')
+            ->require($input, 'password', 'Zadejte heslo.')
+            ->minLen($input, 'password', 8, 'Heslo musí mít alespoň 8 znaků.');
+
+        $errors = $validator->errors();
+
+        if (trim($input['password_confirm']) === '') {
+            $errors['password_confirm'][] = 'Potvrďte heslo.';
+        } elseif ($input['password'] !== $input['password_confirm']) {
+            $errors['password_confirm'][] = 'Zadaná hesla se neshodují.';
+        }
+
+        if ($input['email'] !== '') {
+            try {
+                $existing = $this->users->findByEmail($input['email']);
+            } catch (Throwable $e) {
+                error_log('Registrace: nepodařilo se ověřit e-mail: ' . $e->getMessage());
+                $existing = null;
+            }
+            if ($existing) {
+                $errors['email'][] = 'Účet s tímto e-mailem již existuje.';
+            }
+        }
+
+        if ($errors !== []) {
+            $data['errors'] = $errors;
+            $data['message'] = 'Zkontrolujte zvýrazněná pole.';
+            return new RouteResult('register', $data, 422);
+        }
+
+        $now = DateTimeFactory::nowString();
+        $insert = [
+            'name' => $input['name'],
+            'email' => $input['email'],
+            'password_hash' => Passwords::hash($input['password']),
+            'active' => $autoApprove ? 1 : 0,
+            'role' => 'user',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        try {
+            $this->users->create($insert);
+        } catch (Throwable $e) {
+            error_log('Registrace: nepodařilo se vytvořit uživatele: ' . $e->getMessage());
+            $data['message'] = 'Registraci se nepodařilo dokončit. Zkuste to prosím znovu.';
+            return new RouteResult('register', $data, 500);
+        }
+
+        $templateKey = $autoApprove ? 'registration_welcome' : 'registration_pending';
+        $mailData = [
+            'siteTitle' => $this->settings->siteTitle(),
+            'userName' => $input['name'],
+            'userEmail' => $input['email'],
+        ];
+        if ($autoApprove) {
+            $mailData['loginUrl'] = $this->links->login();
+        }
+
+        try {
+            $template = $this->templates->render($templateKey, $mailData);
+            $this->mail->sendTemplate($input['email'], $template, $input['name'] ?: null);
+        } catch (Throwable $e) {
+            error_log('Registrace: e-mail se nepodařilo odeslat: ' . $e->getMessage());
+        }
+
+        $data['success'] = true;
+        $data['errors'] = [];
+        $data['old'] = ['name' => '', 'email' => ''];
+        $data['message'] = $autoApprove
+            ? 'Registrace proběhla úspěšně. Nyní se můžete přihlásit.'
+            : 'Registrace byla přijata. Vyčkejte prosím na schválení administrátorem.';
+
+        return new RouteResult('register', $data);
     }
 
     private function notFound(): RouteResult
