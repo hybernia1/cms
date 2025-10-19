@@ -8,6 +8,7 @@ $created = trim((string)($commentNode['created_at'] ?? ''));
 $createdIso = trim((string)($commentNode['created_at_iso'] ?? ''));
 $content = (string)($commentNode['content'] ?? '');
 $commentId = isset($commentNode['id']) ? (int)$commentNode['id'] : 0;
+$replyEnabled = !empty($commentsAllowed ?? false) && $commentId > 0;
 ?>
 <li class="comment" id="comment-<?= $commentId > 0 ? $commentId : 'x'; ?>">
     <article class="comment__body">
@@ -22,6 +23,18 @@ $commentId = isset($commentNode['id']) ? (int)$commentNode['id'] : 0;
         <div class="comment__content">
             <?= nl2br(htmlspecialchars($content, ENT_QUOTES, 'UTF-8')); ?>
         </div>
+        <?php if ($replyEnabled): ?>
+            <footer class="comment__footer">
+                <button
+                    class="comment__reply"
+                    type="button"
+                    data-comment-reply
+                    data-comment-id="<?= $commentId; ?>"
+                >
+                    Odpovědět
+                </button>
+            </footer>
+        <?php endif; ?>
     </article>
     <?php if ($children !== []): ?>
         <ol class="comment__children">

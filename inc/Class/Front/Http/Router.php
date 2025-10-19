@@ -146,12 +146,15 @@ final class Router
             if ($bases['tag_base'] !== '' && $first === trim($bases['tag_base'], '/')) {
                 return ['name' => 'tag', 'params' => ['slug' => $second]];
             }
-            if ($first === 'type') {
+            if (in_array($first, ['type', 'archive', 'archiv'], true)) {
                 return ['name' => 'type', 'params' => ['type' => $second]];
             }
             if ($first === 'search') {
-                $query = $_GET['s'] ?? ($_GET['q'] ?? '');
-                return ['name' => 'search', 'params' => ['query' => (string)$query]];
+                $query = $segments[1] ?? '';
+                if ($query === '') {
+                    $query = $_GET['s'] ?? ($_GET['q'] ?? '');
+                }
+                return ['name' => 'search', 'params' => ['query' => (string)rawurldecode((string)$query)]];
             }
             if ($first === 'register') {
                 return ['name' => 'register', 'params' => []];
@@ -242,7 +245,25 @@ final class Router
                 'content' => '',
                 'parent_id' => null,
             ],
+            'user' => null,
         ];
+        $authUser = $this->auth->user();
+        if (is_array($authUser)) {
+            $commentUser = [
+                'id' => isset($authUser['id']) ? (int)$authUser['id'] : 0,
+                'name' => trim((string)($authUser['name'] ?? '')),
+                'email' => trim((string)($authUser['email'] ?? '')),
+            ];
+            $commentForm['user'] = $commentUser;
+            if ($commentUser['name'] !== '') {
+                $commentForm['old']['name'] = $commentUser['name'];
+            }
+            if ($commentUser['email'] !== '') {
+                $commentForm['old']['email'] = $commentUser['email'];
+            }
+        } else {
+            $commentUser = null;
+        }
         $status = 200;
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
@@ -258,6 +279,11 @@ final class Router
                     'parent_id' => (int)($_POST['comment_parent'] ?? 0),
                     'post_id' => (int)($_POST['comment_post'] ?? 0),
                 ];
+
+                if ($commentUser !== null) {
+                    $input['name'] = $commentUser['name'] !== '' ? $commentUser['name'] : 'Anonym';
+                    $input['email'] = $commentUser['email'];
+                }
 
                 $commentForm['old']['name'] = $input['name'];
                 $commentForm['old']['email'] = $input['email'];
@@ -324,18 +350,20 @@ final class Router
                     $ua = $ua !== '' ? $ua : null;
 
                     $timestamp = DateTimeFactory::nowString();
+                    $userId = $commentUser !== null && $commentUser['id'] > 0 ? $commentUser['id'] : null;
+                    $statusValue = $commentUser !== null ? 'published' : 'draft';
 
                     try {
                         DB::query()
                             ->table('comments')
                             ->insert([
                                 'post_id' => (int)($post['id'] ?? 0),
-                                'user_id' => null,
+                                'user_id' => $userId,
                                 'parent_id' => $parentId,
                                 'author_name' => $name,
                                 'author_email' => $email !== '' ? $email : null,
                                 'content' => $input['content'],
-                                'status' => 'draft',
+                                'status' => $statusValue,
                                 'ip' => $ip,
                                 'ua' => $ua,
                                 'created_at' => $timestamp,
@@ -344,10 +372,12 @@ final class Router
                             ->insertGetId();
 
                         $commentForm['success'] = true;
-                        $commentForm['message'] = 'Komentář byl odeslán ke schválení.';
+                        $commentForm['message'] = $statusValue === 'published'
+                            ? 'Komentář byl zveřejněn.'
+                            : 'Komentář byl odeslán ke schválení.';
                         $commentForm['old'] = [
-                            'name' => '',
-                            'email' => '',
+                            'name' => $commentUser['name'] ?? '',
+                            'email' => $commentUser['email'] ?? '',
                             'content' => '',
                             'parent_id' => null,
                         ];

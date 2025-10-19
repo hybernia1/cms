@@ -567,6 +567,34 @@ img {
     line-height: 1.65;
 }
 
+.comment__footer {
+    margin-top: 0.5rem;
+}
+
+.comment__reply {
+    border: 1px solid rgba(42, 77, 105, 0.2);
+    background: transparent;
+    color: var(--classic-accent);
+    font-weight: 600;
+    border-radius: 999px;
+    padding: 0.35rem 1.1rem;
+    cursor: pointer;
+    transition: background var(--classic-transition), color var(--classic-transition), border-color var(--classic-transition);
+}
+
+.comment__reply:hover,
+.comment__reply:focus {
+    background: var(--classic-accent);
+    color: #fff;
+    border-color: var(--classic-accent);
+    outline: none;
+}
+
+.comment--replying {
+    border-color: var(--classic-accent);
+    box-shadow: 0 0 0 3px rgba(42, 77, 105, 0.18);
+}
+
 .comment__children {
     list-style: none;
     margin: 1.25rem 0 0 1.5rem;
@@ -597,6 +625,16 @@ img {
 .comment-form__body {
     display: grid;
     gap: 1.5rem;
+}
+
+.comment-form__note {
+    margin: 0;
+    color: var(--classic-muted);
+    font-size: 0.95rem;
+}
+
+.comment-form__note strong {
+    color: var(--classic-accent);
 }
 
 .comment-form__row {
@@ -632,6 +670,11 @@ img {
     min-height: 160px;
 }
 
+.comment-form__input[readonly] {
+    background: rgba(42, 77, 105, 0.08);
+    cursor: not-allowed;
+}
+
 .comment-form__error {
     margin: 0;
     color: #c0392b;
@@ -656,6 +699,42 @@ img {
 .comment-form__submit:focus {
     background: var(--classic-accent-light);
     transform: translateY(-1px);
+}
+
+.comment-form__reply-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-left: 3px solid var(--classic-accent);
+    background: rgba(42, 77, 105, 0.08);
+    border-radius: var(--classic-radius);
+    color: var(--classic-text);
+}
+
+.comment-form__reply-note[hidden] {
+    display: none !important;
+}
+
+.comment-form__reply-note strong {
+    color: var(--classic-accent);
+}
+
+.comment-form__reply-cancel {
+    background: none;
+    border: none;
+    color: var(--classic-accent);
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+}
+
+.comment-form__reply-cancel:hover,
+.comment-form__reply-cancel:focus {
+    color: var(--classic-accent-light);
+    outline: none;
 }
 
 .site-footer {
