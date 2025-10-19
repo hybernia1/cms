@@ -139,11 +139,12 @@ final class CommentProvider
             }
         }
 
-        $buildNode = function (int $id) use (&$byId, &$childrenMap, &$buildNode): array {
+        $buildNode = function (int $id, int $rootId) use (&$byId, &$childrenMap, &$buildNode): array {
             $node = $byId[$id];
+            $node['thread_root_id'] = $rootId;
             $children = [];
             foreach ($childrenMap[$id] as $childId) {
-                $children[] = $buildNode($childId);
+                $children[] = $buildNode($childId, $rootId);
             }
             $node['children'] = $children;
             return $node;
@@ -153,7 +154,7 @@ final class CommentProvider
         foreach ($byId as $id => $comment) {
             $parentId = isset($comment['parent_id']) ? (int)$comment['parent_id'] : 0;
             if ($parentId === 0 || !isset($byId[$parentId])) {
-                $roots[] = $buildNode($id);
+                $roots[] = $buildNode($id, $id);
             }
         }
 

@@ -165,6 +165,7 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
 
                 <div class="comment-form__reply-note" data-comment-reply-note<?= $oldParent > 0 ? '' : ' hidden'; ?>>
                     <span>Odpovídáte na <strong data-comment-reply-target>vybraný komentář</strong>.</span>
+                    <span class="comment-form__reply-note-info" data-comment-reply-info hidden>Odpověď bude připojena k hlavnímu komentáři.</span>
                     <button type="button" class="comment-form__reply-cancel" data-comment-reply-cancel>Zrušit odpověď</button>
                 </div>
 
@@ -239,6 +240,7 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                 var note = form.querySelector('[data-comment-reply-note]');
                 var noteTarget = note ? note.querySelector('[data-comment-reply-target]') : null;
                 var cancelBtn = form.querySelector('[data-comment-reply-cancel]');
+                var noteInfo = note ? note.querySelector('[data-comment-reply-info]') : null;
                 var textarea = form.querySelector('textarea[name="comment_content"]');
                 var activeComment = null;
                 var defaultTargetText = noteTarget && noteTarget.textContent ? noteTarget.textContent.trim() : 'vybraný komentář';
@@ -265,15 +267,18 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                     if (noteTarget) {
                         noteTarget.textContent = defaultTargetText;
                     }
+                    if (noteInfo) {
+                        noteInfo.hidden = true;
+                    }
                     if (activeComment) {
                         activeComment.classList.remove('comment--replying');
                         activeComment = null;
                     }
                 };
 
-                var activateReply = function (commentId) {
-                    parentInput.value = commentId;
-                    var commentElement = document.getElementById('comment-' + commentId);
+                var activateReply = function (commentId, targetId) {
+                    parentInput.value = targetId;
+                    var commentElement = document.getElementById('comment-' + targetId);
                     if (activeComment) {
                         activeComment.classList.remove('comment--replying');
                     }
@@ -290,6 +295,9 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                             noteTarget.textContent = authorName !== '' ? authorName : defaultTargetText;
                         }
                         note.hidden = false;
+                        if (noteInfo) {
+                            noteInfo.hidden = !(commentId && targetId && commentId !== targetId);
+                        }
                     }
                     if (textarea) {
                         textarea.focus();
@@ -304,10 +312,11 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                     }
                     event.preventDefault();
                     var commentId = trigger.getAttribute('data-comment-id');
+                    var targetId = trigger.getAttribute('data-comment-target') || commentId;
                     if (!commentId) {
                         return;
                     }
-                    activateReply(commentId);
+                    activateReply(commentId, targetId);
                 });
 
                 if (cancelBtn) {
@@ -319,7 +328,7 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                 }
 
                 if (parentInput.value && parentInput.value !== '0') {
-                    activateReply(parentInput.value);
+                    activateReply(parentInput.value, parentInput.value);
                 }
             });
         })();
