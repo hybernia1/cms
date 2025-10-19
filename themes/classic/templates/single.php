@@ -27,6 +27,14 @@ $tags       = $termsByType['tag'] ?? [];
       </div>
     <?php endif; ?>
   </header>
+  <?php if (!empty($post['thumbnail'])): ?>
+    <?php $this->part('post-thumbnail', [
+      'thumbnail' => $post['thumbnail'],
+      'title'     => (string)($post['title'] ?? ''),
+      'class'     => 'article__thumbnail',
+      'loading'   => 'eager',
+    ]); ?>
+  <?php endif; ?>
   <div class="article__content">
     <?= nl2br(e((string)($post['content'] ?? ''))) ?>
   </div>
