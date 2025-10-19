@@ -1,7 +1,3 @@
-# === Základní bezpečnost a UX ===
-Options -Indexes
-DirectoryIndex admin.php
-
 # Bezpečné MIME (volitelné; vyžaduje mod_headers)
 <IfModule mod_headers.c>
   Header always set X-Content-Type-Options "nosniff"
