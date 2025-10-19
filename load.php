@@ -4,15 +4,22 @@ declare(strict_types=1);
 /**
  * load.php (portable, čistý)
  * - Autoload tříd z /inc/Class (PSR-4 + legacy underscore fallback)
- * - Volitelné globální helpery z /helpers (každý *.php v adresáři)
+ * - Speciální mapování namespace pro inc/Class/Admin a inc/Class/Core
  */
 
 // ---------------------------------------------------------
 // Konstanty
 // ---------------------------------------------------------
-const BASE_DIR    = __DIR__;
-const CLASS_DIR   = __DIR__ . '/inc/Class';
-const HELPERS_DIR = __DIR__ . '/helpers';
+const BASE_DIR  = __DIR__;
+const CLASS_DIR = __DIR__ . '/inc/Class';
+
+/**
+ * @var array<string,string>
+ */
+const CLASS_NAMESPACE_MAP = [
+    'Cms\\Admin\\' => __DIR__ . '/inc/Class/Admin',
+    'Core\\'        => __DIR__ . '/inc/Class/Core',
+];
 
 //require_once BASE_DIR . '/inc/general_functions.php';
 
@@ -23,7 +30,19 @@ spl_autoload_register(
     static function (string $class): void {
         $class = ltrim($class, '\\');
 
-        // 1) PSR-4: \Foo\Bar -> inc/Class/Foo/Bar.php
+        // 1) Explicit namespace map for reorganized directories
+        foreach (CLASS_NAMESPACE_MAP as $prefix => $directory) {
+            if (str_starts_with($class, $prefix)) {
+                $relative = substr($class, strlen($prefix));
+                $path = rtrim($directory, '/\\') . '/' . str_replace('\\', '/', $relative) . '.php';
+                if (is_file($path)) {
+                    require_once $path;
+                    return;
+                }
+            }
+        }
+
+        // 2) PSR-4 fallback: \Foo\Bar -> inc/Class/Foo/Bar.php
         $relativePath = str_replace('\\', '/', $class) . '.php';
         $path = CLASS_DIR . '/' . $relativePath;
         if (is_file($path)) {
@@ -31,7 +50,7 @@ spl_autoload_register(
             return;
         }
 
-        // 2) Legacy fallback: Some_Legacy_Class -> inc/Class/Some/Legacy/Class.php
+        // 3) Legacy fallback: Some_Legacy_Class -> inc/Class/Some/Legacy/Class.php
         if (str_contains($class, '_')) {
             $legacyPath = CLASS_DIR . '/' . str_replace('_', '/', $class) . '.php';
             if (is_file($legacyPath)) {
@@ -42,28 +61,6 @@ spl_autoload_register(
     },
     prepend: true
 );
-
-// ---------------------------------------------------------
-// Globální helpery (volitelné): načti všechny *.php z /helpers
-// ---------------------------------------------------------
-if (is_dir(HELPERS_DIR)) {
-    $entries = scandir(HELPERS_DIR);
-    if ($entries !== false) {
-        sort($entries, SORT_STRING);
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            if (!str_ends_with($entry, '.php')) {
-                continue;
-            }
-            $path = HELPERS_DIR . '/' . $entry;
-            if (is_file($path)) {
-                require_once $path;
-            }
-        }
-    }
-}
 
 // ---------------------------------------------------------
 // Util: redirecty a bootstrap

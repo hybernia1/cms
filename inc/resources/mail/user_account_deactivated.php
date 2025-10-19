@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-use Cms\Mail\MailTemplate;
+use Cms\Admin\Mail\MailTemplate;
 
 /**
  * @var array{

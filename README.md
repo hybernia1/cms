@@ -42,25 +42,24 @@ Tento projekt obsahuje produkčně použitelný instalační proces a kompletní
 
 | Soubor | Popis |
 | --- | --- |
-| `admin.php` | Bootstrap administrace. Načte prostředí, ověří přihlášení/roli a směruje požadavky na `Cms\Http\AdminController` nebo `AdminAuthController`. |
-| `load.php` | Autoloader projektu (PSR‑4 + fallback pro názvy s podtržítky) a načtení globálních helperů. |
+| `admin.php` | Bootstrap administrace. Načte prostředí, ověří přihlášení/roli a směruje požadavky na `Cms\Admin\Http\AdminController` nebo `AdminAuthController`. |
+| `load.php` | Autoloader projektu (PSR‑4 + fallback pro názvy s podtržítky). |
 | `config.php` | Konfigurační pole s přístupem k databázi a dalšími volbami (vytváří instalátor). |
 
 ### Důležité adresáře
 
 - `admin/` – Šablony, layouty a assets administrace (dashboard, komentáře, média, uživatelé, nastavení atd.).
-- `helpers/` – Globální helpery dostupné ve views (např. funkce pro bezpečné escapování výstupu).
 - `inc/` – Vlastní PHP knihovny a logika administrace.
   - `inc/Class/Core/` – Nízkoúrovňové komponenty: databázový wrapper (`Database\Init`, Query builder), správa souborů (`Files\PathResolver`, `Uploader`) a odesílání e-mailů (`Mail\Mailer`).
-  - `inc/Class/Cms/` – Aplikační logika: autentizace (`AuthService`, `Authorization`), kontrolery administrace, doménové služby (`PostsService`, `UsersService`, `MediaService`, …) a validace.
+  - `inc/Class/Admin/` – Aplikační logika: autentizace (`AuthService`, `Authorization`), kontrolery administrace, doménové služby (`PostsService`, `UsersService`, `MediaService`, …) a validace.
   - `inc/resources/mail/` – PHP šablony e-mailů vracející `MailTemplate` objekty.
 - `install/` – Vícekrokový instalátor (`install/index.php`) a SQL skripty (`tables.php`, `migrations.php`) pro zřízení databáze a počátečního administrátora.
 - `themes/` – Prázdný adresář připravený pro budoucí frontend témata spravovaná z administrace.
 - `uploads/` – Předpokládané místo pro nahrané soubory (není verzováno, ale používají ho uploady z administrace).
 
 ## Jak spolu části souvisejí
-1. `admin.php` načte konfiguraci a databázi přes `Core\Database\Init`, zkontroluje session a deleguje požadavek na odpovídající controller v `Cms\Http\Admin`.
-2. Controllery využívají služby z `Cms\Domain` pro práci s daty, `Cms\View\ViewEngine` k renderování šablon a utility z `Cms\Utils` (např. `LinkGenerator`, `Slugger`, `DateTimeFactory`).
+1. `admin.php` načte konfiguraci a databázi přes `Core\Database\Init`, zkontroluje session a deleguje požadavek na odpovídající controller v `Cms\Admin\Http`.
+2. Controllery využívají služby z `Cms\Admin\Domain` pro práci s daty, `Cms\Admin\View\ViewEngine` k renderování šablon a utility z `Cms\Admin\Utils` (např. `LinkGenerator`, `Slugger`, `DateTimeFactory`).
 3. Instalátor (`install/`) vytvoří `config.php`, základní tabulky i prvního administrátora, takže aplikaci lze rychle nasadit.
 
 ## Co bylo odstraněno

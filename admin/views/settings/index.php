@@ -18,9 +18,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $datetimePresets = is_array($formatPresets['datetime'] ?? null) ? $formatPresets['datetime'] : [];
   $webpEnabled = (int)($settings['webp_enabled'] ?? 0) === 1;
   $webpCompression = (string)($settings['webp_compression'] ?? 'medium');
-  $curTz = \Cms\Utils\SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
+  $curTz = \Cms\Admin\Utils\SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
   $tzLabel = static function(string $tz): string {
-    return \Cms\Utils\SettingsPresets::timezoneLabel($tz);
+    return \Cms\Admin\Utils\SettingsPresets::timezoneLabel($tz);
   };
 ?>
   <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax>

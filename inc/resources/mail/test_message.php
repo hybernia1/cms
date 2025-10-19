@@ -1,5 +1,5 @@
 <?php
-use Cms\Mail\MailTemplate;
+use Cms\Admin\Mail\MailTemplate;
 
 /** @var array{
  *     siteTitle:string,
