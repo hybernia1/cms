@@ -34,6 +34,9 @@ DirectoryIndex admin.php
   RewriteRule ^admin/?$ admin.php [L,QSA]
   RewriteRule ^admin/([^/]+)/?$ admin.php?r=$1 [L,QSA]
   RewriteRule ^admin/([^/]+)/([^/]+)/?$ admin.php?r=$1&a=$2 [L,QSA]
+
+  # Front-end pretty URLs -> index.php
+  RewriteRule ^ index.php [L,QSA]
 </IfModule>
 
 # === Zamčení citlivých adresářů (doporučeno po instalaci) ===
