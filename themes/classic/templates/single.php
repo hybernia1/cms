@@ -30,7 +30,7 @@ $commentUserDisplay = $commentUserName !== ''
     : ($commentUserEmail !== '' ? $commentUserEmail : 'uživatel');
 $commentUserLogged = $commentUser !== null && ($commentUserId > 0 || $commentUserName !== '' || $commentUserEmail !== '');
 $commentTemplate = __DIR__ . '/partials/comment.php';
-$renderComment = static function (array $commentNode) use (&$renderComment, $commentTemplate): void {
+$renderComment = static function (array $commentNode) use (&$renderComment, $commentTemplate, $commentsAllowed): void {
     include $commentTemplate;
 };
 ?>

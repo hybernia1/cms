@@ -44,6 +44,8 @@ final class PostProvider
             return $cached;
         }
 
+        $now = $this->now();
+
         try {
             $row = DB::query()
                 ->table('posts', 'p')
@@ -52,7 +54,10 @@ final class PostProvider
                 ->where('p.slug', '=', $slug)
                 ->where('p.type', '=', $type)
                 ->where('p.status', '=', 'publish')
-                ->where('p.published_at', '<=', $this->now())
+                ->where(static function ($q) use ($now): void {
+                    $q->where('p.published_at', '<=', $now)
+                        ->whereNull('p.published_at', 'OR');
+                })
                 ->first();
         } catch (Throwable $e) {
             error_log('Failed to load post: ' . $e->getMessage());
@@ -85,6 +90,8 @@ final class PostProvider
             return $cached;
         }
 
+        $now = $this->now();
+
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
@@ -92,7 +99,10 @@ final class PostProvider
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.type', '=', $type)
                 ->where('p.status', '=', 'publish')
-                ->where('p.published_at', '<=', $this->now())
+                ->where(static function ($q) use ($now): void {
+                    $q->where('p.published_at', '<=', $now)
+                        ->whereNull('p.published_at', 'OR');
+                })
                 ->orderBy('p.published_at', 'DESC')
                 ->limit(max(1, $limit))
                 ->get() ?? [];
@@ -124,6 +134,8 @@ final class PostProvider
             return $cached;
         }
 
+        $now = $this->now();
+
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
@@ -134,7 +146,10 @@ final class PostProvider
                 ->where('t.slug', '=', $slug)
                 ->where('t.type', '=', $termType)
                 ->where('p.status', '=', 'publish')
-                ->where('p.published_at', '<=', $this->now())
+                ->where(static function ($q) use ($now): void {
+                    $q->where('p.published_at', '<=', $now)
+                        ->whereNull('p.published_at', 'OR');
+                })
                 ->orderBy('p.published_at', 'DESC')
                 ->limit(max(1, $limit))
                 ->get() ?? [];
@@ -172,13 +187,18 @@ final class PostProvider
         }
 
         $pattern = '%' . $term . '%';
+        $now = $this->now();
+
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
                 ->select(['p.id','p.title','p.slug','p.excerpt','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.status', '=', 'publish')
-                ->where('p.published_at', '<=', $this->now())
+                ->where(static function ($q) use ($now): void {
+                    $q->where('p.published_at', '<=', $now)
+                        ->whereNull('p.published_at', 'OR');
+                })
                 ->where(function ($q) use ($pattern): void {
                     $q->whereLike('p.title', $pattern)
                         ->orWhere('p.content', 'LIKE', $pattern);
