@@ -5,6 +5,7 @@ namespace Cms\Http\Front;
 
 use Cms\Domain\Services\CommentTreeService;
 use Cms\Front\View\SingleViewModel;
+use Cms\Utils\UploadPathFactory;
 use Core\Database\Init as DB;
 
 final class SingleController extends BaseFrontController
@@ -42,6 +43,12 @@ final class SingleController extends BaseFrontController
         if (!$row) {
             $this->renderNotFound();
             return;
+        }
+
+        $thumbnail = $this->resolveThumbnail($row);
+
+        if ($thumbnail !== null) {
+            $row['thumbnail'] = $thumbnail;
         }
 
         $commentsAllowed = (int)($row['comments_allowed'] ?? 1) === 1 && $type === 'post';
@@ -90,5 +97,73 @@ final class SingleController extends BaseFrontController
         );
 
         $this->render($type === 'page' ? 'page' : 'single', $model, ['type' => $type]);
+    }
+
+    /**
+     * @param array<string,mixed> $post
+     * @return array<string,mixed>|null
+     */
+    private function resolveThumbnail(array $post): ?array
+    {
+        $thumbnailId = isset($post['thumbnail_id']) ? (int)$post['thumbnail_id'] : 0;
+        if ($thumbnailId <= 0) {
+            return null;
+        }
+
+        $media = DB::query()->table('media')->select(['id','url','mime','meta','rel_path'])
+            ->where('id', '=', $thumbnailId)
+            ->first();
+
+        if (!$media) {
+            return null;
+        }
+
+        $mime = (string)($media['mime'] ?? '');
+        if ($mime === '' || !str_starts_with($mime, 'image/')) {
+            return null;
+        }
+
+        $url = (string)($media['url'] ?? '');
+        if ($url === '') {
+            return null;
+        }
+
+        $meta = $this->decodeMeta($media['meta'] ?? null);
+
+        return [
+            'id'      => (int)($media['id'] ?? 0),
+            'url'     => $url,
+            'mime'    => $mime,
+            'webpUrl' => $this->resolveWebpUrl($meta['webp'] ?? null),
+            'width'   => isset($meta['w']) ? (int)$meta['w'] : null,
+            'height'  => isset($meta['h']) ? (int)$meta['h'] : null,
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function decodeMeta(mixed $raw): array
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function resolveWebpUrl(mixed $relative): ?string
+    {
+        if (!is_string($relative) || trim($relative) === '') {
+            return null;
+        }
+
+        try {
+            $paths = UploadPathFactory::forUploads();
+            return $paths->publicUrl($relative);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }
