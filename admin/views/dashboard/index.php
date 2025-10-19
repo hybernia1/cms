@@ -54,7 +54,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash','c
       </div>
     </div>
     <div class="col-xl-4">
-      <?php $this->part('widget/quick-draft', [
+      <?php $this->render('parts/widget/quick-draft', [
         'csrf'   => $csrf,
         'types'  => $quickDraftTypes,
         'values' => $draftValues,

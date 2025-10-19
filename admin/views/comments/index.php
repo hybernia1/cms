@@ -110,7 +110,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     ];
   }
 
-  $this->part('listing/toolbar', [
+  $this->render('parts/listing/toolbar', [
     'tabs'   => $tabLinks,
     'search' => [
       'action'        => 'admin.php',
@@ -150,7 +150,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
-  <?php $this->part('listing/bulk-form', [
+  <?php $this->render('parts/listing/bulk-form', [
     'formId'       => 'comments-bulk-form',
     'action'       => 'admin.php?r=comments&a=bulk',
     'csrf'         => $csrf,
@@ -168,7 +168,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   ]); ?>
 
   <div class="card">
-    <?php $this->part('listing/bulk-header', [
+    <?php $this->render('parts/listing/bulk-header', [
       'formId'         => 'comments-bulk-form',
       'actionSelectId' => 'comments-bulk-select',
       'applyButtonId'  => 'comments-bulk-apply',
@@ -251,7 +251,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
-  <?php $this->part('listing/pagination', [
+  <?php $this->render('parts/listing/pagination', [
     'page'      => (int)($pagination['page'] ?? 1),
     'pages'     => (int)($pagination['pages'] ?? 1),
     'buildUrl'  => $buildUrl,
