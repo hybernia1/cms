@@ -23,6 +23,8 @@ final class _20251016_0004_navigation_tables extends Migration
             menu_id BIGINT UNSIGNED NOT NULL,
             parent_id BIGINT UNSIGNED NULL,
             title VARCHAR(150) NOT NULL,
+            link_type VARCHAR(50) NOT NULL DEFAULT 'custom',
+            link_reference VARCHAR(150) NULL,
             url VARCHAR(500) NOT NULL,
             target VARCHAR(20) NOT NULL DEFAULT '_self',
             css_class VARCHAR(150) NULL,
@@ -68,17 +70,17 @@ final class _20251016_0004_navigation_tables extends Migration
 
         $pdo->beginTransaction();
         try {
-            $insert = $pdo->prepare("INSERT INTO navigation_items (menu_id,parent_id,title,url,target,css_class,sort_order,created_at)
-                VALUES (?,?,?,?,?,?,?,NOW())");
+            $insert = $pdo->prepare("INSERT INTO navigation_items (menu_id,parent_id,title,link_type,link_reference,url,target,css_class,sort_order,created_at)
+                VALUES (?,?,?,?,?,?,?,?,?,NOW())");
 
             $order = 0;
             foreach ([
-                ['Domů', './', '_self'],
-                ['Blog', './type/post', '_self'],
-                ['Stránky', './type/page', '_self'],
-                ['Termy', './terms', '_self'],
-            ] as [$title, $url, $target]) {
-                $insert->execute([$menuId, null, $title, $url, $target, '', $order++]);
+                ['Domů', 'route', 'home', './', '_self'],
+                ['Blog', 'custom', null, './type/post', '_self'],
+                ['Stránky', 'custom', null, './type/page', '_self'],
+                ['Termy', 'custom', null, './terms', '_self'],
+            ] as [$title, $linkType, $linkRef, $url, $target]) {
+                $insert->execute([$menuId, null, $title, $linkType, $linkRef, $url, $target, '', $order++]);
             }
 
             $pdo->commit();
