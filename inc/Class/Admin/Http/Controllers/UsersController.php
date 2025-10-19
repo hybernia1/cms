@@ -49,18 +49,7 @@ final class UsersController extends BaseAdminController
             'q' => $q,
         ]);
 
-        $settings = new CmsSettings();
-        $items = [];
-        foreach (($paginated['items'] ?? []) as $row) {
-            $created = DateTimeFactory::fromStorage(isset($row['created_at']) ? (string)$row['created_at'] : null);
-            $row['created_at_raw'] = isset($row['created_at']) ? (string)$row['created_at'] : '';
-            if ($created) {
-                $row['created_at_display'] = $settings->formatDateTime($created);
-            } else {
-                $row['created_at_display'] = $row['created_at_raw'];
-            }
-            $items[] = $row;
-        }
+        $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
 
         $this->renderAdmin('users/index', [
             'pageTitle' => 'Uživatelé',

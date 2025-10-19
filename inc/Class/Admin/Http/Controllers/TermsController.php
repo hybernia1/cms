@@ -6,10 +6,8 @@ namespace Cms\Admin\Http\Controllers;
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Domain\Services\TermsService;
 use Core\Database\Init as DB;
-use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\Slugger;
 use Cms\Admin\Utils\AdminNavigation;
-use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 
 final class TermsController extends BaseAdminController
@@ -105,18 +103,7 @@ final class TermsController extends BaseAdminController
             'q'    => $filters['q'],
         ]);
 
-        $settings = new CmsSettings();
-        $items = [];
-        foreach (($pag['items'] ?? []) as $row) {
-            $created = DateTimeFactory::fromStorage(isset($row['created_at']) ? (string)$row['created_at'] : null);
-            $row['created_at_raw'] = isset($row['created_at']) ? (string)$row['created_at'] : '';
-            if ($created) {
-                $row['created_at_display'] = $settings->formatDateTime($created);
-            } else {
-                $row['created_at_display'] = $row['created_at_raw'];
-            }
-            $items[] = $row;
-        }
+        $items = $this->normalizeCreatedAt($pag['items'] ?? []);
 
         $this->renderAdmin('terms/index', [
             'pageTitle'  => $this->typeConfig()[$type]['list'],
