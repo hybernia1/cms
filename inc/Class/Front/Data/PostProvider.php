@@ -95,7 +95,7 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.id','p.title','p.slug','p.excerpt','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
+                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.type', '=', $type)
                 ->where('p.status', '=', 'publish')
@@ -139,7 +139,7 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.id','p.title','p.slug','p.excerpt','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
+                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->join('post_terms pt', 'pt.post_id', '=', 'p.id')
                 ->join('terms t', 't.id', '=', 'pt.term_id')
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
@@ -192,7 +192,7 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.id','p.title','p.slug','p.excerpt','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
+                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.status', '=', 'publish')
                 ->where(static function ($q) use ($now): void {
