@@ -1,12 +1,12 @@
 <?php
 declare(strict_types=1);
 
-use Cms\Http\AdminController;
-use Cms\Http\AdminAuthController;
-use Cms\Auth\AuthService;
-use Cms\Auth\Authorization;
-use Cms\Utils\AdminNavigation;
-use Cms\View\ViewEngine;
+use Cms\Admin\Http\AdminController;
+use Cms\Admin\Http\AdminAuthController;
+use Cms\Admin\Auth\AuthService;
+use Cms\Admin\Auth\Authorization;
+use Cms\Admin\Utils\AdminNavigation;
+use Cms\Admin\View\ViewEngine;
 
 require_once __DIR__ . '/load.php';
 
@@ -41,7 +41,14 @@ if (!Authorization::isAdmin($user)) {
     }
     unset($_SESSION['_flash']);
 
-    $view = new ViewEngine(__DIR__ . '/admin/views');
+    $baseViewPath = __DIR__ . '/admin/views';
+    $view = new ViewEngine($baseViewPath);
+    $paths = [$baseViewPath];
+    $adminRoot = __DIR__ . '/admin';
+    if (is_dir($adminRoot)) {
+        $paths[] = $adminRoot;
+    }
+    $view->setBasePaths($paths);
     $view->render('errors/403', [
         'pageTitle'   => '403 – Přístup odepřen',
         'nav'         => AdminNavigation::build('dashboard'),

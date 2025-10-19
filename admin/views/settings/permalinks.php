@@ -12,9 +12,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     $seoEnabled = !empty($permalinks['seo_urls']);
 
-    $settingsObj = new \Cms\Settings\CmsSettings();
-    $prettyUrls = new \Cms\Utils\LinkGenerator(true, $settingsObj);
-    $fallbackUrls = new \Cms\Utils\LinkGenerator(false, $settingsObj);
+    $settingsObj = new \Cms\Admin\Settings\CmsSettings();
+    $prettyUrls = new \Cms\Admin\Utils\LinkGenerator(true, $settingsObj);
+    $fallbackUrls = new \Cms\Admin\Utils\LinkGenerator(false, $settingsObj);
 
     $exampleSlug = 'ukazkovy-prispevek';
     $pageSlug = 'kontakt';

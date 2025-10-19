@@ -10,7 +10,7 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var string $type */
 /** @var array $types */
-/** @var \Cms\Utils\LinkGenerator $urls */
+/** @var \Cms\Admin\Utils\LinkGenerator $urls */
 /** @var array<string,int> $statusCounts */
 /** @var callable $buildUrl */
 
