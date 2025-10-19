@@ -168,7 +168,9 @@ final class LinkGenerator
 
     public function login(): string
     {
-        return $this->pretty ? $this->prettyPath('login') : $this->fallback('login');
+        $admin = $this->admin();
+        $separator = str_contains($admin, '?') ? '&' : '?';
+        return $admin . $separator . 'r=auth/login';
     }
 
     public function logout(): string
@@ -186,9 +188,26 @@ final class LinkGenerator
         return $this->pretty ? $this->prettyPath('lost') : $this->fallback('lost');
     }
 
-    public function reset(): string
+    public function reset(?string $token = null, ?int $userId = null): string
     {
-        return $this->pretty ? $this->prettyPath('reset') : $this->fallback('reset');
+        $query = [];
+        $token = $token !== null ? trim($token) : '';
+        if ($token !== '') {
+            $query['token'] = $token;
+        }
+        if ($userId !== null && $userId > 0) {
+            $query['id'] = $userId;
+        }
+
+        if ($this->pretty) {
+            $path = $this->prettyPath('reset');
+            if ($query === []) {
+                return $path;
+            }
+            return $path . '?' . http_build_query($query);
+        }
+
+        return $this->fallback('reset', $query);
     }
 
     public function commentAction(): string

@@ -1,24 +1,35 @@
 <?php
 /** @var array<int,array<string,mixed>> $posts */
 /** @var string $type */
+
+$type = $type !== '' ? $type : 'post';
+$title = ucfirst($type);
+$postCardTemplate = __DIR__ . '/partials/post-card.php';
 ?>
-<section>
-    <header>
-        <h1>Archiv: <?= htmlspecialchars(ucfirst($type), ENT_QUOTES, 'UTF-8'); ?></h1>
-        <p class="breadcrumbs">Prohlížíte si všechny položky tohoto typu obsahu.</p>
+<section class="section section--archive">
+    <header class="section__header">
+        <p class="section__eyebrow">Archiv</p>
+        <h1 class="section__title">Všechny položky typu <?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?></h1>
+        <p class="section__lead">
+            Nahlížíte do kompletního archivu obsahu typu <?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>.
+        </p>
     </header>
+
     <?php if ($posts === []): ?>
-        <p>Ještě jsme v tomto archivu nic nezveřejnili.</p>
+        <div class="notice notice--info">
+            <p>V tomto archivu zatím nic není. Jakmile něco zveřejníme, přibude to právě sem.</p>
+        </div>
     <?php else: ?>
-        <div class="post-list">
+        <div class="post-grid post-grid--archive">
             <?php foreach ($posts as $post): ?>
-                <article class="post-card">
-                    <h3><a href="<?= htmlspecialchars((string)$post['permalink'], ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string)$post['title'], ENT_QUOTES, 'UTF-8'); ?></a></h3>
-                    <?php if (!empty($post['published_at'])): ?>
-                        <p class="post-meta"><?= htmlspecialchars((string)$post['published_at'], ENT_QUOTES, 'UTF-8'); ?></p>
-                    <?php endif; ?>
-                    <p><?= htmlspecialchars((string)$post['excerpt'], ENT_QUOTES, 'UTF-8'); ?></p>
-                </article>
+                <?php
+                    $postCardHeading = 2;
+                    $postCardShowExcerpt = true;
+                    $postCardShowMeta = true;
+                    $postCardClass = 'post-card--archive';
+                    $postCardReadMore = 'Otevřít detail';
+                    include $postCardTemplate;
+                ?>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>

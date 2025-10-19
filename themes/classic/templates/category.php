@@ -1,26 +1,35 @@
 <?php
 /** @var array<string,mixed> $term */
 /** @var array<int,array<string,mixed>> $posts */
+
+$name = (string)($term['name'] ?? 'Kategorie');
+$description = trim((string)($term['description'] ?? ''));
+$postCardTemplate = __DIR__ . '/partials/post-card.php';
 ?>
-<section>
-    <header>
-        <h1>Kategorie: <?= htmlspecialchars((string)$term['name'], ENT_QUOTES, 'UTF-8'); ?></h1>
-        <?php if (!empty($term['description'])): ?>
-            <p class="term-description"><?= htmlspecialchars((string)$term['description'], ENT_QUOTES, 'UTF-8'); ?></p>
+<section class="section section--category">
+    <header class="section__header">
+        <p class="section__eyebrow">Kategorie</p>
+        <h1 class="section__title"><?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?></h1>
+        <?php if ($description !== ''): ?>
+            <p class="section__lead"><?= htmlspecialchars($description, ENT_QUOTES, 'UTF-8'); ?></p>
         <?php endif; ?>
     </header>
+
     <?php if ($posts === []): ?>
-        <p>V této kategorii zatím nic nevydáno.</p>
+        <div class="notice notice--info">
+            <p>V této kategorii zatím nic nevydáno. Jakmile obsah přidáme, uvidíte ho na tomto místě.</p>
+        </div>
     <?php else: ?>
-        <div class="post-list">
+        <div class="post-grid post-grid--term">
             <?php foreach ($posts as $post): ?>
-                <article class="post-card">
-                    <h3><a href="<?= htmlspecialchars((string)$post['permalink'], ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars((string)$post['title'], ENT_QUOTES, 'UTF-8'); ?></a></h3>
-                    <?php if (!empty($post['published_at'])): ?>
-                        <p class="post-meta"><?= htmlspecialchars((string)$post['published_at'], ENT_QUOTES, 'UTF-8'); ?></p>
-                    <?php endif; ?>
-                    <p><?= htmlspecialchars((string)$post['excerpt'], ENT_QUOTES, 'UTF-8'); ?></p>
-                </article>
+                <?php
+                    $postCardHeading = 2;
+                    $postCardShowExcerpt = true;
+                    $postCardShowMeta = true;
+                    $postCardClass = 'post-card--term';
+                    $postCardReadMore = 'Zobrazit článek';
+                    include $postCardTemplate;
+                ?>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>

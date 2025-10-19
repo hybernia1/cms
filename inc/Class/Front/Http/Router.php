@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Front\Http;
 
 use Cms\Admin\Settings\CmsSettings;
+use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Passwords;
 use Cms\Admin\Domain\Repositories\UsersRepository;
 use Cms\Admin\Mail\MailService;
@@ -29,6 +30,7 @@ final class Router
     private UsersRepository $users;
     private MailService $mail;
     private TemplateManager $templates;
+    private AuthService $auth;
 
     public function __construct(
         ThemeViewEngine $view,
@@ -39,7 +41,8 @@ final class Router
         ?LinkGenerator $links = null,
         ?UsersRepository $users = null,
         ?MailService $mail = null,
-        ?TemplateManager $templates = null
+        ?TemplateManager $templates = null,
+        ?AuthService $auth = null
     ) {
         $this->view = $view;
         $this->posts = $posts;
@@ -50,6 +53,7 @@ final class Router
         $this->users = $users ?? new UsersRepository();
         $this->mail = $mail ?? new MailService($this->settings);
         $this->templates = $templates ?? new TemplateManager();
+        $this->auth = $auth ?? new AuthService();
 
         $this->view->share([
             'navigation' => $this->menus->menusByLocation(),
@@ -78,6 +82,8 @@ final class Router
             'tag' => $this->handleTerm((string)($params['slug'] ?? ''), 'tag'),
             'search' => $this->handleSearch((string)($params['query'] ?? ($params['s'] ?? ''))),
             'register' => $this->handleRegister(),
+            'lost' => $this->handleLost(),
+            'reset' => $this->handleReset((string)($params['token'] ?? ''), (int)($params['id'] ?? 0)),
             default => $this->notFound(),
         };
     }
@@ -144,6 +150,27 @@ final class Router
             }
             if ($first === 'register') {
                 return ['name' => 'register', 'params' => []];
+            }
+            if ($first === 'lost') {
+                return ['name' => 'lost', 'params' => []];
+            }
+            if ($first === 'reset') {
+                $token = $segments[1] ?? '';
+                $user = $segments[2] ?? '';
+                $params = [];
+                if ($token !== '') {
+                    $params['token'] = $token;
+                }
+                if ($user !== '') {
+                    $params['id'] = $user;
+                }
+                if (isset($_GET['token'])) {
+                    $params['token'] = (string)$_GET['token'];
+                }
+                if (isset($_GET['id'])) {
+                    $params['id'] = (string)$_GET['id'];
+                }
+                return ['name' => 'reset', 'params' => $params];
             }
         }
 
@@ -418,6 +445,194 @@ final class Router
             : 'Registrace byla přijata. Vyčkejte prosím na schválení administrátorem.';
 
         return new RouteResult('register', $data);
+    }
+
+    private function handleLost(): RouteResult
+    {
+        $meta = new SeoMeta('Obnova hesla | ' . $this->settings->siteTitle(), canonical: $this->links->lost());
+
+        $data = [
+            'meta' => $meta->toArray(),
+            'errors' => [],
+            'old' => ['email' => ''],
+            'success' => false,
+            'message' => null,
+            'loginUrl' => $this->links->login(),
+        ];
+
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if ($method !== 'POST') {
+            return new RouteResult('lost', $data);
+        }
+
+        $email = trim((string)($_POST['email'] ?? ''));
+        $data['old']['email'] = $email;
+
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $data['errors']['email'][] = 'Zadejte platnou e-mailovou adresu.';
+            $data['message'] = 'Zkontrolujte zvýrazněné pole.';
+            return new RouteResult('lost', $data, 422);
+        }
+
+        $user = null;
+        try {
+            $user = $this->users->findByEmail($email);
+        } catch (Throwable $e) {
+            error_log('Lost password lookup failed: ' . $e->getMessage());
+        }
+
+        if (is_array($user)) {
+            try {
+                $reset = $this->auth->beginPasswordReset($email);
+            } catch (Throwable $e) {
+                error_log('Lost password token generation failed: ' . $e->getMessage());
+                $reset = null;
+            }
+
+            if (is_array($reset) && isset($reset['token'], $reset['user_id'])) {
+                $resetUrl = $this->links->reset((string)$reset['token'], (int)$reset['user_id']);
+                $mailData = [
+                    'siteTitle' => $this->settings->siteTitle(),
+                    'userName' => (string)($user['name'] ?? ''),
+                    'resetUrl' => $resetUrl,
+                ];
+
+                try {
+                    $template = $this->templates->render('lost_password', $mailData);
+                    $this->mail->sendTemplate($email, $template, (string)($user['name'] ?? '') ?: null);
+                } catch (Throwable $e) {
+                    error_log('Lost password email dispatch failed: ' . $e->getMessage());
+                }
+            }
+        }
+
+        $data['success'] = true;
+        $data['message'] = 'Pokud e-mail existuje v naší databázi, poslali jsme na něj pokyny k obnovení hesla.';
+        $data['old']['email'] = '';
+
+        return new RouteResult('lost', $data);
+    }
+
+    private function handleReset(string $tokenParam, int $userIdParam): RouteResult
+    {
+        $token = preg_replace('~[^a-f0-9]~i', '', trim($tokenParam)) ?? '';
+        $userId = $userIdParam > 0 ? $userIdParam : 0;
+
+        if (isset($_GET['token'])) {
+            $token = preg_replace('~[^a-f0-9]~i', '', (string)$_GET['token']) ?? $token;
+        }
+        if (isset($_GET['id'])) {
+            $idFromQuery = (int)$_GET['id'];
+            if ($idFromQuery > 0) {
+                $userId = $idFromQuery;
+            }
+        }
+        if (isset($_POST['token'])) {
+            $token = preg_replace('~[^a-f0-9]~i', '', (string)$_POST['token']) ?? $token;
+        }
+        if (isset($_POST['user_id'])) {
+            $idFromPost = (int)$_POST['user_id'];
+            if ($idFromPost > 0) {
+                $userId = $idFromPost;
+            }
+        } elseif (isset($_POST['id'])) {
+            $idFromPost = (int)$_POST['id'];
+            if ($idFromPost > 0) {
+                $userId = $idFromPost;
+            }
+        }
+
+        $canonical = $token !== '' && $userId > 0
+            ? $this->links->reset($token, $userId)
+            : $this->links->reset();
+
+        $meta = new SeoMeta('Reset hesla | ' . $this->settings->siteTitle(), canonical: $canonical);
+
+        $data = [
+            'meta' => $meta->toArray(),
+            'errors' => [],
+            'message' => null,
+            'success' => false,
+            'allowForm' => true,
+            'token' => $token,
+            'userId' => $userId,
+            'loginUrl' => $this->links->login(),
+            'lostUrl' => $this->links->lost(),
+        ];
+
+        if ($token === '' || $userId <= 0) {
+            $data['allowForm'] = false;
+            $data['message'] = 'Resetovací odkaz je neplatný.';
+            return new RouteResult('reset', $data, 400);
+        }
+
+        $user = null;
+        try {
+            $user = $this->users->findByResetToken($userId, $token);
+        } catch (Throwable $e) {
+            error_log('Reset password lookup failed: ' . $e->getMessage());
+        }
+
+        $expiresAt = '';
+        if (is_array($user)) {
+            $expiresAt = (string)($user['token_expire'] ?? '');
+        }
+
+        $tokenValid = is_array($user) && $expiresAt !== '' && strtotime($expiresAt) >= time();
+
+        if (!$tokenValid) {
+            $data['allowForm'] = false;
+            $data['message'] = 'Resetovací odkaz je neplatný nebo vypršel.';
+            $status = $expiresAt !== '' ? 410 : 400;
+            return new RouteResult('reset', $data, $status);
+        }
+
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if ($method !== 'POST') {
+            return new RouteResult('reset', $data);
+        }
+
+        $password = (string)($_POST['password'] ?? '');
+        $confirm = (string)($_POST['password_confirm'] ?? '');
+
+        if (trim($password) === '') {
+            $data['errors']['password'][] = 'Zadejte nové heslo.';
+        }
+
+        $length = function_exists('mb_strlen') ? mb_strlen($password) : strlen($password);
+        if ($length < 8) {
+            $data['errors']['password'][] = 'Heslo musí mít alespoň 8 znaků.';
+        }
+
+        if (trim($confirm) === '') {
+            $data['errors']['password_confirm'][] = 'Potvrďte heslo.';
+        } elseif ($password !== $confirm) {
+            $data['errors']['password_confirm'][] = 'Zadaná hesla se neshodují.';
+        }
+
+        if ($data['errors'] !== []) {
+            $data['message'] = 'Zkontrolujte zvýrazněná pole.';
+            return new RouteResult('reset', $data, 422);
+        }
+
+        try {
+            $ok = $this->auth->completePasswordReset($userId, $token, $password);
+        } catch (Throwable $e) {
+            error_log('Reset password completion failed: ' . $e->getMessage());
+            $ok = false;
+        }
+
+        if (!$ok) {
+            $data['message'] = 'Nepodařilo se dokončit reset hesla. Požádejte prosím o nový odkaz.';
+            $data['allowForm'] = false;
+            return new RouteResult('reset', $data, 400);
+        }
+
+        $data['success'] = true;
+        $data['allowForm'] = false;
+        $data['message'] = 'Heslo bylo úspěšně změněno. Nyní se můžete přihlásit.';
+
+        return new RouteResult('reset', $data);
     }
 
     private function notFound(): RouteResult

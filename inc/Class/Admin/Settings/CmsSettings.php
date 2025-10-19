@@ -70,6 +70,13 @@ final class CmsSettings
         return is_array($mail) ? $mail : [];
     }
 
+    private static function siteSettings(): array
+    {
+        $data = self::data();
+        $site = $data['site'] ?? [];
+        return is_array($site) ? $site : [];
+    }
+
     /**
      * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string}
      */
@@ -107,6 +114,29 @@ final class CmsSettings
         }
 
         return $this->detectSiteUrl();
+    }
+    public function siteTagline(): string
+    {
+        $site = self::siteSettings();
+        $tagline = isset($site['tagline']) ? (string)$site['tagline'] : '';
+        return trim($tagline);
+    }
+    public function siteLocale(): string
+    {
+        $site = self::siteSettings();
+        $raw = trim((string)($site['locale'] ?? ''));
+        if ($raw === '') {
+            return 'cs';
+        }
+        $normalized = preg_replace('~[^a-zA-Z_\-]~', '', $raw) ?? '';
+        $normalized = $normalized !== '' ? $normalized : 'cs';
+        return str_replace('_', '-', $normalized);
+    }
+    public function siteSocialImage(): string
+    {
+        $site = self::siteSettings();
+        $image = trim((string)($site['social_image'] ?? ''));
+        return $image;
     }
     public function registrationAllowed(): bool
     {

@@ -3,6 +3,7 @@
 /** @var array<string,list<string>> $errors */
 /** @var bool $success */
 /** @var bool $allowed */
+/** @var bool|null $autoApprove */
 /** @var string|null $message */
 /** @var string|null $loginUrl */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
@@ -11,151 +12,104 @@ $old = is_array($old) ? $old : [];
 $errors = is_array($errors) ? $errors : [];
 $success = !empty($success);
 $allowed = isset($allowed) ? (bool)$allowed : true;
+$autoApprove = isset($autoApprove) ? (bool)$autoApprove : null;
 $message = isset($message) && $message !== '' ? (string)$message : null;
-$loginUrl = isset($loginUrl) ? (string)$loginUrl : null;
+$loginUrl = isset($loginUrl) && $loginUrl !== '' ? (string)$loginUrl : null;
 
 $oldName = htmlspecialchars((string)($old['name'] ?? ''), ENT_QUOTES, 'UTF-8');
 $oldEmail = htmlspecialchars((string)($old['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $action = htmlspecialchars($links->register(), ENT_QUOTES, 'UTF-8');
 ?>
-<article class="post-content register">
-    <h1>Registrace</h1>
+<section class="section section--auth">
+    <header class="section__header">
+        <p class="section__eyebrow">Registrace</p>
+        <h1 class="section__title">Vytvořte si účet</h1>
+        <p class="section__lead">
+            Založením účtu získáte přístup k obsahu vyhrazenému pro registrované uživatele.
+            <?php if ($autoApprove === false): ?>
+                Po odeslání vyčkejte na schválení administrátorem.
+            <?php endif; ?>
+        </p>
+    </header>
 
     <?php if ($message !== null): ?>
-        <div class="register__alert<?= $success ? ' register__alert--success' : ($allowed ? ' register__alert--info' : ' register__alert--danger'); ?>">
-            <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?>
+        <?php
+            $noticeType = $success ? 'success' : ($allowed ? 'info' : 'danger');
+        ?>
+        <div class="notice notice--<?= htmlspecialchars($noticeType, ENT_QUOTES, 'UTF-8'); ?>">
+            <p><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></p>
         </div>
     <?php endif; ?>
 
-    <?php if ($success && $loginUrl): ?>
-        <p class="register__next">
-            <a class="register__button" href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">Přejít na přihlášení</a>
-        </p>
-    <?php endif; ?>
+    <div class="auth-card">
+        <?php if ($success): ?>
+            <p class="auth-card__text">Registrace proběhla v pořádku.</p>
+            <?php if ($loginUrl): ?>
+                <p class="auth-card__actions">
+                    <a class="button" href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">Přejít na přihlášení</a>
+                </p>
+            <?php endif; ?>
+        <?php elseif (!$allowed): ?>
+            <p class="auth-card__text">Registrace je momentálně vypnutá. Zkuste to prosím později.</p>
+        <?php else: ?>
+            <form method="post" action="<?= $action; ?>" class="auth-form" novalidate>
+                <div class="auth-form__field<?= !empty($errors['name']) ? ' auth-form__field--error' : ''; ?>">
+                    <label class="auth-form__label" for="reg-name">Jméno</label>
+                    <input class="auth-form__input" type="text" id="reg-name" name="name" value="<?= $oldName; ?>" required>
+                    <?php if (!empty($errors['name'])): ?>
+                        <ul class="auth-form__errors">
+                            <?php foreach ($errors['name'] as $error): ?>
+                                <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
 
-    <?php if (!$success && $allowed): ?>
-        <form method="post" action="<?= $action; ?>" class="register__form">
-            <div class="register__field">
-                <label for="reg-name">Jméno</label>
-                <input type="text" id="reg-name" name="name" value="<?= $oldName; ?>" required>
-                <?php if (!empty($errors['name'])): ?>
-                    <ul class="register__errors">
-                        <?php foreach ($errors['name'] as $error): ?>
-                            <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
+                <div class="auth-form__field<?= !empty($errors['email']) ? ' auth-form__field--error' : ''; ?>">
+                    <label class="auth-form__label" for="reg-email">E-mail</label>
+                    <input class="auth-form__input" type="email" id="reg-email" name="email" value="<?= $oldEmail; ?>" required>
+                    <?php if (!empty($errors['email'])): ?>
+                        <ul class="auth-form__errors">
+                            <?php foreach ($errors['email'] as $error): ?>
+                                <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
 
-            <div class="register__field">
-                <label for="reg-email">E-mail</label>
-                <input type="email" id="reg-email" name="email" value="<?= $oldEmail; ?>" required>
-                <?php if (!empty($errors['email'])): ?>
-                    <ul class="register__errors">
-                        <?php foreach ($errors['email'] as $error): ?>
-                            <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
+                <div class="auth-form__field<?= !empty($errors['password']) ? ' auth-form__field--error' : ''; ?>">
+                    <label class="auth-form__label" for="reg-password">Heslo</label>
+                    <input class="auth-form__input" type="password" id="reg-password" name="password" required minlength="8">
+                    <?php if (!empty($errors['password'])): ?>
+                        <ul class="auth-form__errors">
+                            <?php foreach ($errors['password'] as $error): ?>
+                                <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
 
-            <div class="register__field">
-                <label for="reg-password">Heslo</label>
-                <input type="password" id="reg-password" name="password" required minlength="8">
-                <?php if (!empty($errors['password'])): ?>
-                    <ul class="register__errors">
-                        <?php foreach ($errors['password'] as $error): ?>
-                            <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
+                <div class="auth-form__field<?= !empty($errors['password_confirm']) ? ' auth-form__field--error' : ''; ?>">
+                    <label class="auth-form__label" for="reg-password-confirm">Potvrzení hesla</label>
+                    <input class="auth-form__input" type="password" id="reg-password-confirm" name="password_confirm" required minlength="8">
+                    <?php if (!empty($errors['password_confirm'])): ?>
+                        <ul class="auth-form__errors">
+                            <?php foreach ($errors['password_confirm'] as $error): ?>
+                                <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
 
-            <div class="register__field">
-                <label for="reg-password-confirm">Potvrzení hesla</label>
-                <input type="password" id="reg-password-confirm" name="password_confirm" required minlength="8">
-                <?php if (!empty($errors['password_confirm'])): ?>
-                    <ul class="register__errors">
-                        <?php foreach ($errors['password_confirm'] as $error): ?>
-                            <li><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-            </div>
-
-            <div class="register__actions">
-                <button type="submit" class="register__button">Zaregistrovat se</button>
-            </div>
-        </form>
-    <?php endif; ?>
-</article>
-
-<style>
-    .register {
-        display: grid;
-        gap: 1.5rem;
-    }
-    .register label {
-        font-weight: 600;
-    }
-    .register input[type="text"],
-    .register input[type="email"],
-    .register input[type="password"] {
-        width: 100%;
-        padding: 0.75rem 1rem;
-        border-radius: 12px;
-        border: 1px solid rgba(42, 77, 105, 0.2);
-        font-size: 1rem;
-        background: rgba(255, 255, 255, 0.9);
-    }
-    .register__form {
-        display: grid;
-        gap: 1.5rem;
-    }
-    .register__errors {
-        margin: 0.5rem 0 0;
-        padding-left: 1.25rem;
-        color: #7f1d1d;
-    }
-    .register__errors li {
-        margin: 0.25rem 0;
-    }
-    .register__alert {
-        padding: 1rem 1.25rem;
-        border-radius: 12px;
-        border: 1px solid rgba(42, 77, 105, 0.2);
-        background: rgba(255, 255, 255, 0.85);
-    }
-    .register__alert--success {
-        border-color: #6fbf73;
-        background: #f0fff4;
-    }
-    .register__alert--danger {
-        border-color: #d87a6d;
-        background: #fff5f2;
-    }
-    .register__alert--info {
-        border-color: rgba(42, 77, 105, 0.3);
-        background: rgba(42, 77, 105, 0.08);
-    }
-    .register__button {
-        display: inline-block;
-        background: var(--classic-accent);
-        color: #fff;
-        padding: 0.75rem 1.75rem;
-        border-radius: 999px;
-        border: none;
-        font-weight: 600;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        cursor: pointer;
-        text-decoration: none;
-    }
-    .register__button:hover,
-    .register__button:focus {
-        background: var(--classic-accent-light);
-    }
-    .register__actions {
-        margin-top: 0.5rem;
-    }
-</style>
+                <div class="auth-form__actions">
+                    <button type="submit" class="button">Zaregistrovat se</button>
+                    <?php if ($loginUrl): ?>
+                        <p class="auth-form__hint">
+                            Už máte účet? <a href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">Přihlaste se</a>.
+                        </p>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php endif; ?>
+    </div>
+</section>

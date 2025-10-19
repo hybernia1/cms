@@ -364,7 +364,11 @@ final class UsersController extends BaseAdminController
             $templateData['user'] = $user;
 
             $baseUrl = rtrim($settings->siteUrl(), '/');
-            $templateData['resetUrl'] = $baseUrl . '/reset?token=' . urlencode($token);
+            $resetQuery = http_build_query([
+                'token' => $token,
+                'id'    => $userId,
+            ]);
+            $templateData['resetUrl'] = $baseUrl . '/reset?' . $resetQuery;
         }
 
         try {
