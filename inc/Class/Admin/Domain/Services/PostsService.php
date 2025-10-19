@@ -50,15 +50,16 @@ final class PostsService
 
         $now = DateTimeFactory::now();
 
+        $type = (string)$data['type'];
         $id = $this->posts->create([
             'title'           => (string)$data['title'],
             'slug'            => $slug,
-            'type'            => (string)$data['type'],
+            'type'            => $type,
             'status'          => (string)$data['status'],
             'content'         => (string)($data['content'] ?? ''),
             'author_id'       => (int)$data['author_id'],
             'thumbnail_id'    => isset($data['thumbnail_id']) ? (int)$data['thumbnail_id'] : null,
-            'comments_allowed'=> 1,
+            'comments_allowed'=> $type === 'post' ? 1 : 0,
             'published_at'    => $data['status']==='publish' ? DateTimeFactory::formatForStorage($now) : null,
             'created_at'      => DateTimeFactory::formatForStorage($now),
             'updated_at'      => null,
@@ -106,7 +107,10 @@ final class PostsService
         }
         if (array_key_exists('content',$data)) $upd['content'] = (string)$data['content'];
         if (array_key_exists('thumbnail_id',$data)) $upd['thumbnail_id'] = $data['thumbnail_id'] !== null ? (int)$data['thumbnail_id'] : null;
-        if (array_key_exists('comments_allowed',$data)) $upd['comments_allowed'] = (int)$data['comments_allowed'];
+        if (array_key_exists('comments_allowed',$data)) {
+            $commentsAllowed = (int)$data['comments_allowed'];
+            $upd['comments_allowed'] = $typeForSlug === 'post' ? $commentsAllowed : 0;
+        }
 
         if ($upd === []) return 0;
 
