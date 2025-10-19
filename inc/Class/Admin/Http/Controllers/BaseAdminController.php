@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Cms\Admin\Http\Controllers;
 
 use Cms\Admin\Auth\AuthService;
+use Cms\Admin\Settings\CmsSettings;
+use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\UploadPathFactory;
 use Cms\Admin\View\ViewEngine;
 use Core\Files\PathResolver;
@@ -192,6 +194,49 @@ abstract class BaseAdminController
 
             return $route . '?' . $qs;
         };
+    }
+
+    /**
+     * Normalize created_at timestamps for listings to provide consistent raw/display (and optional ISO) values.
+     *
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    final protected function normalizeCreatedAt(array $rows, bool $includeIso = false): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $settings = new CmsSettings();
+
+        $normalized = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $rawValue = isset($row['created_at']) ? (string)$row['created_at'] : '';
+            $createdAt = $rawValue !== '' ? $rawValue : null;
+            $row['created_at_raw'] = $rawValue;
+
+            $created = DateTimeFactory::fromStorage($createdAt);
+            if ($created) {
+                $row['created_at_display'] = $settings->formatDateTime($created);
+                if ($includeIso) {
+                    $row['created_at_iso'] = $created->format(\DateTimeInterface::ATOM);
+                }
+            } else {
+                $row['created_at_display'] = $row['created_at_raw'];
+                if ($includeIso) {
+                    $row['created_at_iso'] = $createdAt;
+                }
+            }
+
+            $normalized[] = $row;
+        }
+
+        return $normalized;
     }
 
     private function captureView(string $template, array $payload): string
