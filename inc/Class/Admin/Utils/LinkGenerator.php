@@ -219,4 +219,41 @@ final class LinkGenerator
     {
         return $this->pretty;
     }
+
+    public function absolute(string $path): string
+    {
+        $trimmed = trim($path);
+        $siteUrl = trim($this->settings->siteUrl());
+
+        if ($trimmed === '') {
+            return $siteUrl !== '' ? $siteUrl : '';
+        }
+
+        if (preg_match('~^https?://~i', $trimmed)) {
+            return $trimmed;
+        }
+
+        if ($siteUrl === '') {
+            return $trimmed;
+        }
+
+        if (str_starts_with($trimmed, '/')) {
+            $parts = parse_url($siteUrl);
+            if (is_array($parts) && isset($parts['scheme'], $parts['host'])) {
+                $base = $parts['scheme'] . '://' . $parts['host'];
+                if (isset($parts['port'])) {
+                    $base .= ':' . $parts['port'];
+                }
+
+                return rtrim($base, '/') . $trimmed;
+            }
+        }
+
+        $normalized = $trimmed;
+        if (str_starts_with($normalized, './')) {
+            $normalized = substr($normalized, 2);
+        }
+
+        return rtrim($siteUrl, '/') . '/' . ltrim($normalized, '/');
+    }
 }
