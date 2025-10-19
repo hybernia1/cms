@@ -25,7 +25,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   $currentStatus = $isEdit ? (string)($post['status'] ?? 'draft') : 'draft';
   $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
   $currentStatusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
-  $commentsAllowed = $isEdit ? ((int)($post['comments_allowed'] ?? 1) === 1) : true;
+  $commentsAllowed = false;
+  if ($type === 'post') {
+    $commentsAllowed = $isEdit ? ((int)($post['comments_allowed'] ?? 1) === 1) : true;
+  }
   $typeLabel = (string)($typeCfg['label'] ?? strtoupper($type));
   $encodeJson = function ($value) use ($h): string {
     $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -241,15 +244,17 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             </div>
           </div>
 
-          <div class="card shadow-sm">
-            <div class="card-header fw-semibold">Nastavení</div>
-            <div class="card-body">
-              <div class="form-check form-switch">
-                <input class="form-check-input" type="checkbox" id="comments" name="comments_allowed" <?= $checked($commentsAllowed) ?>>
-                <label class="form-check-label" for="comments">Povolit komentáře</label>
+          <?php if ($type === 'post'): ?>
+            <div class="card shadow-sm">
+              <div class="card-header fw-semibold">Nastavení</div>
+              <div class="card-body">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="comments" name="comments_allowed" <?= $checked($commentsAllowed) ?>>
+                  <label class="form-check-label" for="comments">Povolit komentáře</label>
+                </div>
               </div>
             </div>
-          </div>
+          <?php endif; ?>
         </div>
       </div>
     </div>

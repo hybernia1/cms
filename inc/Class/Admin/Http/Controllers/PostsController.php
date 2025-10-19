@@ -263,6 +263,10 @@ final class PostsController extends BaseAdminController
                         ->delete()
                         ->whereIn('post_id', $targetIds)
                         ->execute();
+                    DB::query()->table('comments')
+                        ->delete()
+                        ->whereIn('post_id', $targetIds)
+                        ->execute();
                     DB::query()->table('posts')
                         ->delete()
                         ->whereIn('id', $targetIds)
@@ -331,6 +335,9 @@ final class PostsController extends BaseAdminController
             $status  = (string)($_POST['status'] ?? 'draft');
             $content = (string)($_POST['content'] ?? '');
             $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
+            if ($type !== 'post') {
+                $commentsAllowed = 0;
+            }
 
             // terms z formuláře
             $catIds = [];
@@ -426,7 +433,7 @@ final class PostsController extends BaseAdminController
                 'title'            => (string)($_POST['title'] ?? ''),
                 'status'           => (string)($_POST['status'] ?? 'draft'),
                 'content'          => (string)($_POST['content'] ?? ''),
-                'comments_allowed' => isset($_POST['comments_allowed']) ? 1 : 0,
+                'comments_allowed' => $type === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0,
             ];
             if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
                 $upd['slug'] = (string)$_POST['slug'];
@@ -527,7 +534,7 @@ final class PostsController extends BaseAdminController
                 $status = 'draft';
             }
 
-            $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
+            $commentsAllowed = $requestedType === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0;
             $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
             $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
 
@@ -567,6 +574,10 @@ final class PostsController extends BaseAdminController
                 }
 
                 $currentStatus = (string)($existing['status'] ?? $currentStatus);
+
+                if ($type !== 'post') {
+                    $commentsAllowed = 0;
+                }
 
                 $updates = [
                     'title'            => $title,
@@ -613,6 +624,10 @@ final class PostsController extends BaseAdminController
                 $type = $requestedType;
                 $slugSource = $title !== '' ? $title : ('koncept-' . bin2hex(random_bytes(3)));
                 $slug = Slugger::uniqueInPosts($slugSource, $type);
+
+                if ($type !== 'post') {
+                    $commentsAllowed = 0;
+                }
 
                 $data = [
                     'title'            => $title,
@@ -782,6 +797,7 @@ final class PostsController extends BaseAdminController
         // smaž vazby i post
         DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
         DB::query()->table('post_media')->delete()->where('post_id','=', $id)->execute();
+        DB::query()->table('comments')->delete()->where('post_id', '=', $id)->execute();
         (new PostsRepository())->delete($id);
 
         $this->redirect($this->listUrl($type), 'success', 'Příspěvek byl odstraněn.');
