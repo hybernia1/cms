@@ -5,6 +5,7 @@ namespace Cms\Admin\Http\Controllers;
 
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Domain\Services\TermsService;
+use Cms\Admin\Http\Ajax\Terms\TermsHelpers;
 use Core\Database\Init as DB;
 use Cms\Admin\Utils\Slugger;
 use Cms\Admin\Utils\AdminNavigation;
@@ -12,6 +13,8 @@ use Cms\Admin\Utils\LinkGenerator;
 
 final class TermsController extends BaseAdminController
 {
+    use TermsHelpers;
+
     public function handle(string $action): void
     {
         switch ($action) {
@@ -40,33 +43,11 @@ final class TermsController extends BaseAdminController
     }
 
     // ------------- helpers -------------
-    private function typeConfig(): array
-    {
-        return [
-            'category' => [
-                'nav'    => 'Kategorie',
-                'list'   => 'Kategorie',
-                'create' => 'Nová kategorie',
-                'edit'   => 'Upravit kategorii',
-                'label'  => 'Kategorie',
-            ],
-            'tag' => [
-                'nav'    => 'Štítky',
-                'list'   => 'Štítky',
-                'create' => 'Nový štítek',
-                'edit'   => 'Upravit štítek',
-                'label'  => 'Štítek',
-            ],
-        ];
-    }
-
     private function requestedType(): string
     {
-        $type = (string)($_GET['type'] ?? 'category');
-        if (!array_key_exists($type, $this->typeConfig())) {
-            $type = 'category';
-        }
-        return $type;
+        $type = isset($_GET['type']) ? (string)$_GET['type'] : null;
+
+        return $this->normalizeType($type);
     }
 
     // ------------- actions -------------
@@ -147,10 +128,7 @@ final class TermsController extends BaseAdminController
         $this->assertCsrf();
         try {
             $name = trim((string)($_POST['name'] ?? ''));
-            $type = (string)($_POST['type'] ?? $this->requestedType());
-            if (!array_key_exists($type, $this->typeConfig())) {
-                $type = 'category';
-            }
+            $type = $this->normalizeType($_POST['type'] ?? $this->requestedType());
             $slug = trim((string)($_POST['slug'] ?? ''));
             $desc = (string)($_POST['description'] ?? '');
 
@@ -175,7 +153,7 @@ final class TermsController extends BaseAdminController
     private function update(): void
     {
         $this->assertCsrf();
-        $id = (int)($_GET['id'] ?? 0);
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : (isset($_POST['id']) ? (int)$_POST['id'] : 0);
         if ($id <= 0) {
             $type = $this->requestedType();
             $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'danger', 'Chybí ID.');
