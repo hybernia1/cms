@@ -20,7 +20,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     ? ['r'=>'posts','a'=>'edit','id'=>(int)($post['id'] ?? 0),'type'=>$type]
     : ['r'=>'posts','a'=>'create','type'=>$type];
   $actionUrl = 'admin.php?'.http_build_query($actionParams);
-  $autosaveUrl = 'admin.php?'.http_build_query(['r' => 'posts', 'a' => 'autosave', 'type' => $type]);
+  $autosaveUrl = 'admin-ajax.php?'.http_build_query(['action' => 'posts_autosave', 'type' => $type]);
   $checked  = fn(bool $b) => $b ? 'checked' : '';
   $currentStatus = $isEdit ? (string)($post['status'] ?? 'draft') : 'draft';
   $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
