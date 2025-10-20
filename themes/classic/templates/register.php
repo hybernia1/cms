@@ -6,6 +6,7 @@
 /** @var bool|null $autoApprove */
 /** @var string|null $message */
 /** @var string|null $loginUrl */
+/** @var string|null $csrf */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
 
 $old = is_array($old) ? $old : [];
@@ -15,6 +16,7 @@ $allowed = isset($allowed) ? (bool)$allowed : true;
 $autoApprove = isset($autoApprove) ? (bool)$autoApprove : null;
 $message = isset($message) && $message !== '' ? (string)$message : null;
 $loginUrl = isset($loginUrl) && $loginUrl !== '' ? (string)$loginUrl : null;
+$csrfToken = isset($csrf) && $csrf !== '' ? htmlspecialchars((string)$csrf, ENT_QUOTES, 'UTF-8') : '';
 
 $oldName = htmlspecialchars((string)($old['name'] ?? ''), ENT_QUOTES, 'UTF-8');
 $oldEmail = htmlspecialchars((string)($old['email'] ?? ''), ENT_QUOTES, 'UTF-8');
@@ -53,6 +55,7 @@ $action = htmlspecialchars($links->register(), ENT_QUOTES, 'UTF-8');
             <p class="auth-card__text">Registrace je momentálně vypnutá. Zkuste to prosím později.</p>
         <?php else: ?>
             <form method="post" action="<?= $action; ?>" class="auth-form" novalidate>
+                <input type="hidden" name="csrf" value="<?= $csrfToken; ?>">
                 <div class="auth-form__field<?= !empty($errors['name']) ? ' auth-form__field--error' : ''; ?>">
                     <label class="auth-form__label" for="reg-name">Jméno</label>
                     <input class="auth-form__input" type="text" id="reg-name" name="name" value="<?= $oldName; ?>" required>

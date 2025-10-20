@@ -48,6 +48,10 @@ final class Router
         ?TemplateManager $templates = null,
         ?AuthService $auth = null
     ) {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+
         $this->view = $view;
         $this->posts = $posts;
         $this->terms = $terms;
@@ -70,6 +74,79 @@ final class Router
         $result = $this->resolve();
         http_response_code($result->status);
         $this->view->renderWithLayout($result->layout, $result->template, $result->data);
+    }
+
+    private function csrfToken(): string
+    {
+        if (empty($_SESSION['csrf_front'])) {
+            $_SESSION['csrf_front'] = bin2hex(random_bytes(16));
+        }
+
+        return (string)$_SESSION['csrf_front'];
+    }
+
+    private function verifyCsrf(string $token): bool
+    {
+        $sessionToken = $_SESSION['csrf_front'] ?? '';
+        if ($sessionToken === '') {
+            return false;
+        }
+
+        return hash_equals((string)$sessionToken, $token);
+    }
+
+    private function storeFormState(string $key, array $form, int $status): void
+    {
+        $state = ['status' => $status];
+        foreach (['success', 'message', 'errors', 'old', 'allowForm'] as $field) {
+            if (array_key_exists($field, $form)) {
+                $state[$field] = $form[$field];
+            }
+        }
+
+        if (!isset($_SESSION['_front_forms']) || !is_array($_SESSION['_front_forms'])) {
+            $_SESSION['_front_forms'] = [];
+        }
+
+        $_SESSION['_front_forms'][$key] = $state;
+    }
+
+    private function pullFormState(string $key): ?array
+    {
+        $forms = $_SESSION['_front_forms'] ?? null;
+        if (!is_array($forms) || !array_key_exists($key, $forms)) {
+            return null;
+        }
+
+        $state = $forms[$key];
+        unset($_SESSION['_front_forms'][$key]);
+
+        return is_array($state) ? $state : null;
+    }
+
+    private function redirect(string $url, int $status = 303): never
+    {
+        if ($url === '') {
+            $url = $this->links->home();
+        }
+
+        header('Location: ' . $url, true, $status);
+        exit;
+    }
+
+    private function commentRedirectUrl(array $post): string
+    {
+        $permalink = isset($post['permalink']) ? (string)$post['permalink'] : '';
+        if ($permalink !== '') {
+            return $permalink;
+        }
+
+        $slug = isset($post['slug']) ? (string)$post['slug'] : '';
+        if ($slug !== '') {
+            return $this->links->post($slug);
+        }
+
+        return $this->links->home();
     }
 
     private function resolve(): RouteResult
@@ -271,6 +348,24 @@ final class Router
             $commentUser = null;
         }
         $status = 200;
+        $sessionForm = $this->pullFormState('comment:' . (int)($post['id'] ?? 0));
+        if (is_array($sessionForm)) {
+            if (isset($sessionForm['success'])) {
+                $commentForm['success'] = !empty($sessionForm['success']);
+            }
+            if (isset($sessionForm['message'])) {
+                $commentForm['message'] = (string)$sessionForm['message'];
+            }
+            if (isset($sessionForm['errors']) && is_array($sessionForm['errors'])) {
+                $commentForm['errors'] = $sessionForm['errors'];
+            }
+            if (isset($sessionForm['old']) && is_array($sessionForm['old'])) {
+                $commentForm['old'] = array_replace($commentForm['old'], $sessionForm['old']);
+            }
+            if (isset($sessionForm['status'])) {
+                $status = (int)$sessionForm['status'];
+            }
+        }
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
 
         if ($method === 'POST' && isset($_POST['comment_form'])) {
@@ -278,6 +373,15 @@ final class Router
                 $commentForm['message'] = 'Komentáře jsou u tohoto článku uzavřeny.';
                 $status = 403;
             } else {
+                $token = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+                if (!$this->verifyCsrf($token)) {
+                    $commentForm['message'] = 'Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.';
+                    $commentForm['errors']['general'][] = 'Ověření formuláře selhalo.';
+                    $status = 419;
+                    $this->storeFormState('comment:' . (int)($post['id'] ?? 0), $commentForm, $status);
+                    $this->redirect($this->commentRedirectUrl($post));
+                }
+
                 $input = [
                     'name' => trim((string)($_POST['comment_name'] ?? '')),
                     'email' => trim((string)($_POST['comment_email'] ?? '')),
@@ -410,9 +514,14 @@ final class Router
                     }
                 }
             }
+
+            $this->storeFormState('comment:' . (int)($post['id'] ?? 0), $commentForm, $status);
+            $this->redirect($this->commentRedirectUrl($post));
         }
 
         $commentData = $this->comments->publishedForPost((int)($post['id'] ?? 0));
+
+        $commentForm['csrf'] = $this->csrfToken();
 
         $meta = new SeoMeta(
             $post['title'] . ' | ' . $this->settings->siteTitle(),
@@ -571,20 +680,51 @@ final class Router
             'autoApprove' => $autoApprove,
             'loginUrl' => $this->links->login(),
         ];
+        $status = 200;
+        $sessionForm = $this->pullFormState('register');
+        if (is_array($sessionForm)) {
+            if (isset($sessionForm['success'])) {
+                $data['success'] = !empty($sessionForm['success']);
+            }
+            if (isset($sessionForm['message'])) {
+                $data['message'] = $sessionForm['message'];
+            }
+            if (isset($sessionForm['errors']) && is_array($sessionForm['errors'])) {
+                $data['errors'] = $sessionForm['errors'];
+            }
+            if (isset($sessionForm['old']) && is_array($sessionForm['old'])) {
+                $data['old'] = array_replace($data['old'], $sessionForm['old']);
+            }
+            if (isset($sessionForm['status'])) {
+                $status = (int)$sessionForm['status'];
+            }
+        }
 
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         if ($method !== 'POST') {
             if (!$allowed) {
                 $data['message'] = 'Registrace je aktuálně vypnutá.';
-                return new RouteResult('register', $data, 403);
+                $status = 403;
             }
 
-            return new RouteResult('register', $data);
+            $data['csrf'] = $this->csrfToken();
+            return new RouteResult('register', $data, $status);
         }
 
         if (!$allowed) {
             $data['message'] = 'Registrace je aktuálně vypnutá.';
-            return new RouteResult('register', $data, 403);
+            $status = 403;
+            $this->storeFormState('register', $data, $status);
+            $this->redirect($this->links->register());
+        }
+
+        $token = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+        if (!$this->verifyCsrf($token)) {
+            $data['message'] = 'Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.';
+            $data['errors']['general'][] = 'Ověření formuláře selhalo.';
+            $status = 419;
+            $this->storeFormState('register', $data, $status);
+            $this->redirect($this->links->register());
         }
 
         $input = [
@@ -627,7 +767,9 @@ final class Router
         if ($errors !== []) {
             $data['errors'] = $errors;
             $data['message'] = 'Zkontrolujte zvýrazněná pole.';
-            return new RouteResult('register', $data, 422);
+            $status = 422;
+            $this->storeFormState('register', $data, $status);
+            $this->redirect($this->links->register());
         }
 
         $now = DateTimeFactory::nowString();
@@ -646,7 +788,9 @@ final class Router
         } catch (Throwable $e) {
             error_log('Registrace: nepodařilo se vytvořit uživatele: ' . $e->getMessage());
             $data['message'] = 'Registraci se nepodařilo dokončit. Zkuste to prosím znovu.';
-            return new RouteResult('register', $data, 500);
+            $status = 500;
+            $this->storeFormState('register', $data, $status);
+            $this->redirect($this->links->register());
         }
 
         $templateKey = $autoApprove ? 'registration_welcome' : 'registration_pending';
@@ -666,14 +810,24 @@ final class Router
             error_log('Registrace: e-mail se nepodařilo odeslat: ' . $e->getMessage());
         }
 
+        if ($autoApprove) {
+            try {
+                $this->auth->attempt($input['email'], $input['password']);
+            } catch (Throwable $e) {
+                error_log('Registrace: automatické přihlášení selhalo: ' . $e->getMessage());
+            }
+        }
+
         $data['success'] = true;
         $data['errors'] = [];
         $data['old'] = ['name' => '', 'email' => ''];
         $data['message'] = $autoApprove
-            ? 'Registrace proběhla úspěšně. Nyní se můžete přihlásit.'
+            ? 'Registrace proběhla úspěšně. Byli jste automaticky přihlášeni.'
             : 'Registrace byla přijata. Vyčkejte prosím na schválení administrátorem.';
+        $status = 200;
 
-        return new RouteResult('register', $data);
+        $this->storeFormState('register', $data, $status);
+        $this->redirect($this->links->register());
     }
 
     private function handleLost(): RouteResult
@@ -688,19 +842,50 @@ final class Router
             'message' => null,
             'loginUrl' => $this->links->login(),
         ];
+        $status = 200;
+        $sessionForm = $this->pullFormState('lost');
+        if (is_array($sessionForm)) {
+            if (isset($sessionForm['success'])) {
+                $data['success'] = !empty($sessionForm['success']);
+            }
+            if (isset($sessionForm['message'])) {
+                $data['message'] = $sessionForm['message'];
+            }
+            if (isset($sessionForm['errors']) && is_array($sessionForm['errors'])) {
+                $data['errors'] = $sessionForm['errors'];
+            }
+            if (isset($sessionForm['old']) && is_array($sessionForm['old'])) {
+                $data['old'] = array_replace($data['old'], $sessionForm['old']);
+            }
+            if (isset($sessionForm['status'])) {
+                $status = (int)$sessionForm['status'];
+            }
+        }
 
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         if ($method !== 'POST') {
-            return new RouteResult('lost', $data);
+            $data['csrf'] = $this->csrfToken();
+            return new RouteResult('lost', $data, $status);
         }
 
         $email = trim((string)($_POST['email'] ?? ''));
         $data['old']['email'] = $email;
 
+        $token = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+        if (!$this->verifyCsrf($token)) {
+            $data['message'] = 'Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.';
+            $data['errors']['general'][] = 'Ověření formuláře selhalo.';
+            $status = 419;
+            $this->storeFormState('lost', $data, $status);
+            $this->redirect($this->links->lost());
+        }
+
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $data['errors']['email'][] = 'Zadejte platnou e-mailovou adresu.';
             $data['message'] = 'Zkontrolujte zvýrazněné pole.';
-            return new RouteResult('lost', $data, 422);
+            $status = 422;
+            $this->storeFormState('lost', $data, $status);
+            $this->redirect($this->links->lost());
         }
 
         $user = null;
@@ -740,8 +925,10 @@ final class Router
         $data['success'] = true;
         $data['message'] = 'Pokud e-mail existuje v naší databázi, poslali jsme na něj pokyny k obnovení hesla.';
         $data['old']['email'] = '';
+        $status = 200;
 
-        return new RouteResult('lost', $data);
+        $this->storeFormState('lost', $data, $status);
+        $this->redirect($this->links->lost());
     }
 
     private function handleReset(string $tokenParam, int $userIdParam): RouteResult
@@ -820,7 +1007,15 @@ final class Router
 
         $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
         if ($method !== 'POST') {
+            $data['csrf'] = $this->csrfToken();
             return new RouteResult('reset', $data);
+        }
+
+        $csrf = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+        if (!$this->verifyCsrf($csrf)) {
+            $data['allowForm'] = false;
+            $data['message'] = 'Formulář vypršel. Požádejte prosím o nový odkaz.';
+            return new RouteResult('reset', $data, 419);
         }
 
         $password = (string)($_POST['password'] ?? '');
@@ -843,6 +1038,7 @@ final class Router
 
         if ($data['errors'] !== []) {
             $data['message'] = 'Zkontrolujte zvýrazněná pole.';
+            $data['csrf'] = $this->csrfToken();
             return new RouteResult('reset', $data, 422);
         }
 

@@ -7,6 +7,7 @@
 /** @var int $userId */
 /** @var string|null $loginUrl */
 /** @var string|null $lostUrl */
+/** @var string|null $csrf */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
 
 $errors = is_array($errors) ? $errors : [];
@@ -18,6 +19,7 @@ $userId = (int)$userId;
 $loginUrl = isset($loginUrl) && $loginUrl !== '' ? (string)$loginUrl : null;
 $lostUrl = isset($lostUrl) && $lostUrl !== '' ? (string)$lostUrl : $links->lost();
 $action = htmlspecialchars($links->reset($token, $userId), ENT_QUOTES, 'UTF-8');
+$csrfToken = isset($csrf) && $csrf !== '' ? htmlspecialchars((string)$csrf, ENT_QUOTES, 'UTF-8') : '';
 ?>
 <section class="section section--auth section--reset">
     <header class="section__header">
@@ -49,6 +51,7 @@ $action = htmlspecialchars($links->reset($token, $userId), ENT_QUOTES, 'UTF-8');
             <form method="post" action="<?= $action; ?>" class="auth-form" novalidate>
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="user_id" value="<?= htmlspecialchars((string)$userId, ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="csrf" value="<?= $csrfToken; ?>">
 
                 <div class="auth-form__field<?= !empty($errors['password']) ? ' auth-form__field--error' : ''; ?>">
                     <label class="auth-form__label" for="reset-password">Nové heslo</label>

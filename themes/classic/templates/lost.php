@@ -4,6 +4,7 @@
 /** @var bool $success */
 /** @var string|null $message */
 /** @var string|null $loginUrl */
+/** @var string|null $csrf */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
 
 $old = is_array($old) ? $old : [];
@@ -11,6 +12,7 @@ $errors = is_array($errors) ? $errors : [];
 $success = !empty($success);
 $message = isset($message) && $message !== '' ? (string)$message : null;
 $loginUrl = isset($loginUrl) && $loginUrl !== '' ? (string)$loginUrl : null;
+$csrfToken = isset($csrf) && $csrf !== '' ? htmlspecialchars((string)$csrf, ENT_QUOTES, 'UTF-8') : '';
 
 $oldEmail = htmlspecialchars((string)($old['email'] ?? ''), ENT_QUOTES, 'UTF-8');
 $action = htmlspecialchars($links->lost(), ENT_QUOTES, 'UTF-8');
@@ -39,6 +41,7 @@ $action = htmlspecialchars($links->lost(), ENT_QUOTES, 'UTF-8');
             <?php endif; ?>
         <?php else: ?>
             <form method="post" action="<?= $action; ?>" class="auth-form" novalidate>
+                <input type="hidden" name="csrf" value="<?= $csrfToken; ?>">
                 <div class="auth-form__field<?= !empty($errors['email']) ? ' auth-form__field--error' : ''; ?>">
                     <label class="auth-form__label" for="lost-email">E-mailová adresa</label>
                     <input class="auth-form__input" type="email" id="lost-email" name="email" value="<?= $oldEmail; ?>" required>

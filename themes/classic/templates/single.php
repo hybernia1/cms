@@ -29,6 +29,8 @@ $commentUserDisplay = $commentUserName !== ''
     ? $commentUserName
     : ($commentUserEmail !== '' ? $commentUserEmail : 'uživatel');
 $commentUserLogged = $commentUser !== null && ($commentUserId > 0 || $commentUserName !== '' || $commentUserEmail !== '');
+$commentCsrf = isset($commentForm['csrf']) ? (string)$commentForm['csrf'] : '';
+$commentCsrf = htmlspecialchars($commentCsrf, ENT_QUOTES, 'UTF-8');
 $commentTemplate = __DIR__ . '/partials/comment.php';
 $renderComment = static function (array $commentNode) use (&$renderComment, $commentTemplate, $commentsAllowed): void {
     include $commentTemplate;
@@ -162,6 +164,7 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                 <input type="hidden" name="comment_form" value="1">
                 <input type="hidden" name="comment_post" value="<?= (int)($post['id'] ?? 0); ?>">
                 <input type="hidden" name="comment_parent" value="<?= $oldParent > 0 ? $oldParent : 0; ?>">
+                <input type="hidden" name="csrf" value="<?= $commentCsrf; ?>">
 
                 <div class="comment-form__reply-note" data-comment-reply-note<?= $oldParent > 0 ? '' : ' hidden'; ?>>
                     <span>Odpovídáte na <strong data-comment-reply-target>vybraný komentář</strong>.</span>
