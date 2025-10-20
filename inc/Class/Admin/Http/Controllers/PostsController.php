@@ -93,46 +93,28 @@ final class PostsController extends BaseAdminController
     private function index(): void
     {
         $type = $this->requestedType();
-        $filters = [
-            'type'   => $type,
-            'status' => (string)($_GET['status'] ?? ''),
-            'author' => (string)($_GET['author'] ?? ''),
-            'q'      => (string)($_GET['q'] ?? ''),
-        ];
-        $page    = max(1, (int)($_GET['page'] ?? 1));
-        $perPage = 15;
+        $context = $this->contextFromQuery();
 
-        $result = $this->postsCrud()->paginate($filters, $page, $perPage);
-        if ($result->isFailure()) {
-            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
+        try {
+            $viewModel = $this->listingViewModel($type, $context);
+        } catch (\Throwable $exception) {
+            $this->redirect($this->listUrl($type, $context), 'danger', $exception->getMessage());
         }
 
-        $data = $result->data();
-        $pag = is_array($data['pagination'] ?? null) ? $data['pagination'] : [];
-        $statusCounts = is_array($data['status_counts'] ?? null) ? $data['status_counts'] : [];
-
-        $pagination = $this->paginationData($pag, $page, $perPage);
-        $buildUrl = $this->listingUrlBuilder([
-            'r'      => 'posts',
-            'type'   => $type,
-            'status' => $filters['status'],
-            'author' => $filters['author'],
-            'q'      => $filters['q'],
-        ]);
-
-        $items = $this->normalizeCreatedAt($data['items'] ?? [], true);
-
         $this->renderAdmin('posts/index', [
-            'pageTitle'  => $this->typeConfig()[$type]['list'],
-            'nav'        => AdminNavigation::build('posts:' . $type),
-            'filters'    => $filters,
-            'items'      => $items,
-            'pagination' => $pagination,
-            'type'       => $type,
-            'types'      => $this->typeConfig(),
-            'urls'       => new LinkGenerator(),
-            'statusCounts' => $statusCounts,
-            'buildUrl'   => $buildUrl,
+            'pageTitle'    => $this->typeConfig()[$type]['list'],
+            'nav'          => AdminNavigation::build('posts:' . $type),
+            'filters'      => $viewModel['filters'],
+            'items'        => $viewModel['items'],
+            'pagination'   => $viewModel['pagination'],
+            'type'         => $type,
+            'types'        => $this->typeConfig(),
+            'urls'         => new LinkGenerator(),
+            'statusCounts' => $viewModel['statusCounts'],
+            'buildUrl'     => $viewModel['buildUrl'],
+            'toolbar'      => $viewModel['toolbar'],
+            'bulkForm'     => $viewModel['bulkForm'],
+            'context'      => $viewModel['context'],
         ]);
     }
 
@@ -141,6 +123,7 @@ final class PostsController extends BaseAdminController
         $this->assertCsrf();
 
         $type = $this->requestedType();
+        $context = $this->contextFromPayload($_POST['context'] ?? null);
         $action = (string)($_POST['bulk_action'] ?? '');
         $ids = $_POST['ids'] ?? [];
         if (!is_array($ids)) {
@@ -150,12 +133,21 @@ final class PostsController extends BaseAdminController
         $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
 
         if ($ids === [] || $action === '') {
-            $this->redirect($this->listUrl($type), 'warning', 'Vyberte položky a požadovanou akci.');
+            $message = 'Vyberte položky a požadovanou akci.';
+            if ($this->isAjax()) {
+                $this->jsonError($message, 422);
+            }
+            $this->redirect($this->listUrl($type, $context), 'warning', $message);
         }
 
         $result = $this->postsCrud()->bulk($type, $action, $ids);
         if ($result->isFailure()) {
-            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
+            $errors = $result->errors();
+            $message = implode(' ', $errors);
+            if ($this->isAjax()) {
+                $this->jsonError($message !== '' ? $message : 'Akci se nepodařilo dokončit.', 500, $errors);
+            }
+            $this->redirect($this->listUrl($type, $context), 'danger', $message);
         }
 
         $data = $result->data();
@@ -166,7 +158,11 @@ final class PostsController extends BaseAdminController
             $message .= ' (' . $count . ')';
         }
 
-        $this->redirect($this->listUrl($type), 'success', $message);
+        if ($this->isAjax()) {
+            $this->respondListingSuccess($type, $context, $message);
+        }
+
+        $this->redirect($this->listUrl($type, $context), 'success', $message);
     }
 
     private function form(): void
@@ -207,9 +203,271 @@ final class PostsController extends BaseAdminController
         ]);
     }
 
-    private function listUrl(string $type): string
+    private function listUrl(string $type, ?array $context = null): string
     {
-        return 'admin.php?r=posts&type=' . urlencode($type);
+        $query = ['r' => 'posts', 'type' => $type];
+
+        if (is_array($context)) {
+            $status = (string)($context['status'] ?? '');
+            $author = (string)($context['author'] ?? '');
+            $search = (string)($context['q'] ?? '');
+            $page = max(1, (int)($context['page'] ?? 1));
+
+            if ($status !== '') {
+                $query['status'] = $status;
+            }
+            if ($author !== '') {
+                $query['author'] = $author;
+            }
+            if ($search !== '') {
+                $query['q'] = $search;
+            }
+            if ($page > 1) {
+                $query['page'] = $page;
+            }
+        }
+
+        return 'admin.php?' . http_build_query($query);
+    }
+
+    /**
+     * @return array{status:string,author:string,q:string,page:int}
+     */
+    private function contextFromQuery(): array
+    {
+        return [
+            'status' => (string)($_GET['status'] ?? ''),
+            'author' => (string)($_GET['author'] ?? ''),
+            'q'      => (string)($_GET['q'] ?? ''),
+            'page'   => max(1, (int)($_GET['page'] ?? 1)),
+        ];
+    }
+
+    /**
+     * @param mixed $payload
+     * @return array{status:string,author:string,q:string,page:int}
+     */
+    private function contextFromPayload(mixed $payload): array
+    {
+        $query = $this->contextFromQuery();
+        $source = is_array($payload) ? $payload : [];
+
+        return [
+            'status' => (string)($source['status'] ?? $query['status']),
+            'author' => (string)($source['author'] ?? $query['author']),
+            'q'      => (string)($source['q'] ?? $query['q']),
+            'page'   => max(1, (int)($source['page'] ?? $query['page'])),
+        ];
+    }
+
+    /**
+     * @param array{status:string,author:string,q:string,page:int} $context
+     * @return array<string,string>
+     */
+    private function contextHiddenFields(array $context): array
+    {
+        return [
+            'context[status]' => (string)($context['status'] ?? ''),
+            'context[author]' => (string)($context['author'] ?? ''),
+            'context[q]'      => (string)($context['q'] ?? ''),
+            'context[page]'   => (string)max(1, (int)($context['page'] ?? 1)),
+        ];
+    }
+
+    /**
+     * @param array<string,string> $filters
+     * @param array<string,int> $statusCounts
+     */
+    private function buildToolbarData(string $type, array $filters, array $statusCounts, callable $buildUrl): array
+    {
+        $statusTabs = [
+            ''        => 'Vše',
+            'publish' => 'Publikované',
+            'draft'   => 'Koncepty',
+        ];
+
+        $totalCount = (int)($statusCounts['__total'] ?? 0);
+        if ($totalCount === 0 && $statusCounts !== []) {
+            $totalCount = array_sum(array_map(static fn($value) => is_int($value) ? $value : 0, $statusCounts));
+        }
+
+        $tabs = [];
+        foreach ($statusTabs as $value => $label) {
+            $count = $value === '' ? $totalCount : (int)($statusCounts[$value] ?? 0);
+            $tabs[] = [
+                'label'  => $label,
+                'href'   => $buildUrl(['status' => $value]),
+                'active' => (string)$filters['status'] === $value,
+                'count'  => $count,
+            ];
+        }
+
+        $typeConfig = $this->typeConfig();
+        $buttonLabel = (string)($typeConfig[$type]['create'] ?? 'Nový záznam');
+
+        return [
+            'tabs'      => $tabs,
+            'tabsClass' => 'order-2 order-md-1',
+            'search'    => [
+                'action'        => 'admin.php',
+                'wrapperClass'  => 'order-1 order-md-2 ms-md-auto',
+                'hidden'        => ['r' => 'posts', 'type' => $type, 'status' => (string)$filters['status']],
+                'value'         => (string)$filters['q'],
+                'placeholder'   => 'Hledat…',
+                'resetHref'     => $buildUrl(['q' => '']),
+                'resetDisabled' => (string)$filters['q'] === '',
+                'searchTooltip' => 'Hledat',
+                'clearTooltip'  => 'Zrušit filtr',
+            ],
+            'button'    => [
+                'href'  => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'create', 'type' => $type]),
+                'label' => $buttonLabel,
+                'icon'  => 'bi bi-plus-lg',
+                'class' => 'btn btn-success btn-sm order-3',
+            ],
+        ];
+    }
+
+    /**
+     * @param array{status:string,author:string,q:string,page:int} $context
+     */
+    private function buildBulkFormData(string $type, array $context): array
+    {
+        return [
+            'formId'       => 'posts-bulk-form',
+            'action'       => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'bulk', 'type' => $type]),
+            'csrf'         => $this->token(),
+            'selectAll'    => '#select-all',
+            'rowSelector'  => '.row-check',
+            'actionSelect' => '#bulk-action-select',
+            'applyButton'  => '#bulk-apply',
+            'counter'      => '#bulk-selection-counter',
+            'hidden'       => $this->contextHiddenFields($context),
+        ];
+    }
+
+    /**
+     * @param array{status:string,author:string,q:string,page:int} $context
+     * @return array{
+     *     filters:array<string,string>,
+     *     items:array<int,array<string,mixed>>,
+     *     pagination:array{page:int,per_page:int,total:int,pages:int},
+     *     statusCounts:array<string,int>,
+     *     buildUrl:callable,
+     *     toolbar:array<string,mixed>,
+     *     bulkForm:array<string,mixed>,
+     *     context:array{status:string,author:string,q:string,page:int}
+     * }
+     */
+    private function listingViewModel(string $type, array $context): array
+    {
+        $filters = [
+            'type'   => $type,
+            'status' => (string)($context['status'] ?? ''),
+            'author' => (string)($context['author'] ?? ''),
+            'q'      => (string)($context['q'] ?? ''),
+        ];
+
+        $page = max(1, (int)($context['page'] ?? 1));
+        $perPage = 15;
+
+        $result = $this->postsCrud()->paginate($filters, $page, $perPage);
+        if ($result->isFailure()) {
+            throw new \RuntimeException(implode(' ', $result->errors()));
+        }
+
+        $data = $result->data();
+        $pagination = $this->paginationData($data['pagination'] ?? [], $page, $perPage);
+        $pages = max(1, (int)($data['pagination']['pages'] ?? $pagination['pages']));
+
+        if ($page > $pages && $pages >= 1) {
+            $page = $pages;
+            $context['page'] = $page;
+            $result = $this->postsCrud()->paginate($filters, $page, $perPage);
+            if ($result->isFailure()) {
+                throw new \RuntimeException(implode(' ', $result->errors()));
+            }
+            $data = $result->data();
+            $pagination = $this->paginationData($data['pagination'] ?? [], $page, $perPage);
+        } else {
+            $context['page'] = $pagination['page'];
+        }
+
+        $items = $this->normalizeCreatedAt($data['items'] ?? [], true);
+        $statusCounts = is_array($data['status_counts'] ?? null) ? $data['status_counts'] : [];
+
+        $buildUrl = $this->listingUrlBuilder([
+            'r'      => 'posts',
+            'type'   => $type,
+            'status' => $filters['status'],
+            'author' => $filters['author'],
+            'q'      => $filters['q'],
+        ]);
+
+        return [
+            'filters'      => $filters,
+            'items'        => $items,
+            'pagination'   => $pagination,
+            'statusCounts' => $statusCounts,
+            'buildUrl'     => $buildUrl,
+            'toolbar'      => $this->buildToolbarData($type, $filters, $statusCounts, $buildUrl),
+            'bulkForm'     => $this->buildBulkFormData($type, $context),
+            'context'      => $context,
+        ];
+    }
+
+    /**
+     * @param array{status:string,author:string,q:string,page:int} $context
+     * @return never
+     */
+    private function respondListingSuccess(string $type, array $context, string $message, string $flashType = 'success'): never
+    {
+        try {
+            $viewModel = $this->listingViewModel($type, $context);
+        } catch (\Throwable $exception) {
+            $this->jsonError($exception->getMessage(), 500);
+        }
+
+        $fragments = [
+            [
+                'selector' => '[data-admin-fragment="posts-toolbar"]',
+                'mode'     => 'replace',
+                'html'     => $this->view->renderToString('posts/parts/toolbar', [
+                    'toolbar' => $viewModel['toolbar'],
+                ]),
+            ],
+            [
+                'selector' => '[data-admin-fragment="posts-bulk-form"]',
+                'mode'     => 'replace',
+                'html'     => $this->view->renderToString('posts/parts/bulk-form', [
+                    'bulkForm' => $viewModel['bulkForm'],
+                ]),
+            ],
+            [
+                'selector' => '[data-admin-fragment="posts-table-body"]',
+                'mode'     => 'replaceChildren',
+                'html'     => $this->view->renderToString('posts/parts/table-rows', [
+                    'items'   => $viewModel['items'],
+                    'type'    => $type,
+                    'csrf'    => $this->token(),
+                    'urls'    => new LinkGenerator(),
+                    'context' => $viewModel['context'],
+                ]),
+            ],
+            [
+                'selector' => '[data-admin-fragment="posts-pagination"]',
+                'mode'     => 'replace',
+                'html'     => $this->view->renderToString('posts/parts/pagination', [
+                    'pagination' => $viewModel['pagination'] + ['ariaLabel' => 'Stránkování příspěvků'],
+                    'buildUrl'   => $viewModel['buildUrl'],
+                ]),
+            ],
+        ];
+
+        $this->jsonSuccess($message, [
+            'fragments' => $fragments,
+            'context'   => $viewModel['context'],
+        ], $flashType);
     }
 
     private function store(): void
@@ -524,13 +782,23 @@ final class PostsController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $type = $this->requestedType();
+        $context = $this->contextFromPayload($_POST['context'] ?? null);
         if ($id <= 0) {
-            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+            $message = 'Chybí ID.';
+            if ($this->isAjax()) {
+                $this->jsonError($message, 422);
+            }
+            $this->redirect($this->listUrl($type, $context), 'danger', $message);
         }
 
         $result = $this->postsCrud()->delete($id);
         if ($result->isFailure()) {
-            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
+            $errors = $result->errors();
+            $message = implode(' ', $errors);
+            if ($this->isAjax()) {
+                $this->jsonError($message !== '' ? $message : 'Smazání se nezdařilo.', 500, $errors);
+            }
+            $this->redirect($this->listUrl($type, $context), 'danger', $message);
         }
 
         $data = $result->data();
@@ -539,7 +807,13 @@ final class PostsController extends BaseAdminController
             $type = $rowType;
         }
 
-        $this->redirect($this->listUrl($type), 'success', 'Příspěvek byl odstraněn.');
+        $message = 'Příspěvek byl odstraněn.';
+
+        if ($this->isAjax()) {
+            $this->respondListingSuccess($type, $context, $message);
+        }
+
+        $this->redirect($this->listUrl($type, $context), 'success', $message);
     }
 
     private function toggleStatus(): void
@@ -547,13 +821,23 @@ final class PostsController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         $type = $this->requestedType();
+        $context = $this->contextFromPayload($_POST['context'] ?? null);
         if ($id <= 0) {
-            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+            $message = 'Chybí ID.';
+            if ($this->isAjax()) {
+                $this->jsonError($message, 422);
+            }
+            $this->redirect($this->listUrl($type, $context), 'danger', $message);
         }
 
         $result = $this->postsCrud()->toggleStatus($id);
         if ($result->isFailure()) {
-            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
+            $errors = $result->errors();
+            $message = implode(' ', $errors);
+            if ($this->isAjax()) {
+                $this->jsonError($message !== '' ? $message : 'Nepodařilo se změnit stav.', 500, $errors);
+            }
+            $this->redirect($this->listUrl($type, $context), 'danger', $message);
         }
 
         $data = $result->data();
@@ -563,10 +847,16 @@ final class PostsController extends BaseAdminController
         }
         $new = (string)($data['new_status'] ?? 'draft');
 
+        $message = $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.';
+
+        if ($this->isAjax()) {
+            $this->respondListingSuccess($type, $context, $message);
+        }
+
         $this->redirect(
-            $this->listUrl($type),
+            $this->listUrl($type, $context),
             'success',
-            $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.'
+            $message
         );
     }
 }

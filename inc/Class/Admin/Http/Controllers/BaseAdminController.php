@@ -126,6 +126,58 @@ abstract class BaseAdminController
     }
 
     /**
+     * @return never
+     */
+    final protected function respondJson(array $payload, int $status = 200): never
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    /**
+     * @return never
+     */
+    final protected function jsonSuccess(?string $message = null, array $data = [], ?string $flashType = 'success'): never
+    {
+        if ($flashType !== null && $message !== null) {
+            $this->flash($flashType, $message);
+        }
+
+        $payload = ['success' => true];
+
+        if ($message !== null) {
+            $payload['message'] = $message;
+        }
+
+        if ($data !== []) {
+            $payload['data'] = $data;
+        }
+
+        if ($flashType !== null && $message !== null) {
+            $payload['flash'] = ['type' => $flashType, 'msg' => $message];
+        }
+
+        $this->respondJson($payload);
+    }
+
+    /**
+     * @param list<string> $errors
+     * @return never
+     */
+    final protected function jsonError(string $message, int $status = 400, array $errors = []): never
+    {
+        $payload = ['success' => false, 'message' => $message];
+
+        if ($errors !== []) {
+            $payload['errors'] = array_values($errors);
+        }
+
+        $this->respondJson($payload, $status);
+    }
+
+    /**
      * Normalize pagination data to common shape used in admin listings.
      *
      * @param array<string,mixed> $paginated
