@@ -3,19 +3,24 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Http\Controllers;
 
-use Cms\Admin\Domain\Repositories\PostsRepository;
-use Cms\Admin\Domain\Repositories\TermsRepository;
-use Cms\Admin\Domain\Services\PostsService;
+use Cms\Admin\Domain\Services\PostsCrudService;
 use Cms\Admin\Domain\Services\MediaService;
-use Cms\Admin\Domain\Services\TermsService;
 use Cms\Admin\Utils\AdminNavigation;
-use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
-use Cms\Admin\Utils\Slugger;
-use Core\Database\Init as DB;
 
 final class PostsController extends BaseAdminController
 {
+    private ?PostsCrudService $postsCrud = null;
+
+    private function postsCrud(): PostsCrudService
+    {
+        if ($this->postsCrud === null) {
+            $this->postsCrud = new PostsCrudService();
+        }
+
+        return $this->postsCrud;
+    }
+
     public function handle(string $action): void
     {
         switch ($action) {
@@ -83,92 +88,10 @@ final class PostsController extends BaseAdminController
         return $type;
     }
 
-    /** Načte seznam termů rozdělený podle typu + aktuálně vybrané pro daný post. */
-    private function termsData(?int $postId, string $type): array
-    {
-        $byType = ['category'=>[], 'tag'=>[]];
-        $selected = ['category'=>[], 'tag'=>[]];
-
-        if ($type !== 'post') {
-            return ['byType'=>$byType, 'selected'=>$selected];
-        }
-
-        // všecky termy
-        $all = DB::query()->table('terms','t')
-            ->select(['t.id','t.name','t.slug','t.type'])
-            ->orderBy('t.type','ASC')->orderBy('t.name','ASC')->get();
-
-        foreach ($all as $t) {
-            $termType = (string)$t['type'];
-            $byType[$termType][] = $t;
-        }
-
-        // předvybrané
-        if ($postId) {
-            $rows = DB::query()->table('post_terms','pt')
-                ->select(['pt.term_id','t.type'])
-                ->join('terms t','pt.term_id','=','t.id')
-                ->where('pt.post_id','=', $postId)
-                ->get();
-            foreach ($rows as $r) {
-                $selected[(string)$r['type']][] = (int)$r['term_id'];
-            }
-        }
-        return ['byType'=>$byType, 'selected'=>$selected];
-    }
-
-    /**
-     * @return array<int>
-     */
-    private function attachedMediaIds(int $postId): array
-    {
-        if ($postId <= 0) {
-            return [];
-        }
-
-        $rows = DB::query()->table('post_media', 'pm')
-            ->select(['pm.media_id'])
-            ->join('media m', 'pm.media_id', '=', 'm.id')
-            ->where('pm.post_id', '=', $postId)
-            ->orderBy('m.created_at', 'ASC')
-            ->get();
-
-        $ids = [];
-        foreach ($rows as $row) {
-            $ids[] = (int)($row['media_id'] ?? 0);
-        }
-
-        return array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
-    }
-
-    /** Uloží vazby post↔terms (přepíše existující). */
-    private function syncTerms(int $postId, array $categoryIds, array $tagIds): void
-    {
-        // očisti na int a unikáty
-        $cat = array_values(array_unique(array_map('intval', $categoryIds)));
-        $tag = array_values(array_unique(array_map('intval', $tagIds)));
-
-        DB::query()->table('post_terms')->delete()->where('post_id','=', $postId)->execute();
-
-        $ins = DB::query()->table('post_terms')->insert(['post_id','term_id']);
-        $hasRows = false;
-        foreach (array_merge($cat, $tag) as $tid) {
-            if ($tid > 0) {
-                $ins->values([$postId, $tid]);
-                $hasRows = true;
-            }
-        }
-        if ($hasRows) {
-            $ins->execute();
-        }
-    }
-
     // ---------------- Actions ----------------
 
     private function index(): void
     {
-        $repo = new PostsRepository();
-
         $type = $this->requestedType();
         $filters = [
             'type'   => $type,
@@ -179,8 +102,14 @@ final class PostsController extends BaseAdminController
         $page    = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 15;
 
-        $pag = $repo->paginate($filters, $page, $perPage);
-        $statusCounts = $repo->countByStatus($type);
+        $result = $this->postsCrud()->paginate($filters, $page, $perPage);
+        if ($result->isFailure()) {
+            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
+        }
+
+        $data = $result->data();
+        $pag = is_array($data['pagination'] ?? null) ? $data['pagination'] : [];
+        $statusCounts = is_array($data['status_counts'] ?? null) ? $data['status_counts'] : [];
 
         $pagination = $this->paginationData($pag, $page, $perPage);
         $buildUrl = $this->listingUrlBuilder([
@@ -191,7 +120,7 @@ final class PostsController extends BaseAdminController
             'q'      => $filters['q'],
         ]);
 
-        $items = $this->normalizeCreatedAt($pag['items'] ?? [], true);
+        $items = $this->normalizeCreatedAt($data['items'] ?? [], true);
 
         $this->renderAdmin('posts/index', [
             'pageTitle'  => $this->typeConfig()[$type]['list'],
@@ -224,68 +153,20 @@ final class PostsController extends BaseAdminController
             $this->redirect($this->listUrl($type), 'warning', 'Vyberte položky a požadovanou akci.');
         }
 
-        $existing = DB::query()->table('posts')
-            ->select(['id'])
-            ->where('type', '=', $type)
-            ->whereIn('id', $ids)
-            ->get();
-
-        $targetIds = [];
-        foreach ($existing as $row) {
-            $targetIds[] = (int)($row['id'] ?? 0);
-        }
-        $targetIds = array_values(array_filter($targetIds, static fn (int $id): bool => $id > 0));
-
-        if ($targetIds === []) {
-            $this->redirect($this->listUrl($type), 'warning', 'Žádné platné položky pro hromadnou akci.');
+        $result = $this->postsCrud()->bulk($type, $action, $ids);
+        if ($result->isFailure()) {
+            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
         }
 
-        $count = count($targetIds);
-        try {
-            switch ($action) {
-                case 'publish':
-                case 'draft':
-                    DB::query()->table('posts')
-                        ->update(['status' => $action])
-                        ->whereIn('id', $targetIds)
-                        ->execute();
-                    $message = $action === 'publish'
-                        ? 'Položky byly publikovány.'
-                        : 'Položky byly přepnuty na koncept.';
-                    break;
+        $data = $result->data();
+        $count = (int)($data['count'] ?? 0);
+        $message = $result->message() ?? (string)($data['message'] ?? 'Akce dokončena.');
 
-                case 'delete':
-                    DB::query()->table('post_terms')
-                        ->delete()
-                        ->whereIn('post_id', $targetIds)
-                        ->execute();
-                    DB::query()->table('post_media')
-                        ->delete()
-                        ->whereIn('post_id', $targetIds)
-                        ->execute();
-                    DB::query()->table('comments')
-                        ->delete()
-                        ->whereIn('post_id', $targetIds)
-                        ->execute();
-                    DB::query()->table('posts')
-                        ->delete()
-                        ->whereIn('id', $targetIds)
-                        ->execute();
-                    $message = 'Položky byly odstraněny.';
-                    break;
-
-                default:
-                    $this->redirect($this->listUrl($type), 'warning', 'Neznámá hromadná akce.');
-            }
-        } catch (\Throwable $e) {
-            $this->redirect($this->listUrl($type), 'danger', $e->getMessage());
+        if ($count > 0) {
+            $message .= ' (' . $count . ')';
         }
 
-        $this->redirect(
-            $this->listUrl($type),
-            'success',
-            $message . ' (' . $count . ')'
-        );
+        $this->redirect($this->listUrl($type), 'success', $message);
     }
 
     private function form(): void
@@ -294,27 +175,35 @@ final class PostsController extends BaseAdminController
         $row = null;
         $type = $this->requestedType();
         if ($id > 0) {
-            $row = (new PostsRepository())->find($id);
-            if (!$row) {
-                $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nebyl nalezen.');
+            $result = $this->postsCrud()->find($id);
+            if ($result->isFailure()) {
+                $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
             }
+            $row = $result->data();
             $rowType = (string)($row['type'] ?? 'post');
             if (array_key_exists($rowType, $this->typeConfig())) {
                 $type = $rowType;
             }
         }
 
-        $terms = $this->termsData($id ?: null, $type);
+        $termsResult = $this->postsCrud()->termsData($id ?: null, $type);
+        if ($termsResult->isFailure()) {
+            $this->redirect($this->listUrl($type), 'danger', implode(' ', $termsResult->errors()));
+        }
+        $termsData = $termsResult->data();
+
+        $mediaResult = $this->postsCrud()->attachedMediaIds($id);
+        $attachedMedia = $mediaResult->isSuccess() ? $mediaResult->data() : [];
 
         $this->renderAdmin('posts/edit', [
             'pageTitle'      => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
             'nav'            => AdminNavigation::build('posts:' . $type),
             'post'           => $row,
-            'terms'          => $terms['byType'],
-            'selected'       => $terms['selected'],
+            'terms'          => $termsData['terms'] ?? [],
+            'selected'       => $termsData['selected'] ?? [],
             'type'           => $type,
             'types'          => $this->typeConfig(),
-            'attachedMedia'  => $this->attachedMediaIds($id),
+            'attachedMedia'  => $attachedMedia,
         ]);
     }
 
@@ -340,21 +229,16 @@ final class PostsController extends BaseAdminController
             }
 
             // terms z formuláře
-            $catIds = [];
-            $tagIds = [];
-            if ($type === 'post') {
-                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+        $catIds = [];
+        $tagIds = [];
+        $newCatNames = [];
+        $newTagNames = [];
+        if ($type === 'post') {
+            $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+            $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
 
-                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+            $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
                 $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
-
-                if ($newCatNames !== []) {
-                    $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
-                }
-                if ($newTagNames !== []) {
-                    $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
-                }
             }
 
             $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
@@ -370,26 +254,33 @@ final class PostsController extends BaseAdminController
                 }
             }
 
-            $svc = new PostsService();
-            $postId = $svc->create([
-                'title'        => $title,
-                'type'         => $type,
-                'status'       => $status,
-                'content'      => $content,
-                'author_id'    => (int)$user['id'],
-                'thumbnail_id' => $thumbId,
+            $attachedMedia = $this->parseAttachedMedia((string)($_POST['attached_media'] ?? ''));
+
+            $result = $this->postsCrud()->create([
+                'title'            => $title,
+                'type'             => $type,
+                'status'           => $status,
+                'content'          => $content,
+                'author_id'        => (int)$user['id'],
+                'thumbnail_id'     => $thumbId,
+                'comments_allowed' => $commentsAllowed,
+                'categories'       => $catIds,
+                'tags'             => $tagIds,
+                'new_categories'   => $type === 'post' ? ($newCatNames ?? []) : [],
+                'new_tags'         => $type === 'post' ? ($newTagNames ?? []) : [],
+                'attached_media'   => $attachedMedia,
             ]);
 
-            if ($commentsAllowed === 0) {
-                $svc->update($postId, ['comments_allowed'=>0]);
+            if ($result->isFailure()) {
+                $this->redirect(
+                    'admin.php?r=posts&a=create&type=' . $type,
+                    'danger',
+                    implode(' ', $result->errors())
+                );
             }
 
-            $this->syncPostMedia($postId, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
-
-            // ulož vazby termů
-            if ($type === 'post') {
-                $this->syncTerms($postId, $catIds, $tagIds);
-            }
+            $data = $result->data();
+            $postId = (int)($data['id'] ?? 0);
 
             $this->redirect(
                 'admin.php?r=posts&a=edit&id=' . (int)$postId . '&type=' . $type,
@@ -416,10 +307,11 @@ final class PostsController extends BaseAdminController
             $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
         }
 
-        $post = (new PostsRepository())->find($id);
-        if (!$post) {
-            $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nebyl nalezen.');
+        $findResult = $this->postsCrud()->find($id);
+        if ($findResult->isFailure()) {
+            $this->redirect($this->listUrl($type), 'danger', implode(' ', $findResult->errors()));
         }
+        $post = $findResult->data();
         $rowType = (string)($post['type'] ?? '');
         if (array_key_exists($rowType, $this->typeConfig())) {
             $type = $rowType;
@@ -429,59 +321,52 @@ final class PostsController extends BaseAdminController
             $user = $this->auth->user();
             if (!$user) throw new \RuntimeException('Nejste přihlášeni.');
 
-            $upd = [
+            $payload = [
                 'title'            => (string)($_POST['title'] ?? ''),
                 'status'           => (string)($_POST['status'] ?? 'draft'),
                 'content'          => (string)($_POST['content'] ?? ''),
                 'comments_allowed' => $type === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0,
+                'type'             => $type,
+                'categories'       => [],
+                'tags'             => [],
+                'new_categories'   => [],
+                'new_tags'         => [],
+                'attached_media'   => $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')),
             ];
-            if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
-                $upd['slug'] = (string)$_POST['slug'];
-            }
 
-            // terms z formuláře
-            $catIds = [];
-            $tagIds = [];
             if ($type === 'post') {
-                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
-
-                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
-                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
-
-                if ($newCatNames !== []) {
-                    $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
-                }
-                if ($newTagNames !== []) {
-                    $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
-                }
+                $payload['categories'] = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+                $payload['tags'] = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+                $payload['new_categories'] = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+                $payload['new_tags'] = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
             }
 
-            // případný nový thumbnail
             $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
             $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
 
             if ($removeThumb) {
-                $upd['thumbnail_id'] = null;
+                $payload['thumbnail_id'] = null;
             }
 
             if (!$removeThumb && !empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $mediaSvc = new MediaService();
                 $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
-                $upd['thumbnail_id'] = (int)$up['id'];
+                $payload['thumbnail_id'] = (int)$up['id'];
             } elseif (!$removeThumb && $selectedThumbId > 0) {
-                $upd['thumbnail_id'] = $selectedThumbId;
+                $payload['thumbnail_id'] = $selectedThumbId;
             }
 
-            (new PostsService())->update($id, $upd);
+            if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
+                $payload['slug'] = (string)$_POST['slug'];
+            }
 
-            $this->syncPostMedia($id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
-
-            // ulož vazby termů (přepíše existující)
-            if ($type === 'post') {
-                $this->syncTerms($id, $catIds, $tagIds);
-            } else {
-                $this->syncTerms($id, [], []);
+            $result = $this->postsCrud()->update($id, $payload);
+            if ($result->isFailure()) {
+                $this->redirect(
+                    'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
+                    'danger',
+                    implode(' ', $result->errors())
+                );
             }
 
             $this->redirect(
@@ -519,160 +404,64 @@ final class PostsController extends BaseAdminController
             if (!$user) {
                 throw new \RuntimeException('Nejste přihlášeni.');
             }
-
             $requestedType = $this->requestedType();
-            $repo = new PostsRepository();
-
             $rawId = $_POST['id'] ?? $_POST['post_id'] ?? null;
             $id = is_scalar($rawId) ? (int)$rawId : 0;
-            $title = (string)($_POST['title'] ?? '');
-            $content = (string)($_POST['content'] ?? '');
 
-            $status = (string)($_POST['status'] ?? 'draft');
-            $allowedStatus = ['draft', 'publish'];
-            if (!in_array($status, $allowedStatus, true)) {
-                $status = 'draft';
+            $payload = [
+                'id'                   => $id,
+                'title'                => (string)($_POST['title'] ?? ''),
+                'content'              => (string)($_POST['content'] ?? ''),
+                'status'               => (string)($_POST['status'] ?? 'draft'),
+                'type'                 => $requestedType,
+                'comments_allowed'     => $requestedType === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0,
+                'selected_thumbnail_id'=> isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0,
+                'remove_thumbnail'     => isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1,
+                'slug'                 => isset($_POST['slug']) ? (string)$_POST['slug'] : null,
+                'categories'           => $requestedType === 'post' ? (array)($_POST['categories'] ?? []) : [],
+                'tags'                 => $requestedType === 'post' ? (array)($_POST['tags'] ?? []) : [],
+                'new_categories'       => $requestedType === 'post' ? $this->parseNewTerms((string)($_POST['new_categories'] ?? '')) : [],
+                'new_tags'             => $requestedType === 'post' ? $this->parseNewTerms((string)($_POST['new_tags'] ?? '')) : [],
+                'attached_media'       => $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')),
+                'author_id'            => (int)$user['id'],
+            ];
+
+            $result = $this->postsCrud()->autosave($payload);
+            if ($result->isFailure()) {
+                throw new \RuntimeException(implode(' ', $result->errors()));
             }
 
-            $commentsAllowed = $requestedType === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0;
-            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
-            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
-
-            $catIds = [];
-            $tagIds = [];
-            $newCatNames = [];
-            $newTagNames = [];
-            if ($requestedType === 'post') {
-                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
-                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
-                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
+            $data = $result->data();
+            if (($data['created'] ?? true) === false) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => '',
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                return;
             }
 
-            if ($newCatNames !== []) {
-                $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
-            }
-            if ($newTagNames !== []) {
-                $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
-            }
-
-            $attachedMedia = $this->parseAttachedMedia((string)($_POST['attached_media'] ?? ''));
-
-            $now = DateTimeFactory::nowString();
-            $type = $requestedType;
-            $currentStatus = $status;
-
-            if ($id > 0) {
-                $existing = $repo->find($id);
-                if (!$existing) {
-                    throw new \RuntimeException('Položku se nepodařilo načíst.');
-                }
-
-                $rowType = (string)($existing['type'] ?? '');
-                if ($rowType !== '' && array_key_exists($rowType, $this->typeConfig())) {
-                    $type = $rowType;
-                }
-
-                $currentStatus = (string)($existing['status'] ?? $currentStatus);
-
-                if ($type !== 'post') {
-                    $commentsAllowed = 0;
-                }
-
-                $updates = [
-                    'title'            => $title,
-                    'content'          => $content,
-                    'comments_allowed' => $commentsAllowed,
-                    'updated_at'       => $now,
-                ];
-
-                if ($removeThumb) {
-                    $updates['thumbnail_id'] = null;
-                } elseif ($selectedThumbId > 0) {
-                    $updates['thumbnail_id'] = $selectedThumbId;
-                }
-
-                if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
-                    $updates['slug'] = Slugger::uniqueInPosts((string)$_POST['slug'], $type, $id);
-                }
-
-                if ($status !== $currentStatus) {
-                    $updates['status'] = $status;
-                    $currentStatus = $status;
-                }
-
-                $repo->update($id, $updates);
-            } else {
-                $contentPlain = trim(strip_tags($content));
-                $hasMeaningful = $title !== ''
-                    || $contentPlain !== ''
-                    || $attachedMedia !== []
-                    || $selectedThumbId > 0
-                    || $commentsAllowed === 0
-                    || $catIds !== []
-                    || $tagIds !== []
-                    || $status !== 'draft';
-
-                if (!$hasMeaningful) {
-                    echo json_encode([
-                        'success' => false,
-                        'message' => '',
-                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                    return;
-                }
-
+            $postId = (int)($data['post_id'] ?? $payload['id'] ?? 0);
+            $type = (string)($data['type'] ?? $requestedType);
+            if (!array_key_exists($type, $this->typeConfig())) {
                 $type = $requestedType;
-                $slugSource = $title !== '' ? $title : ('koncept-' . bin2hex(random_bytes(3)));
-                $slug = Slugger::uniqueInPosts($slugSource, $type);
-
-                if ($type !== 'post') {
-                    $commentsAllowed = 0;
-                }
-
-                $data = [
-                    'title'            => $title,
-                    'slug'             => $slug,
-                    'type'             => $type,
-                    'status'           => 'draft',
-                    'content'          => $content,
-                    'author_id'        => (int)$user['id'],
-                    'thumbnail_id'     => $removeThumb ? null : ($selectedThumbId > 0 ? $selectedThumbId : null),
-                    'comments_allowed' => $commentsAllowed,
-                    'published_at'     => null,
-                    'created_at'       => $now,
-                    'updated_at'       => null,
-                ];
-
-                $id = $repo->create($data);
-                $currentStatus = 'draft';
             }
 
-            if ($id <= 0) {
-                throw new \RuntimeException('Nepodařilo se uložit koncept.');
-            }
-
-            $this->syncPostMedia($id, $attachedMedia);
-            if ($type === 'post') {
-                $this->syncTerms($id, $catIds, $tagIds);
-            } else {
-                $this->syncTerms($id, [], []);
-            }
-
+            $currentStatus = (string)($data['status'] ?? $payload['status']);
             $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
             $statusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
 
             $response = [
                 'success'     => true,
                 'message'     => 'Automaticky uloženo v ' . date('H:i:s'),
-                'postId'      => $id,
+                'postId'      => $postId,
                 'status'      => $currentStatus,
                 'statusLabel' => $statusLabel,
-                'actionUrl'   => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'edit', 'id' => $id, 'type' => $type]),
+                'actionUrl'   => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'edit', 'id' => $postId, 'type' => $type]),
                 'type'        => $type,
             ];
 
-            if (isset($updates['slug']) && $updates['slug'] !== '') {
-                $response['slug'] = $updates['slug'];
+            if (!empty($data['slug'])) {
+                $response['slug'] = $data['slug'];
             }
 
             echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -703,29 +492,6 @@ final class PostsController extends BaseAdminController
         return array_values(array_unique($out));
     }
 
-    private function createNewTerms(array $names, string $type): array
-    {
-        if ($names === []) {
-            return [];
-        }
-
-        $repo = new TermsRepository();
-        $svc  = new TermsService($repo);
-
-        $ids = [];
-        foreach ($names as $name) {
-            $existing = $repo->findByNameAndType($name, $type);
-            if ($existing) {
-                $ids[] = (int)$existing['id'];
-                continue;
-            }
-
-            $ids[] = $svc->create($name, $type);
-        }
-
-        return $ids;
-    }
-
     /**
      * @return array<int>
      */
@@ -753,30 +519,6 @@ final class PostsController extends BaseAdminController
         return array_values(array_unique($ids));
     }
 
-    private function syncPostMedia(int $postId, array $mediaIds): void
-    {
-        $ids = array_values(array_unique(array_filter(array_map('intval', $mediaIds), static fn (int $id): bool => $id > 0)));
-
-        DB::query()->table('post_media')
-            ->delete()
-            ->where('post_id', '=', $postId)
-            ->execute();
-
-        if ($ids === []) {
-            return;
-        }
-
-        $ins = DB::query()->table('post_media')->insert(['post_id', 'media_id']);
-        $hasRows = false;
-        foreach ($ids as $mediaId) {
-            $ins->values([$postId, $mediaId]);
-            $hasRows = true;
-        }
-        if ($hasRows) {
-            $ins->execute();
-        }
-    }
-
     private function delete(): void
     {
         $this->assertCsrf();
@@ -786,19 +528,16 @@ final class PostsController extends BaseAdminController
             $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
         }
 
-        $post = (new PostsRepository())->find($id);
-        if ($post) {
-            $rowType = (string)($post['type'] ?? '');
-            if (array_key_exists($rowType, $this->typeConfig())) {
-                $type = $rowType;
-            }
+        $result = $this->postsCrud()->delete($id);
+        if ($result->isFailure()) {
+            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
         }
 
-        // smaž vazby i post
-        DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
-        DB::query()->table('post_media')->delete()->where('post_id','=', $id)->execute();
-        DB::query()->table('comments')->delete()->where('post_id', '=', $id)->execute();
-        (new PostsRepository())->delete($id);
+        $data = $result->data();
+        $rowType = (string)($data['type'] ?? '');
+        if (array_key_exists($rowType, $this->typeConfig())) {
+            $type = $rowType;
+        }
 
         $this->redirect($this->listUrl($type), 'success', 'Příspěvek byl odstraněn.');
     }
@@ -812,17 +551,17 @@ final class PostsController extends BaseAdminController
             $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
         }
 
-        $post = (new PostsRepository())->find($id);
-        if (!$post) {
-            $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nenalezen.');
+        $result = $this->postsCrud()->toggleStatus($id);
+        if ($result->isFailure()) {
+            $this->redirect($this->listUrl($type), 'danger', implode(' ', $result->errors()));
         }
-        $rowType = (string)($post['type'] ?? 'post');
+
+        $data = $result->data();
+        $rowType = (string)($data['type'] ?? $type);
         if (array_key_exists($rowType, $this->typeConfig())) {
             $type = $rowType;
         }
-
-        $new = ((string)$post['status'] === 'publish') ? 'draft' : 'publish';
-        (new PostsService())->update($id, ['status'=>$new]);
+        $new = (string)($data['new_status'] ?? 'draft');
 
         $this->redirect(
             $this->listUrl($type),
