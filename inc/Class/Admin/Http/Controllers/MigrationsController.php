@@ -42,26 +42,94 @@ final class MigrationsController extends BaseAdminController
     private function run(): void
     {
         $this->assertCsrf();
+
         $m = $this->migrator();
+        $log = [];
+        $logger = static function (string $message) use (&$log): void {
+            if ($message === '') {
+                return;
+            }
+            $log[] = $message;
+        };
+
+        $success = true;
+        $count = 0;
+        $message = '';
+
         try {
-            $count = $m->runPending();
-            $this->flash('success', "Spuštěno migrací: {$count}");
+            $count = $m->runPending($logger);
+            $message = $count > 0
+                ? "Spuštěno migrací: {$count}"
+                : 'Žádné čekající migrace.';
+            if ($count === 0 && !$log) {
+                $logger($message);
+            }
         } catch (\Throwable $e) {
-            $this->flash('danger', 'Chyba migrace: '.$e->getMessage());
+            $success = false;
+            $message = 'Chyba migrace: ' . $e->getMessage();
+            $logger($message);
         }
-        $this->redirect('admin.php?r=migrations');
+
+        $applied = array_keys($m->appliedMap());
+
+        $this->jsonResponse([
+            'success' => $success,
+            'status'  => $success ? 'success' : 'error',
+            'message' => $message,
+            'count'   => $count,
+            'applied' => $applied,
+            'log'     => $log,
+            'flash'   => [
+                'type' => $success ? 'success' : 'danger',
+                'msg'  => $message,
+            ],
+        ]);
     }
 
     private function rollback(): void
     {
         $this->assertCsrf();
+
         $m = $this->migrator();
+        $log = [];
+        $logger = static function (string $message) use (&$log): void {
+            if ($message === '') {
+                return;
+            }
+            $log[] = $message;
+        };
+
+        $success = true;
+        $count = 0;
+        $message = '';
+
         try {
-            $count = $m->rollbackLastBatch();
-            $this->flash('success', "Rollbacknuto migrací: {$count}");
+            $count = $m->rollbackLastBatch($logger);
+            $message = $count > 0
+                ? "Rollbacknuto migrací: {$count}"
+                : 'Žádné migrace k rollbacku.';
+            if ($count === 0 && !$log) {
+                $logger($message);
+            }
         } catch (\Throwable $e) {
-            $this->flash('danger', 'Chyba rollbacku: '.$e->getMessage());
+            $success = false;
+            $message = 'Chyba rollbacku: ' . $e->getMessage();
+            $logger($message);
         }
-        $this->redirect('admin.php?r=migrations');
+
+        $applied = array_keys($m->appliedMap());
+
+        $this->jsonResponse([
+            'success' => $success,
+            'status'  => $success ? 'success' : 'error',
+            'message' => $message,
+            'count'   => $count,
+            'applied' => $applied,
+            'log'     => $log,
+            'flash'   => [
+                'type' => $success ? 'success' : 'danger',
+                'msg'  => $message,
+            ],
+        ]);
     }
 }
