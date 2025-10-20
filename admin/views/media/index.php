@@ -210,7 +210,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   <div class="modal fade" id="mediaUploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <form class="modal-content" method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" id="media-upload-form" data-ajax data-action="media_upload">
+      <form class="modal-content" method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" id="media-upload-form" data-ajax data-action="media_upload" data-reset-on-success>
         <div class="modal-header">
           <h5 class="modal-title">Nahrát soubory</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
