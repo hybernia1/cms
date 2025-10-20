@@ -111,23 +111,7 @@ final class AdminAuthController
             'remember'  => false,
         ], $data);
 
-        if ($this->isAjax()) {
-            $html = $this->capture('auth/login', $payload);
-            $response = [
-                'success' => true,
-                'html'    => $html,
-                'title'   => (string)($payload['pageTitle'] ?? ''),
-            ];
-            if (!empty($payload['error'])) {
-                $response['flash'] = [
-                    'type' => 'danger',
-                    'msg'  => (string)$payload['error'],
-                ];
-            }
-            $this->json($response);
-            return;
-        }
-
+        header('Content-Type: text/html; charset=utf-8');
         $this->view->render('auth/login', $payload);
     }
 
@@ -246,15 +230,4 @@ final class AdminAuthController
         }
     }
 
-    private function capture(string $template, array $payload): string
-    {
-        ob_start();
-        try {
-            $this->view->render($template, $payload);
-        } finally {
-            $output = ob_get_clean();
-        }
-
-        return $output === false ? '' : $output;
-    }
 }
