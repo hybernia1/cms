@@ -1592,6 +1592,7 @@
     initFormHelpers(root);
     initTooltips(root);
     initBulkForms(root);
+    initQuickDraftWidget(root);
     initConfirmModals(root);
     initPostAutosave(root);
     initAdminMenuToggle(root);
@@ -1936,15 +1937,11 @@
       if (result && result.validationErrors) {
         applyFormValidationErrors(form, result.validationErrors);
       }
-      if (result.redirected || result.reloaded) {
-        return;
+      if (result.redirected || result.reloaded || result.htmlRoot) {
+        return result;
       }
-      if (result.htmlRoot) {
-        return;
-      }
-      if (result.data && typeof result.data === 'object' && result.data.flash) {
-        return;
-      }
+      dispatchFormEvent(form, 'cms:admin:form:success', { result: result });
+      return result;
     }).catch(function (error) {
       if (error && error.name === 'AbortError') {
         return;
@@ -1953,16 +1950,34 @@
         applyFormValidationErrors(form, error.validationErrors);
       }
       if (error && error.__handled) {
+        dispatchFormEvent(form, 'cms:admin:form:error', { error: error });
         return;
       }
       var msg = (error && error.message) ? error.message : 'Došlo k neočekávané chybě.';
       notifier.danger(msg, form);
+      dispatchFormEvent(form, 'cms:admin:form:error', { error: error, message: msg });
+      throw error;
     }).finally(function () {
       form.classList.remove('is-submitting');
       if (submitter && restoreDisabled) {
         submitter.disabled = false;
       }
     });
+  }
+
+  function dispatchFormEvent(form, name, detail) {
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+    var eventDetail = detail || {};
+    var evt;
+    try {
+      evt = new CustomEvent(name, { detail: eventDetail });
+    } catch (err) {
+      evt = document.createEvent('CustomEvent');
+      evt.initCustomEvent(name, true, true, eventDetail);
+    }
+    form.dispatchEvent(evt);
   }
 
   function initAjaxForms() {
@@ -2057,6 +2072,107 @@
       });
 
       updateState();
+    });
+  }
+
+  function initQuickDraftWidget(root) {
+    var scope = root || document;
+    var forms = [].slice.call(scope.querySelectorAll('form[data-quick-draft-form]'));
+    forms.forEach(function (form) {
+      if (form.dataset.quickDraftBound === '1') {
+        return;
+      }
+      form.dataset.quickDraftBound = '1';
+
+      form.addEventListener('cms:admin:form:success', function (event) {
+        var detail = event && event.detail ? event.detail : {};
+        var result = detail.result || null;
+        var data = result && result.data ? result.data : null;
+        if (!data || !data.draft) {
+          return;
+        }
+
+        if (window.cmsAdmin && window.cmsAdmin.forms && typeof window.cmsAdmin.forms.clearValidation === 'function') {
+          window.cmsAdmin.forms.clearValidation(form);
+        }
+
+        form.reset();
+
+        var titleInput = form.querySelector('[name="title"]');
+        if (titleInput && typeof titleInput.focus === 'function') {
+          titleInput.focus();
+        }
+
+        var widget = form.closest('[data-quick-draft-widget]');
+        if (!widget) {
+          return;
+        }
+
+        var listWrapper = widget.querySelector('[data-quick-draft-list-wrapper]');
+        var list = widget.querySelector('[data-quick-draft-list]');
+        var empty = widget.querySelector('[data-quick-draft-empty]');
+
+        if (!list && listWrapper) {
+          list = document.createElement('ul');
+          list.className = 'list-unstyled mb-0 small';
+          list.setAttribute('data-quick-draft-list', '1');
+          listWrapper.appendChild(list);
+        }
+
+        if (empty && empty.parentNode) {
+          empty.parentNode.removeChild(empty);
+        }
+
+        if (!list) {
+          return;
+        }
+
+        var draft = data.draft;
+
+        if (draft.id) {
+          var existing = list.querySelector('[data-quick-draft-item-id="' + draft.id + '"]');
+          if (existing && existing.parentNode) {
+            existing.parentNode.removeChild(existing);
+          }
+        }
+
+        var item = document.createElement('li');
+        item.className = 'mb-1';
+        if (draft.id) {
+          item.setAttribute('data-quick-draft-item-id', String(draft.id));
+        }
+
+        var link = document.createElement('a');
+        link.className = 'link-body-emphasis';
+        if (draft.url) {
+          link.setAttribute('href', draft.url);
+          link.setAttribute('data-no-ajax', '');
+        }
+        var title = typeof draft.title === 'string' ? draft.title.trim() : '';
+        link.textContent = title !== '' ? title : 'Bez názvu';
+        item.appendChild(link);
+
+        if (draft.created_at_display) {
+          var meta = document.createElement('div');
+          meta.className = 'text-secondary';
+          meta.textContent = draft.created_at_display;
+          item.appendChild(meta);
+        }
+
+        if (list.firstChild) {
+          list.insertBefore(item, list.firstChild);
+        } else {
+          list.appendChild(item);
+        }
+
+        while (list.children.length > 5) {
+          var last = list.lastElementChild || list.lastChild;
+          if (!last) {
+            break;
+          }
+          list.removeChild(last);
+        }
+      });
     });
   }
 
