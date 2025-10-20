@@ -33,7 +33,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <div class="small text-secondary"><?= $h((string)($comment['author_email'] ?? '')) ?></div>
         </div>
         <div>
-          <span class="badge text-bg-<?= $badge((string)$comment['status']) ?>"><?= $h((string)$comment['status']) ?></span>
+          <span class="badge text-bg-<?= $badge((string)$comment['status']) ?>" data-comment-status-badge><?= $h((string)$comment['status']) ?></span>
         </div>
       </div>
       <div class="small text-secondary mt-1"><?= $h((string)$comment['created_at']) ?> • k postu: <a href="admin.php?r=posts&a=edit&id=<?= (int)$comment['post_id'] ?>">#<?= (int)$comment['post_id'] ?></a></div>
@@ -41,7 +41,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <div style="white-space:pre-wrap"><?= nl2br($h((string)$comment['content'])) ?></div>
     </div>
     <div class="card-footer d-flex flex-wrap gap-2">
-      <form method="post" action="admin.php?r=comments&a=approve" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=approve" data-ajax data-comments-action="status">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
@@ -50,7 +50,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <i class="bi bi-check-lg"></i>
         </button>
       </form>
-      <form method="post" action="admin.php?r=comments&a=draft" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=draft" data-ajax data-comments-action="status">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
@@ -59,7 +59,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <i class="bi bi-file-earmark"></i>
         </button>
       </form>
-      <form method="post" action="admin.php?r=comments&a=spam" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=spam" data-ajax data-comments-action="status">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
@@ -71,6 +71,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <form method="post"
             action="admin.php?r=comments&a=delete"
             data-ajax
+            data-comments-action="delete"
             data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
             data-confirm-modal-title="Potvrzení smazání"
             data-confirm-modal-confirm-label="Smazat"
@@ -89,7 +90,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <div class="card mb-3">
     <div class="card-header">Odpovědět</div>
     <div class="card-body">
-      <form method="post" action="admin.php?r=comments&a=reply" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=reply" data-ajax data-comments-action="reply">
         <textarea class="form-control mb-2" name="content" rows="4" placeholder="Napiš odpověď…"></textarea>
         <input type="hidden" name="parent_id" value="<?= (int)$replyParentId ?>">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
@@ -101,21 +102,8 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
-  <?php if ($children): ?>
-    <div class="card">
-      <div class="card-header">Odpovědi (<?= count($children) ?>)</div>
-      <div class="list-group list-group-flush">
-        <?php foreach ($children as $ch): ?>
-          <div class="list-group-item">
-            <div class="d-flex justify-content-between">
-              <div class="fw-semibold"><?= $h((string)($ch['author_name'] ?? '')) ?></div>
-              <div class="small text-secondary"><?= $h((string)$ch['created_at']) ?></div>
-            </div>
-            <div style="white-space:pre-wrap"><?= nl2br($h((string)$ch['content'])) ?></div>
-          </div>
-        <?php endforeach; ?>
-      </div>
-    </div>
-  <?php endif; ?>
+  <?php $this->render('comments/partials/thread', [
+    'children' => $children,
+  ]); ?>
 <?php
 });
