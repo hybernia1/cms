@@ -9,6 +9,8 @@ declare(strict_types=1);
 /** @var array<int,array<string,mixed>> $menus */
 /** @var array<string,mixed>|null $menu */
 /** @var int $menuId */
+/** @var array<string,array{value:string,label:string,description:?string,assigned_menu_id:?int,assigned_menu_name:?string}> $menuLocations */
+/** @var string|null $menuLocationValue */
 /** @var array<int,array<string,mixed>> $items */
 /** @var array<string,mixed>|null $editingItem */
 /** @var array<int,array{value:int,label:string,disabled:bool}> $parentOptions */
@@ -42,6 +44,8 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
     }
     $linkTypeLabels = $linkTypeLabels ?? [];
     $linkStatusMessages = $linkStatusMessages ?? [];
+    $menuLocations = $menuLocations ?? [];
+    $menuLocationValue = $menuLocationValue !== null ? (string)$menuLocationValue : null;
     $modalTabs = [
         'pages' => ['label' => 'Stránky', 'icon' => 'bi-file-earmark-text'],
         'posts' => ['label' => 'Příspěvky', 'icon' => 'bi-journal-text'],
@@ -100,7 +104,26 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
               </div>
               <div class="mb-3">
                 <label class="form-label">Lokace</label>
-                <input type="text" name="location" class="form-control" value="<?= $h((string)$menu['location']) ?>" placeholder="např. primary">
+                <?php if ($menuLocations): ?>
+                  <select name="location" class="form-select">
+                    <?php foreach ($menuLocations as $loc => $info): ?>
+                      <?php
+                        $value = (string)$info['value'];
+                        $assignedId = $info['assigned_menu_id'] ?? null;
+                        $assignedName = $info['assigned_menu_name'] ?? '';
+                        $isSelected = $menuLocationValue !== null ? $menuLocationValue === $value : false;
+                        $isDisabled = $assignedId !== null && $assignedId !== (int)$menu['id'];
+                        $title = isset($info['description']) && $info['description'] !== null ? (string)$info['description'] : '';
+                      ?>
+                      <option value="<?= $h($value) ?>"<?= $isSelected ? ' selected' : '' ?><?= $isDisabled ? ' disabled' : '' ?><?= $title !== '' ? ' title="' . $h($title) . '"' : '' ?>>
+                        <?= $h((string)$info['label']) ?><?php if ($assignedId !== null && $assignedId !== (int)$menu['id'] && $assignedName !== ''): ?> — obsazeno (<?= $h($assignedName) ?>)<?php endif; ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <div class="form-text">Umístění jsou načtena ze šablony. Každé lze přiřadit pouze jednomu menu.</div>
+                <?php else: ?>
+                  <input type="text" name="location" class="form-control" value="<?= $h((string)$menu['location']) ?>" placeholder="např. primary">
+                <?php endif; ?>
               </div>
               <div class="mb-3">
                 <label class="form-label">Popis</label>
@@ -137,7 +160,45 @@ $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'
               </div>
               <div class="mb-3">
                 <label class="form-label">Lokace</label>
-                <input type="text" name="location" class="form-control" value="primary">
+                <?php if ($menuLocations): ?>
+                  <?php
+                    $locationOptionsList = array_values($menuLocations);
+                    $defaultCreateLocation = null;
+                    foreach ($locationOptionsList as $opt) {
+                        if (empty($opt['assigned_menu_id'])) {
+                            $defaultCreateLocation = (string)$opt['value'];
+                            break;
+                        }
+                    }
+                    $hasAvailableLocation = $defaultCreateLocation !== null;
+                    if (!$hasAvailableLocation && $locationOptionsList) {
+                        $defaultCreateLocation = (string)$locationOptionsList[0]['value'];
+                    }
+                  ?>
+                  <select name="location" class="form-select"<?= !$hasAvailableLocation ? ' disabled' : '' ?>>
+                    <?php foreach ($locationOptionsList as $opt): ?>
+                      <?php
+                        $value = (string)$opt['value'];
+                        $assignedId = $opt['assigned_menu_id'] ?? null;
+                        $assignedName = $opt['assigned_menu_name'] ?? '';
+                        $title = isset($opt['description']) && $opt['description'] !== null ? (string)$opt['description'] : '';
+                        $isSelected = $hasAvailableLocation ? ($defaultCreateLocation === $value) : ($defaultCreateLocation === $value);
+                        $isDisabled = $assignedId !== null;
+                      ?>
+                      <option value="<?= $h($value) ?>"<?= $isSelected ? ' selected' : '' ?><?= $isDisabled ? ' disabled' : '' ?><?= $title !== '' ? ' title="' . $h($title) . '"' : '' ?>>
+                        <?= $h((string)$opt['label']) ?><?php if ($assignedId !== null && $assignedName !== ''): ?> — obsazeno (<?= $h($assignedName) ?>)<?php endif; ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <div class="form-text">
+                    Umístění jsou načtena ze šablony. Každé lze použít pouze jednou.
+                    <?php if (!$hasAvailableLocation): ?>
+                      <span class="text-danger">Všechna umístění jsou již obsazena.</span>
+                    <?php endif; ?>
+                  </div>
+                <?php else: ?>
+                  <input type="text" name="location" class="form-control" value="primary">
+                <?php endif; ?>
               </div>
               <div class="mb-3">
                 <label class="form-label">Popis</label>
