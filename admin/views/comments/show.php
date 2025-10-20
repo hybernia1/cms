@@ -41,28 +41,31 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <div style="white-space:pre-wrap"><?= nl2br($h((string)$comment['content'])) ?></div>
     </div>
     <div class="card-footer d-flex flex-wrap gap-2">
-      <form method="post" action="admin.php?r=comments&a=approve" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=approve" data-ajax data-action="comments_status">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
+        <input type="hidden" name="status" value="published">
         <button class="btn btn-light btn-sm border" type="submit"
                 aria-label="Schválit" data-bs-toggle="tooltip" data-bs-title="Schválit">
           <i class="bi bi-check-lg"></i>
         </button>
       </form>
-      <form method="post" action="admin.php?r=comments&a=draft" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=draft" data-ajax data-action="comments_status">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
+        <input type="hidden" name="status" value="draft">
         <button class="btn btn-light btn-sm border" type="submit"
                 aria-label="Přepnout na koncept" data-bs-toggle="tooltip" data-bs-title="Přepnout na koncept">
           <i class="bi bi-file-earmark"></i>
         </button>
       </form>
-      <form method="post" action="admin.php?r=comments&a=spam" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=spam" data-ajax data-action="comments_status">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
         <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
+        <input type="hidden" name="status" value="spam">
         <button class="btn btn-light btn-sm border" type="submit"
                 aria-label="Označit jako spam" data-bs-toggle="tooltip" data-bs-title="Označit jako spam">
           <i class="bi bi-slash-circle"></i>
@@ -71,6 +74,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <form method="post"
             action="admin.php?r=comments&a=delete"
             data-ajax
+            data-action="comments_delete"
             data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
             data-confirm-modal-title="Potvrzení smazání"
             data-confirm-modal-confirm-label="Smazat"
@@ -89,7 +93,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <div class="card mb-3">
     <div class="card-header">Odpovědět</div>
     <div class="card-body">
-      <form method="post" action="admin.php?r=comments&a=reply" data-ajax>
+      <form method="post" action="admin.php?r=comments&a=reply" data-ajax data-action="comments_reply">
         <textarea class="form-control mb-2" name="content" rows="4" placeholder="Napiš odpověď…"></textarea>
         <input type="hidden" name="parent_id" value="<?= (int)$replyParentId ?>">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">

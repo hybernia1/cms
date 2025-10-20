@@ -7,7 +7,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
   $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
   $sel = fn($a,$b)=>$a===$b?' selected':'';
 ?>
-<form class="card" method="post" action="admin.php?r=users&a=save" data-ajax>
+<form class="card" method="post" action="admin.php?r=users&a=save" data-ajax data-action="users_save">
   <div class="card-header"><?= $user?'Upravit':'Nový' ?> uživatel</div>
   <div class="card-body">
     <div class="row g-3">
@@ -49,7 +49,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser'), function
   <div class="card mt-3">
     <div class="card-header">Odeslat e-mail uživateli</div>
     <?php if ($mailTemplates): ?>
-      <form class="card-body row gy-2 gx-2 align-items-end" method="post" action="admin.php?r=users&a=send-template" data-ajax>
+      <form class="card-body row gy-2 gx-2 align-items-end" method="post" action="admin.php?r=users&a=send-template" data-ajax data-action="users_send_template">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$user['id'] ?>">
         <div class="col-md-8">

@@ -45,6 +45,16 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
 | Optimalizace WebP | `admin.php?r=media&a=optimize` | POST | `id`, `csrf` | `MediaController::optimize()` | Redirect na listing + flash (`success/info/danger`). |
 | Smazání souboru | `admin.php?r=media&a=delete` | POST | `id`, `csrf` | `MediaController::delete()` | Redirect na listing + flash. |
 
+### Nové `admin-ajax.php` akce
+
+| Akce | Handler | Poznámky |
+| --- | --- | --- |
+| `media_upload` | `Cms\Admin\Http\Ajax\Media\UploadHandler` | Multipart upload (nahrazuje `admin.php?r=media&a=upload`), vrací `success` se zprávou, počtem nahraných souborů a `redirect` na `admin.php?r=media`. |
+| `media_delete` | `Cms\Admin\Http\Ajax\Media\DeleteHandler` | Maže záznam i soubor, zachovává redirect na listing (`redirect`, `deleted_id`). |
+| `media_optimize` | `Cms\Admin\Http\Ajax\Media\OptimizeHandler` | Spouští WebP optimalizaci, odpovídá zprávou + `redirect` stejně jako původní akce. |
+| `media_library` | `Cms\Admin\Http\Ajax\Media\LibraryHandler` | Vrací JSON se seznamem posledních médií pro modální výběr (`items`), nahrazuje HTML render. |
+| `media_editor_upload` | `Cms\Admin\Http\Ajax\Media\EditorUploadHandler` | Jednotlivé nahrání z editoru, vrací JSON `item` s metadaty pro vložení do obsahu. |
+
 ## `comments`
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |
 | --- | --- | --- | --- | --- | --- |
@@ -54,6 +64,15 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
 | Detail – smazání | `admin.php?r=comments&a=delete` | POST | `id`, `_back`, `csrf` | `CommentsController::delete()` | Redirect na `_back` + flash. |
 | Detail – odpověď admina | `admin.php?r=comments&a=reply` | POST | `parent_id`, `content`, `csrf` | `CommentsController::reply()` | Redirect na thread detail + flash. |
 
+### Nové `admin-ajax.php` akce
+
+| Akce | Handler | Poznámky |
+| --- | --- | --- |
+| `comments_bulk` | `Cms\Admin\Http\Ajax\Comments\BulkHandler` | Přesouvá hromadné akce do JSON API, vrací `redirect` na listing + `affected`. |
+| `comments_status` | `Cms\Admin\Http\Ajax\Comments\StatusHandler` | Změna stavu jednoho komentáře, vrací `status`, `id` a `redirect` na původní stránku. |
+| `comments_delete` | `Cms\Admin\Http\Ajax\Comments\DeleteHandler` | Nahrazuje delete akci; vrací `redirect` + `deleted`. |
+| `comments_reply` | `Cms\Admin\Http\Ajax\Comments\ReplyHandler` | Vrací nově vytvořenou odpověď (`comment`) a `redirect` na thread. |
+
 ## `users`
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |
 | --- | --- | --- | --- | --- | --- |
@@ -61,6 +80,16 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
 | Bulk mazání | `admin.php?r=users&a=bulk` | POST | `ids[]`, `csrf`, filtry (`q`,`page`) | `UsersController::bulk()` | Redirect na seznam + flash. |
 | Formulář create/edit (`users/edit.php`) | `admin.php?r=users&a=save` | POST | `id` (při editaci), `name`, `email`, `role`, `active`, `password`, `csrf` | `UsersController::save()` | Redirect na seznam (`success`) nebo zpět na form s chybou. |
 | Odeslání templ. e-mailu (`users/edit.php`) | `admin.php?r=users&a=send-template` | POST | `id`, `template`, `csrf` | `UsersController::sendTemplate()` | Redirect zpět na edit + flash. |
+
+### Nové `admin-ajax.php` akce
+
+| Akce | Handler | Poznámky |
+| --- | --- | --- |
+| `users_save` | `Cms\Admin\Http\Ajax\Users\SaveHandler` | Validuje a ukládá uživatele, vrací `redirect` na seznam (nahrazuje `admin.php?r=users&a=save`). |
+| `users_bulk_delete` | `Cms\Admin\Http\Ajax\Users\BulkDeleteHandler` | Hromadné mazání s rekapitulací `affected` a `redirect`. |
+| `users_delete` | `Cms\Admin\Http\Ajax\Users\DeleteHandler` | Smazání jednoho uživatele (včetně vlastního účtu guardu), vrací `redirect` + `deleted_id`. |
+| `users_toggle` | `Cms\Admin\Http\Ajax\Users\ToggleHandler` | Aktivace/deaktivace účtu, vrací nový stav (`active`) a `redirect`. |
+| `users_send_template` | `Cms\Admin\Http\Ajax\Users\SendTemplateHandler` | Odeslání šablonovaného e-mailu, vrací `redirect` + `sent`. |
 
 ## `navigation`
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |
@@ -71,6 +100,17 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
 | Formulář položky | `admin.php?r=navigation&a=create-item` / `update-item` | POST | `menu_id`, `id` (u editace), `title`, `link_type`, `link_reference`, `url`, `target`, `css_class`, `parent_id`, `sort_order`, `csrf` | `NavigationController::createItem()` / `updateItem()` | Redirect zpět na menu (volitelně s `item_id`) + flash. |
 | Smazání položky | `admin.php?r=navigation&a=delete-item` | POST | `id`, `menu_id`, `csrf` | `NavigationController::deleteItem()` | Redirect zpět na menu + flash. |
 
+### Nové `admin-ajax.php` akce
+
+| Akce | Handler | Poznámky |
+| --- | --- | --- |
+| `navigation_create_menu` | `Cms\Admin\Http\Ajax\Navigation\CreateMenuHandler` | Vytváří menu a vrací `menu_id` + `redirect` na jeho detail. |
+| `navigation_update_menu` | `Cms\Admin\Http\Ajax\Navigation\UpdateMenuHandler` | Aktualizace menu s validací slug/umístění, odpověď obsahuje `redirect`. |
+| `navigation_delete_menu` | `Cms\Admin\Http\Ajax\Navigation\DeleteMenuHandler` | Maže menu i vazby, vrací `redirect` na výpis. |
+| `navigation_create_item` | `Cms\Admin\Http\Ajax\Navigation\CreateItemHandler` | Přidává položku menu, vrací `item` + `redirect` na menu. |
+| `navigation_update_item` | `Cms\Admin\Http\Ajax\Navigation\UpdateItemHandler` | Upravuje položku, vrací aktualizovaný `item` + `redirect`. |
+| `navigation_delete_item` | `Cms\Admin\Http\Ajax\Navigation\DeleteItemHandler` | Maže položku (včetně potomků) a vrací `redirect` + `deleted_ids`. |
+
 ## `settings`
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |
 | --- | --- | --- | --- | --- | --- |
@@ -78,6 +118,15 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
 | Mail nastavení (`settings/mail.php`) | `admin.php?r=settings&a=mail` (`intent=save`) | POST | `mail_driver`, `mail_from_email`, `mail_from_name`, `mail_signature`, SMTP pole (`mail_smtp_*`), `csrf` | `SettingsController::saveMail()` | Redirect zpět na mail stránku + flash. |
 | Mail – testovací odeslání | `admin.php?r=settings&a=mail` (`intent=test`) | POST | `test_email`, `csrf` | `SettingsController::sendTestMail()` | Redirect zpět na mail stránku + flash (`success`/`danger`). |
 | Permalinks (`settings/permalinks.php`) | `admin.php?r=settings&a=permalinks` | POST | `seo_urls_enabled`, `post_base`, `page_base`, `tag_base`, `category_base`, `csrf` | `SettingsController::savePermalinks()` | Redirect zpět na permalinks stránku + flash. |
+
+### Nové `admin-ajax.php` akce
+
+| Akce | Handler | Poznámky |
+| --- | --- | --- |
+| `settings_save` | `Cms\Admin\Http\Ajax\Settings\GeneralSaveHandler` | Nahrazuje obecné nastavení, vrací `redirect` + `updated` klíče. |
+| `settings_mail_save` | `Cms\Admin\Http\Ajax\Settings\MailSaveHandler` | Ukládá mail nastavení; odpověď vrací `redirect` na mail kartu a shrnutí `updated`. |
+| `settings_mail_test` | `Cms\Admin\Http\Ajax\Settings\MailTestHandler` | Odesílá testovací e-mail, vrací `success`/`error` a `flash` zprávu bez redirectu (ponechá stránku). |
+| `settings_permalinks_save` | `Cms\Admin\Http\Ajax\Settings\PermalinksSaveHandler` | Spravuje permalink nastavení, vrací `redirect` na permalinks stránku + `updated`. |
 
 ## `themes`
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |

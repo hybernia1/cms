@@ -162,7 +162,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                   <span class="small text-secondary">#<?= $h((string)$m['id']) ?> • <?= $h($m['created_display'] !== '' ? $m['created_display'] : date('Y-m-d', strtotime((string)$m['created_at']))) ?></span>
                   <div class="d-flex gap-2">
                     <?php if (!empty($webpEnabled) && $isImg && empty($m['has_webp'])): ?>
-                      <form method="post" action="admin.php?r=media&a=optimize" onsubmit="return confirm('Vytvořit WebP variantu?');" data-ajax>
+                      <form method="post" action="admin.php?r=media&a=optimize" onsubmit="return confirm('Vytvořit WebP variantu?');" data-ajax data-action="media_optimize">
                         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                         <input type="hidden" name="id" value="<?= $h((string)$m['id']) ?>">
                         <button class="btn btn-outline-success btn-sm" type="submit">Optimalizovat</button>
@@ -171,6 +171,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                     <form method="post"
                           action="admin.php?r=media&a=delete"
                           data-ajax
+                          data-action="media_delete"
                           data-confirm-modal="Opravdu odstranit?"
                           data-confirm-modal-title="Potvrzení smazání"
                           data-confirm-modal-confirm-label="Smazat"
@@ -209,7 +210,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
 
   <div class="modal fade" id="mediaUploadModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <form class="modal-content" method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" id="media-upload-form" data-ajax>
+      <form class="modal-content" method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" id="media-upload-form" data-ajax data-action="media_upload">
         <div class="modal-header">
           <h5 class="modal-title">Nahrát soubory</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>

@@ -39,6 +39,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <?php $this->render('parts/listing/bulk-form', [
     'formId'       => 'users-bulk-form',
     'action'       => 'admin.php?r=users&a=bulk',
+    'ajax_action'  => 'users_bulk_delete',
     'csrf'         => $csrf,
     'selectAll'    => '#users-select-all',
     'rowSelector'  => '.user-row-check',
@@ -158,7 +159,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             ?>
               <div class="modal fade" id="<?= $h($toggleModalId) ?>" tabindex="-1" aria-labelledby="<?= $h($toggleModalId) ?>Label" aria-hidden="true">
                 <div class="modal-dialog">
-                  <form class="modal-content" method="post" action="admin.php?r=users&a=toggle">
+                  <form class="modal-content" method="post" action="admin.php?r=users&a=toggle" data-ajax data-action="users_toggle">
                     <div class="modal-header">
                       <h5 class="modal-title" id="<?= $h($toggleModalId) ?>Label">Změnit stav uživatele</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
@@ -191,7 +192,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             ?>
               <div class="modal fade" id="<?= $h($deleteModalId) ?>" tabindex="-1" aria-labelledby="<?= $h($deleteModalId) ?>Label" aria-hidden="true">
                 <div class="modal-dialog">
-                  <form class="modal-content" method="post" action="admin.php?r=users&a=delete">
+                  <form class="modal-content" method="post" action="admin.php?r=users&a=delete" data-ajax data-action="users_delete">
                     <div class="modal-header">
                       <h5 class="modal-title" id="<?= $h($deleteModalId) ?>Label">Smazat uživatele</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
