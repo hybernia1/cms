@@ -19,7 +19,22 @@ declare(strict_types=1);
 /** @var array<string,string> $linkTypeLabels */
 /** @var array<string,string> $linkStatusMessages */
 
-$this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($csrf, $tablesReady, $menus, $menu, $menuId, $items, $editingItem, $parentOptions, $targets, $quickAddOptions) {
+  $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use (
+      $csrf,
+      $tablesReady,
+      $menus,
+      $menu,
+      $menuId,
+      $items,
+      $editingItem,
+      $parentOptions,
+      $targets,
+      $quickAddOptions,
+      $linkTypeLabels,
+      $linkStatusMessages,
+      $menuLocations,
+      $menuLocationValue
+  ) {
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $itemsById = [];
     foreach ($items as $it) {
