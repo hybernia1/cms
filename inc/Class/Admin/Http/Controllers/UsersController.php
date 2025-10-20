@@ -28,37 +28,25 @@ final class UsersController extends BaseAdminController
         }
     }
 
-
     private function index(): void
     {
         $page = max(1, (int)($_GET['page'] ?? 1));
         $q = trim((string)($_GET['q'] ?? ''));
-        $b = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.role','u.active','u.created_at']);
-        if ($q !== '') {
-            $like = "%{$q}%";
-            $b->where(function($w) use($like){
-                $w->whereLike('u.name', $like)
-                  ->orWhere('u.email','LIKE', $like);
-            });
+
+        $listing = $this->prepareListing($q, $page);
+
+        if ($this->wantsJsonIndex()) {
+            $this->jsonResponse($this->listingJsonPayload($listing));
         }
-        $b->orderBy('u.created_at','DESC');
-        $paginated = $b->paginate($page, 20);
-
-        $pagination = $this->paginationData($paginated, $page, 20);
-        $buildUrl = $this->listingUrlBuilder([
-            'r' => 'users',
-            'q' => $q,
-        ]);
-
-        $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
 
         $this->renderAdmin('users/index', [
-            'pageTitle' => 'Uživatelé',
-            'nav'       => AdminNavigation::build('users'),
-            'items'     => $items,
-            'pagination'=> $pagination,
-            'searchQuery' => $q,
-            'buildUrl'  => $buildUrl,
+            'pageTitle'   => 'Uživatelé',
+            'nav'         => AdminNavigation::build('users'),
+            'items'       => $listing['items'],
+            'pagination'  => $listing['pagination'],
+            'searchQuery' => $listing['searchQuery'],
+            'buildUrl'    => $listing['buildUrl'],
+            'currentUrl'  => $listing['currentUrl'],
         ]);
     }
 
@@ -108,20 +96,21 @@ final class UsersController extends BaseAdminController
         $active = (int)($_POST['active'] ?? 1);
         $pass   = trim((string)($_POST['password'] ?? ''));
 
-        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->redirect(
-                'admin.php?r=users&a=edit' . ($id ? "&id={$id}" : ''),
-                'danger',
-                'Zadejte platné jméno a e-mail.'
-            );
+        $errors = [];
+        if ($name === '') {
+            $errors['name'][] = 'Zadejte jméno.';
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'][] = 'Zadejte platný e-mail.';
+        }
+        if ($errors !== []) {
+            $this->respondValidationErrors($errors, 'Zadejte platné jméno a e-mail.', 'admin.php?r=users&a=edit' . ($id ? '&id=' . $id : ''));
         }
 
         if ($id === 0 && $pass === '') {
-            $this->redirect(
-                'admin.php?r=users&a=edit',
-                'danger',
-                'Zadejte heslo pro nového uživatele.'
-            );
+            $this->respondValidationErrors([
+                'password' => ['Zadejte heslo pro nového uživatele.'],
+            ], 'Zadejte heslo pro nového uživatele.', 'admin.php?r=users&a=edit');
         }
 
         $dup = DB::query()->table('users')->select(['id'])->where('email','=', $email);
@@ -129,11 +118,9 @@ final class UsersController extends BaseAdminController
             $dup->where('id','!=',$id);
         }
         if ($dup->first()) {
-            $this->redirect(
-                'admin.php?r=users&a=edit' . ($id ? "&id={$id}" : ''),
-                'danger',
-                'Tento e-mail už používá jiný účet.'
-            );
+            $this->respondValidationErrors([
+                'email' => ['Tento e-mail už používá jiný účet.'],
+            ], 'Tento e-mail už používá jiný účet.', 'admin.php?r=users&a=edit' . ($id ? '&id=' . $id : ''));
         }
 
         $data = [
@@ -148,17 +135,51 @@ final class UsersController extends BaseAdminController
         }
 
         if ($id) {
-            DB::query()->table('users')->update($data)->where('id','=', $id)->execute();
+            try {
+                DB::query()->table('users')->update($data)->where('id','=', $id)->execute();
+            } catch (Throwable $e) {
+                $this->respondFailure('Uživatele se nepodařilo uložit.', 'admin.php?r=users&a=edit&id=' . $id, $e);
+            }
+
+            if ($this->isAjax()) {
+                $payload = [
+                    'success' => true,
+                    'message' => 'Uživatel upraven.',
+                    'user'    => $this->findUserRow($id),
+                ];
+                $this->jsonResponse($payload);
+            }
+
             $this->redirect('admin.php?r=users', 'success', 'Uživatel upraven.');
-        } else {
-            $data += [
-                'created_at'   => DateTimeFactory::nowString(),
-                'token'        => null,
-                'token_expire' => null,
-            ];
-            DB::query()->table('users')->insertRow($data)->execute();
-            $this->redirect('admin.php?r=users', 'success', 'Uživatel vytvořen.');
         }
+
+        $data += [
+            'created_at'   => DateTimeFactory::nowString(),
+            'token'        => null,
+            'token_expire' => null,
+        ];
+
+        try {
+            $newId = DB::query()->table('users')->insertRow($data)->execute();
+            if (!is_int($newId)) {
+                $row = DB::query()->table('users')->select(['id'])->orderBy('id','DESC')->first();
+                $newId = (int)($row['id'] ?? 0);
+            }
+        } catch (Throwable $e) {
+            $this->respondFailure('Uživatele se nepodařilo uložit.', 'admin.php?r=users&a=edit', $e);
+        }
+
+        if ($this->isAjax()) {
+            $payload = [
+                'success'  => true,
+                'message'  => 'Uživatel vytvořen.',
+                'user'     => $this->findUserRow((int)$newId),
+                'redirect' => 'admin.php?r=users',
+            ];
+            $this->jsonResponse($payload);
+        }
+
+        $this->redirect('admin.php?r=users', 'success', 'Uživatel vytvořen.');
     }
 
     private function bulk(): void
@@ -177,7 +198,7 @@ final class UsersController extends BaseAdminController
         $redirect = $this->listUrl($q, $page);
 
         if ($ids === []) {
-            $this->redirect($redirect, 'warning', 'Vyberte uživatele k odstranění.');
+            $this->respondFailure('Vyberte uživatele k odstranění.', $redirect, status: 422, flashType: 'warning');
         }
 
         $rows = DB::query()->table('users')
@@ -201,7 +222,7 @@ final class UsersController extends BaseAdminController
         $targetIds = array_values(array_unique($targetIds));
 
         if ($targetIds === []) {
-            $this->redirect($redirect, 'warning', 'Žádní vybraní uživatelé pro smazání.');
+            $this->respondFailure('Žádní vybraní uživatelé pro smazání.', $redirect, status: 422, flashType: 'warning');
         }
 
         try {
@@ -210,7 +231,14 @@ final class UsersController extends BaseAdminController
                 ->whereIn('id', $targetIds)
                 ->execute();
         } catch (\Throwable $e) {
-            $this->redirect($redirect, 'danger', $e->getMessage());
+            $this->respondFailure($e->getMessage(), $redirect, $e);
+        }
+
+        if ($this->isAjax()) {
+            $listing = $this->prepareListing($q, $page);
+            $payload = $this->listingJsonPayload($listing, 'Uživatelé byli odstraněni. (' . count($targetIds) . ')');
+            $payload['removedIds'] = $targetIds;
+            $this->jsonResponse($payload);
         }
 
         $this->redirect($redirect, 'success', 'Uživatelé byli odstraněni. (' . count($targetIds) . ')');
@@ -317,18 +345,28 @@ final class UsersController extends BaseAdminController
         $userId = (int)($_POST['id'] ?? 0);
         $templateKey = trim((string)($_POST['template'] ?? ''));
 
-        if ($userId <= 0 || $templateKey === '') {
-            $this->redirect('admin.php?r=users', 'danger', 'Vyberte uživatele a šablonu.');
+        $errors = [];
+        if ($userId <= 0) {
+            $errors['form'][] = 'Vyberte uživatele a šablonu.';
+        }
+        if ($templateKey === '') {
+            $errors['template'][] = 'Vyberte šablonu.';
+        }
+        if ($errors !== []) {
+            $redirect = $userId > 0 ? 'admin.php?r=users&a=edit&id=' . $userId : 'admin.php?r=users';
+            $this->respondValidationErrors($errors, 'Vyberte uživatele a šablonu.', $redirect);
         }
 
         $user = DB::query()->table('users')->select(['*'])->where('id','=', $userId)->first();
         if (!$user) {
-            $this->redirect('admin.php?r=users', 'danger', 'Uživatel nenalezen.');
+            $this->respondFailure('Uživatel nenalezen.', 'admin.php?r=users', status: 404);
         }
 
         $email = (string)($user['email'] ?? '');
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Uživatel nemá platný e-mail.');
+            $this->respondValidationErrors([
+                'form' => ['Uživatel nemá platný e-mail.'],
+            ], 'Uživatel nemá platný e-mail.', 'admin.php?r=users&a=edit&id=' . $userId);
         }
 
         $settings = new CmsSettings();
@@ -346,7 +384,7 @@ final class UsersController extends BaseAdminController
             try {
                 $token = bin2hex(random_bytes(20));
             } catch (\Throwable $e) {
-                $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Nepodařilo se vygenerovat resetovací odkaz.');
+                $this->respondFailure('Nepodařilo se vygenerovat resetovací odkaz.', 'admin.php?r=users&a=edit&id=' . $userId, $e);
             }
 
             $expiresAt = DateTimeFactory::now()->modify('+1 hour')->format('Y-m-d H:i:s');
@@ -358,7 +396,7 @@ final class UsersController extends BaseAdminController
                     'updated_at'   => DateTimeFactory::nowString(),
                 ])->where('id','=', $userId)->execute();
             } catch (\Throwable $e) {
-                $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Nepodařilo se uložit resetovací token.');
+                $this->respondFailure('Nepodařilo se uložit resetovací token.', 'admin.php?r=users&a=edit&id=' . $userId, $e);
             }
 
             $user['token'] = $token;
@@ -371,11 +409,25 @@ final class UsersController extends BaseAdminController
         try {
             $template = $templateManager->render($templateKey, $templateData);
         } catch (\Throwable $e) {
-            $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'danger', 'Šablonu se nepodařilo načíst.');
+            $this->respondFailure('Šablonu se nepodařilo načíst.', 'admin.php?r=users&a=edit&id=' . $userId, $e);
         }
 
         $mailService = new MailService($settings);
         $ok = $mailService->sendTemplate($email, $template, (string)($user['name'] ?? '') ?: null);
+
+        if ($this->isAjax()) {
+            if ($ok) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'E-mail byl odeslán.',
+                ]);
+            }
+
+            $this->jsonResponse([
+                'success' => false,
+                'message' => 'E-mail se nepodařilo odeslat.',
+            ], 500);
+        }
 
         if ($ok) {
             $this->redirect('admin.php?r=users&a=edit&id=' . $userId, 'success', 'E-mail byl odeslán.');
@@ -437,5 +489,200 @@ final class UsersController extends BaseAdminController
         $qs = http_build_query($query);
 
         return $qs === '' ? 'admin.php?r=users' : 'admin.php?' . $qs;
+    }
+
+    private function wantsJsonIndex(): bool
+    {
+        if ($this->isAjax()) {
+            return true;
+        }
+
+        $format = isset($_GET['format']) ? strtolower((string)$_GET['format']) : '';
+        return $format === 'json';
+    }
+
+    /**
+     * @return array{
+     *     items:array<int,array<string,mixed>>,
+     *     pagination:array{page:int,per_page:int,total:int,pages:int},
+     *     searchQuery:string,
+     *     buildUrl:callable,
+     *     currentUrl:string
+     * }
+     */
+    private function prepareListing(string $q, int $page): array
+    {
+        $builder = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.role','u.active','u.created_at']);
+        if ($q !== '') {
+            $like = "%{$q}%";
+            $builder->where(function($w) use($like){
+                $w->whereLike('u.name', $like)
+                  ->orWhere('u.email','LIKE', $like);
+            });
+        }
+        $builder->orderBy('u.created_at','DESC');
+        $paginated = $builder->paginate($page, 20);
+
+        $pagination = $this->paginationData($paginated, $page, 20);
+        $resolvedPage = (int)($paginated['page'] ?? $pagination['page']);
+
+        $buildUrl = $this->listingUrlBuilder([
+            'r' => 'users',
+            'q' => $q,
+            'page' => $resolvedPage,
+        ]);
+
+        $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
+
+        return [
+            'items'       => $items,
+            'pagination'  => $pagination,
+            'searchQuery' => $q,
+            'buildUrl'    => $buildUrl,
+            'currentUrl'  => $this->listUrl($q, (int)($pagination['page'] ?? 1)),
+        ];
+    }
+
+    /**
+     * @param array{
+     *     items:array<int,array<string,mixed>>,
+     *     pagination:array{page:int,per_page:int,total:int,pages:int},
+     *     searchQuery:string,
+     *     buildUrl:callable,
+     *     currentUrl:string
+     * } $listing
+     */
+    private function listingJsonPayload(array $listing, ?string $message = null): array
+    {
+        $partialData = [
+            'items'          => $listing['items'],
+            'pagination'     => $listing['pagination'],
+            'searchQuery'    => $listing['searchQuery'],
+            'buildUrl'       => $listing['buildUrl'],
+            'csrf'           => $this->token(),
+            'currentUserId'  => (int)($this->auth->user()['id'] ?? 0),
+        ];
+
+        $payload = [
+            'success'      => true,
+            'pagination'   => $listing['pagination'],
+            'searchQuery'  => $listing['searchQuery'],
+            'csrf'         => $this->token(),
+            'partials'     => [
+                '[data-users-table-body]' => $this->renderPartial('users/partials/table-body', $partialData),
+                '[data-users-modals]'     => $this->renderPartial('users/partials/modals', $partialData),
+                '[data-users-pagination]' => $this->renderPartial('users/partials/pagination', $partialData),
+            ],
+            'listing'      => [
+                'url'         => $listing['currentUrl'],
+                'page'        => (int)($listing['pagination']['page'] ?? 1),
+                'searchQuery' => $listing['searchQuery'],
+            ],
+        ];
+
+        if ($message !== null && $message !== '') {
+            $payload['message'] = $message;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string,mixed> $errors
+     */
+    private function respondValidationErrors(array $errors, string $fallbackMessage, string $redirectUrl): never
+    {
+        $message = $this->firstValidationMessage($errors) ?? $fallbackMessage;
+
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => false,
+                'message' => $message,
+                'errors'  => $errors,
+            ], 422);
+        }
+
+        $this->redirect($redirectUrl, 'danger', $message);
+    }
+
+    private function respondFailure(string $message, string $redirectUrl, ?Throwable $exception = null, int $status = 400, string $flashType = 'danger'): never
+    {
+        if ($this->isAjax()) {
+            $payload = [
+                'success' => false,
+                'message' => $message,
+            ];
+
+            if ($status === 422) {
+                $payload['errors'] = ['form' => [$message]];
+            }
+
+            if ($flashType !== 'danger') {
+                $payload['flash'] = [
+                    'type' => $flashType,
+                    'msg'  => $message,
+                ];
+            }
+
+            if ($exception instanceof Throwable) {
+                $payload['error'] = $exception->getMessage();
+            }
+
+            $this->jsonResponse($payload, $status);
+        }
+
+        $this->redirect($redirectUrl, $flashType, $message);
+    }
+
+    /**
+     * @param array<string,mixed> $errors
+     */
+    private function firstValidationMessage(array $errors): ?string
+    {
+        foreach ($errors as $fieldErrors) {
+            if (is_array($fieldErrors)) {
+                foreach ($fieldErrors as $message) {
+                    $text = (string)$message;
+                    if ($text !== '') {
+                        return $text;
+                    }
+                }
+            } elseif (is_string($fieldErrors) && $fieldErrors !== '') {
+                return $fieldErrors;
+            }
+        }
+
+        return null;
+    }
+
+    private function renderPartial(string $template, array $data): string
+    {
+        ob_start();
+        try {
+            $this->view->render($template, $data);
+        } finally {
+            $output = ob_get_clean();
+        }
+
+        return $output === false ? '' : $output;
+    }
+
+    private function findUserRow(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $row = DB::query()->table('users','u')
+            ->select(['u.id','u.name','u.email','u.role','u.active','u.created_at'])
+            ->where('u.id','=', $id)
+            ->first();
+
+        if (!$row) {
+            return null;
+        }
+
+        $normalized = $this->normalizeCreatedAt([$row]);
+        return $normalized[0] ?? null;
     }
 }
