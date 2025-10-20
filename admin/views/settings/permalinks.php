@@ -35,8 +35,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     $currentTag = $seoEnabled ? $tagPretty : $tagFallback;
     $currentCategory = $seoEnabled ? $categoryPretty : $categoryFallback;
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=permalinks" data-ajax>
+  <form class="card" method="post" action="admin.php?r=settings&a=permalinks" data-ajax data-form-helper="validation">
     <div class="card-body">
+      <div class="alert alert-danger mb-3" data-error-for="form" hidden></div>
       <div class="mb-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">SEO URL</h2>
         <p class="text-secondary small mb-3">
@@ -61,21 +62,25 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <label class="form-label" for="post_base">Příspěvky</label>
             <input class="form-control" id="post_base" name="post_base" value="<?= $h($permalinks['post_base']) ?>" pattern="[a-z0-9\-]+" required>
             <div class="form-text">Výchozí: <?= $h($defaults['post_base']) ?></div>
+            <div class="invalid-feedback" data-error-for="post_base" hidden></div>
           </div>
           <div class="col-md-6 col-lg-3">
             <label class="form-label" for="page_base">Stránky</label>
             <input class="form-control" id="page_base" name="page_base" value="<?= $h($permalinks['page_base']) ?>" pattern="[a-z0-9\-]+" required>
             <div class="form-text">Výchozí: <?= $h($defaults['page_base']) ?></div>
+            <div class="invalid-feedback" data-error-for="page_base" hidden></div>
           </div>
           <div class="col-md-6 col-lg-3">
             <label class="form-label" for="category_base">Kategorie</label>
             <input class="form-control" id="category_base" name="category_base" value="<?= $h($permalinks['category_base']) ?>" pattern="[a-z0-9\-]+" required>
             <div class="form-text">Výchozí: <?= $h($defaults['category_base']) ?></div>
+            <div class="invalid-feedback" data-error-for="category_base" hidden></div>
           </div>
           <div class="col-md-6 col-lg-3">
             <label class="form-label" for="tag_base">Štítky</label>
             <input class="form-control" id="tag_base" name="tag_base" value="<?= $h($permalinks['tag_base']) ?>" pattern="[a-z0-9\-]+" required>
             <div class="form-text">Výchozí: <?= $h($defaults['tag_base']) ?></div>
+            <div class="invalid-feedback" data-error-for="tag_base" hidden></div>
           </div>
         </div>
         <div class="form-text mt-2">Používejte pouze malá písmena, čísla a pomlčky. Změna adresy může ovlivnit SEO – po úpravě aktualizujte odkazy v menu i obsahu.</div>
