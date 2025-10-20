@@ -480,58 +480,22 @@ final class NavigationController extends BaseAdminController
             $this->redirectTo(null);
         }
 
-        $itemsRaw = $menu ? $this->allItemsForMenu((int)$menu['id']) : [];
-        $itemsResolved = $itemsRaw ? $this->resolveItems($itemsRaw) : [];
-        $tree = $this->buildTree($itemsResolved);
-        $flat = $this->flattenTree($tree);
-
-        $editingItem = null;
         $itemId = (int)($_GET['item_id'] ?? 0);
-        if ($itemId > 0 && $menu) {
-            $editingItem = DB::query()
-                ->table('navigation_items')
-                ->select(['id', 'menu_id', 'parent_id', 'title', 'link_type', 'link_reference', 'url', 'target', 'css_class', 'sort_order'])
-                ->where('id', '=', $itemId)
-                ->first() ?: null;
-            if (!$editingItem || (int)$editingItem['menu_id'] !== (int)$menu['id']) {
-                $editingItem = null;
-            } else {
-                $resolved = $this->linkResolver()->resolve($editingItem);
-                $editingItem['link_type'] = $resolved['type'];
-                $editingItem['link_reference'] = $resolved['reference'];
-                $editingItem['url'] = $resolved['url'];
-                $editingItem['link_valid'] = $resolved['valid'];
-                $editingItem['link_reason'] = $resolved['reason'];
-                $editingItem['link_meta'] = $resolved['meta'];
-            }
-        }
+        $state = $this->navigationState(
+            $menu ? (int)$menu['id'] : ($menus ? (int)($menus[0]['id'] ?? 0) : null),
+            $itemId > 0 ? $itemId : null,
+            $tablesReady,
+            $menus,
+        );
 
-        $invalidParents = [];
-        if ($editingItem) {
-            $invalidParents = $this->descendantIdsFromList($itemsResolved ?: $itemsRaw, (int)$editingItem['id']);
-        }
-        $parentOptions = $this->parentOptions($flat, $editingItem ? (int)$editingItem['id'] : null, $invalidParents);
-
-        $menuLocations = $this->menuLocationOptions($menus);
-        $menuLocationValue = $menu ? $this->sanitizeLocation((string)$menu['location']) : null;
-
-        $this->renderAdmin('navigation/index', [
-            'pageTitle' => 'Navigace',
-            'nav' => AdminNavigation::build('navigation'),
-            'tablesReady' => $tablesReady,
-            'menus' => $menus,
-            'menu' => $menu,
-            'menuId' => $menuId,
-            'menuLocations' => $menuLocations,
-            'menuLocationValue' => $menuLocationValue,
-            'items' => $flat,
-            'editingItem' => $editingItem,
-            'parentOptions' => $parentOptions,
-            'targets' => $this->targetOptions(),
-            'quickAddOptions' => $this->quickAddOptions(),
-            'linkTypeLabels' => $this->linkTypeLabels(),
-            'linkStatusMessages' => $this->linkStatusMessages(),
-        ]);
+        $this->renderAdmin('navigation/index', array_merge(
+            [
+                'pageTitle' => 'Navigace',
+                'nav' => AdminNavigation::build('navigation'),
+                'quickAddOptions' => $this->quickAddOptions(),
+            ],
+            $state,
+        ));
     }
 
     private function quickAddOptions(): array
@@ -665,12 +629,156 @@ final class NavigationController extends BaseAdminController
         return $items;
     }
 
+    /**
+     * @param array<int,array<string,mixed>>|null $menus
+     * @return array<string,mixed>
+     */
+    private function navigationState(?int $menuId = null, ?int $itemId = null, ?bool $tablesReady = null, ?array $menus = null): array
+    {
+        $ready = $tablesReady ?? $this->tablesReady();
+        $availableMenus = $menus ?? ($ready ? $this->loadMenus() : []);
+        if (!$ready) {
+            $availableMenus = [];
+        }
+
+        if ($menuId === null) {
+            $menuId = $availableMenus ? (int)($availableMenus[0]['id'] ?? 0) : 0;
+        }
+
+        $menu = null;
+        if ($menuId > 0) {
+            $menu = $this->findMenu($menuId);
+            if (!$menu) {
+                $menuId = 0;
+            } else {
+                $menuId = (int)$menu['id'];
+            }
+        } else {
+            $menuId = 0;
+        }
+
+        $itemsRaw = $menuId > 0 ? $this->allItemsForMenu($menuId) : [];
+        $itemsResolved = $itemsRaw ? $this->resolveItems($itemsRaw) : [];
+        $tree = $this->buildTree($itemsResolved);
+        $flat = $this->flattenTree($tree);
+
+        $editingItem = null;
+        if ($itemId !== null && $itemId > 0 && $menu) {
+            $editingItem = DB::query()
+                ->table('navigation_items')
+                ->select(['id', 'menu_id', 'parent_id', 'title', 'link_type', 'link_reference', 'url', 'target', 'css_class', 'sort_order'])
+                ->where('id', '=', $itemId)
+                ->first() ?: null;
+            if (!$editingItem || (int)$editingItem['menu_id'] !== $menuId) {
+                $editingItem = null;
+            } else {
+                $resolved = $this->linkResolver()->resolve($editingItem);
+                $editingItem['link_type'] = $resolved['type'];
+                $editingItem['link_reference'] = $resolved['reference'];
+                $editingItem['url'] = $resolved['url'];
+                $editingItem['link_valid'] = $resolved['valid'];
+                $editingItem['link_reason'] = $resolved['reason'];
+                $editingItem['link_meta'] = $resolved['meta'];
+            }
+        }
+
+        $invalidParents = [];
+        if ($editingItem) {
+            $invalidParents = $this->descendantIdsFromList($itemsResolved ?: $itemsRaw, (int)$editingItem['id']);
+        }
+        $parentOptions = $this->parentOptions($flat, $editingItem ? (int)$editingItem['id'] : null, $invalidParents);
+
+        return [
+            'tablesReady' => $ready,
+            'menus' => $availableMenus,
+            'menu' => $menu,
+            'menuId' => $menu ? (int)$menu['id'] : 0,
+            'menuLocations' => $this->menuLocationOptions($availableMenus),
+            'menuLocationValue' => $menu ? $this->sanitizeLocation((string)$menu['location']) : null,
+            'items' => $flat,
+            'itemsTree' => $tree,
+            'editingItem' => $editingItem,
+            'parentOptions' => $parentOptions,
+            'targets' => $this->targetOptions(),
+            'linkTypeLabels' => $this->linkTypeLabels(),
+            'linkStatusMessages' => $this->linkStatusMessages(),
+            'csrf' => $this->token(),
+        ];
+    }
+
+    private function buildNavigationContext(?int $menuId, array $extra = []): array
+    {
+        $menuValue = $menuId !== null && $menuId > 0 ? $menuId : null;
+        $itemValue = null;
+        if (isset($extra['item_id'])) {
+            $candidate = (int)$extra['item_id'];
+            if ($candidate > 0) {
+                $itemValue = $candidate;
+            }
+        }
+
+        return [
+            'menuId' => $menuValue,
+            'itemId' => $itemValue,
+            'query' => $extra,
+        ];
+    }
+
+    private function respondNavigationSuccess(string $message, ?int $menuId, array $extra = [], array $meta = []): never
+    {
+        $itemId = isset($extra['item_id']) ? (int)$extra['item_id'] : null;
+        if ($this->isAjax()) {
+            $payload = [
+                'success' => true,
+                'message' => $message,
+                'flash' => [
+                    'type' => 'success',
+                    'msg' => $message,
+                ],
+                'data' => $this->navigationState($menuId, $itemId),
+                'context' => $this->buildNavigationContext($menuId, $extra),
+            ];
+            if ($meta !== []) {
+                $payload['meta'] = $meta;
+            }
+            $this->jsonResponse($payload);
+        }
+
+        $redirectMenuId = $menuId !== null && $menuId > 0 ? $menuId : null;
+        $this->flash('success', $message);
+        $this->redirectTo($redirectMenuId, $extra);
+    }
+
+    private function respondNavigationError(string $message, ?int $menuId = null, array $extra = [], int $status = 400, string $flashType = 'danger', array $meta = []): never
+    {
+        $itemId = isset($extra['item_id']) ? (int)$extra['item_id'] : null;
+        if ($this->isAjax()) {
+            $payload = [
+                'success' => false,
+                'message' => $message,
+                'flash' => [
+                    'type' => $flashType,
+                    'msg' => $message,
+                ],
+                'data' => $this->navigationState($menuId, $itemId),
+                'context' => $this->buildNavigationContext($menuId, $extra),
+            ];
+            if ($meta !== []) {
+                $payload['meta'] = $meta;
+            }
+            $this->jsonResponse($payload, $status);
+        }
+
+        $redirectMenuId = $menuId !== null && $menuId > 0 ? $menuId : null;
+        $this->flash($flashType, $message);
+        $this->redirectTo($redirectMenuId, $extra);
+    }
+
     private function createMenu(): void
     {
         $this->assertCsrf();
         if (!$this->tablesReady()) {
-            $this->flash('danger', 'Tabulky navigace nejsou k dispozici.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Tabulky navigace nejsou k dispozici.');
         }
 
         $name = trim((string)($_POST['name'] ?? ''));
@@ -679,16 +787,19 @@ final class NavigationController extends BaseAdminController
         $description = trim((string)($_POST['description'] ?? ''));
 
         if ($name === '') {
-            $this->flash('danger', 'Název menu je povinný.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Název menu je povinný.', null, [], 422);
         }
 
         $existingLocation = $this->menuByLocation($location);
         if ($existingLocation) {
             $label = $this->humanizeLocation($location);
             $nameExisting = (string)($existingLocation['name'] ?? '');
-            $this->flash('danger', sprintf('Umístění „%s“ již používá menu „%s“. Nejprve změňte nebo odeberte existující menu.', $label, $nameExisting));
-            $this->redirectTo((int)($existingLocation['id'] ?? 0));
+            $this->respondNavigationError(
+                sprintf('Umístění „%s“ již používá menu „%s“. Nejprve změňte nebo odeberte existující menu.', $label, $nameExisting),
+                isset($existingLocation['id']) ? (int)$existingLocation['id'] : null,
+                [],
+                422
+            );
         }
 
         $slugBase = $slugInput !== '' ? $slugInput : $name;
@@ -707,8 +818,10 @@ final class NavigationController extends BaseAdminController
             ])
             ->insertGetId();
 
-        $this->flash('success', 'Menu bylo vytvořeno.');
-        $this->redirectTo($menuId);
+        $this->respondNavigationSuccess('Menu bylo vytvořeno.', $menuId, [], [
+            'action' => 'create-menu',
+            'menuId' => $menuId,
+        ]);
     }
 
     private function updateMenu(): void
@@ -716,13 +829,11 @@ final class NavigationController extends BaseAdminController
         $this->assertCsrf();
         $menuId = (int)($_POST['id'] ?? 0);
         if ($menuId <= 0) {
-            $this->flash('danger', 'Chybí ID menu.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Chybí ID menu.', null, [], 422);
         }
         $menu = $this->findMenu($menuId);
         if (!$menu) {
-            $this->flash('danger', 'Menu nebylo nalezeno.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Menu nebylo nalezeno.', null, [], 404);
         }
 
         $name = trim((string)($_POST['name'] ?? ''));
@@ -731,16 +842,19 @@ final class NavigationController extends BaseAdminController
         $description = trim((string)($_POST['description'] ?? ''));
 
         if ($name === '') {
-            $this->flash('danger', 'Název menu je povinný.');
-            $this->redirectTo($menuId);
+            $this->respondNavigationError('Název menu je povinný.', $menuId, [], 422);
         }
 
         $existingLocation = $this->menuByLocation($location, $menuId);
         if ($existingLocation) {
             $label = $this->humanizeLocation($location);
             $nameExisting = (string)($existingLocation['name'] ?? '');
-            $this->flash('danger', sprintf('Umístění „%s“ již používá menu „%s“. Nejprve uvolněte danou lokaci.', $label, $nameExisting));
-            $this->redirectTo($menuId);
+            $this->respondNavigationError(
+                sprintf('Umístění „%s“ již používá menu „%s“. Nejprve uvolněte danou lokaci.', $label, $nameExisting),
+                $menuId,
+                [],
+                422
+            );
         }
 
         $slugBase = $slugInput !== '' ? $slugInput : $name;
@@ -759,8 +873,10 @@ final class NavigationController extends BaseAdminController
             ->where('id', '=', $menuId)
             ->execute();
 
-        $this->flash('success', 'Menu bylo upraveno.');
-        $this->redirectTo($menuId);
+        $this->respondNavigationSuccess('Menu bylo upraveno.', $menuId, [], [
+            'action' => 'update-menu',
+            'menuId' => $menuId,
+        ]);
     }
 
     private function deleteMenu(): void
@@ -768,20 +884,30 @@ final class NavigationController extends BaseAdminController
         $this->assertCsrf();
         $menuId = (int)($_POST['id'] ?? 0);
         if ($menuId <= 0) {
-            $this->flash('danger', 'Chybí ID menu.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Chybí ID menu.', null, [], 422);
         }
         $menu = $this->findMenu($menuId);
         if (!$menu) {
-            $this->flash('danger', 'Menu nebylo nalezeno.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Menu nebylo nalezeno.', null, [], 404);
         }
 
         DB::query()->table('navigation_items')->where('menu_id', '=', $menuId)->delete()->execute();
         DB::query()->table('navigation_menus')->where('id', '=', $menuId)->delete()->execute();
 
-        $this->flash('success', 'Menu bylo smazáno.');
-        $this->redirectTo(null);
+        $remainingMenus = $this->loadMenus();
+        $nextMenuId = null;
+        if ($remainingMenus) {
+            $candidate = (int)($remainingMenus[0]['id'] ?? 0);
+            if ($candidate > 0) {
+                $nextMenuId = $candidate;
+            }
+        }
+
+        $this->respondNavigationSuccess('Menu bylo smazáno.', $nextMenuId, [], [
+            'action' => 'delete-menu',
+            'deletedMenuId' => $menuId,
+            'nextMenuId' => $nextMenuId,
+        ]);
     }
 
     private function createItem(): void
@@ -789,13 +915,11 @@ final class NavigationController extends BaseAdminController
         $this->assertCsrf();
         $menuId = (int)($_POST['menu_id'] ?? 0);
         if ($menuId <= 0) {
-            $this->flash('danger', 'Chybí ID menu.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Chybí ID menu.', null, [], 422);
         }
         $menu = $this->findMenu($menuId);
         if (!$menu) {
-            $this->flash('danger', 'Menu nebylo nalezeno.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Menu nebylo nalezeno.', null, [], 404);
         }
 
         $title = trim((string)($_POST['title'] ?? ''));
@@ -808,23 +932,20 @@ final class NavigationController extends BaseAdminController
         $sortOrder = (int)($_POST['sort_order'] ?? 0);
 
         if ($title === '') {
-            $this->flash('danger', 'Název položky je povinný.');
-            $this->redirectTo($menuId);
+            $this->respondNavigationError('Název položky je povinný.', $menuId, [], 422);
         }
 
         $linkData = $this->prepareLinkData($linkTypeInput, $linkReferenceInput, $urlInput);
 
         if ($linkData['type'] === 'custom' && $linkData['url'] === '') {
-            $this->flash('danger', 'Pro vlastní odkaz musíte vyplnit URL adresu.');
-            $this->redirectTo($menuId);
+            $this->respondNavigationError('Pro vlastní odkaz musíte vyplnit URL adresu.', $menuId, [], 422);
         }
 
         if ($linkData['type'] !== 'custom' && !$linkData['valid']) {
             $messages = $this->linkStatusMessages();
             $reason = $linkData['reason'] ?? 'missing';
             $message = $messages[$reason] ?? 'Vybraný obsah není možné použít v navigaci.';
-            $this->flash('danger', $message);
-            $this->redirectTo($menuId);
+            $this->respondNavigationError($message, $menuId, [], 422);
         }
 
         $linkType = $linkData['type'];
@@ -860,8 +981,10 @@ final class NavigationController extends BaseAdminController
             ])
             ->insertGetId();
 
-        $this->flash('success', 'Položka byla přidána.');
-        $this->redirectTo($menuId, ['item_id' => $itemId]);
+        $this->respondNavigationSuccess('Položka byla přidána.', $menuId, ['item_id' => $itemId], [
+            'action' => 'create-item',
+            'itemId' => $itemId,
+        ]);
     }
 
     private function updateItem(): void
@@ -870,8 +993,7 @@ final class NavigationController extends BaseAdminController
         $itemId = (int)($_POST['id'] ?? 0);
         $menuId = (int)($_POST['menu_id'] ?? 0);
         if ($itemId <= 0 || $menuId <= 0) {
-            $this->flash('danger', 'Chybí údaje položky.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Chybí údaje položky.', null, [], 422);
         }
 
         $item = DB::query()
@@ -880,8 +1002,7 @@ final class NavigationController extends BaseAdminController
             ->where('id', '=', $itemId)
             ->first();
         if (!$item || (int)$item['menu_id'] !== $menuId) {
-            $this->flash('danger', 'Položka nebyla nalezena.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Položka nebyla nalezena.', $menuId, [], 404);
         }
 
         $title = trim((string)($_POST['title'] ?? ''));
@@ -894,23 +1015,20 @@ final class NavigationController extends BaseAdminController
         $sortOrder = (int)($_POST['sort_order'] ?? 0);
 
         if ($title === '') {
-            $this->flash('danger', 'Název položky je povinný.');
-            $this->redirectTo($menuId, ['item_id' => $itemId]);
+            $this->respondNavigationError('Název položky je povinný.', $menuId, ['item_id' => $itemId], 422);
         }
 
         $linkData = $this->prepareLinkData($linkTypeInput, $linkReferenceInput, $urlInput);
 
         if ($linkData['type'] === 'custom' && $linkData['url'] === '') {
-            $this->flash('danger', 'Pro vlastní odkaz musíte vyplnit URL adresu.');
-            $this->redirectTo($menuId, ['item_id' => $itemId]);
+            $this->respondNavigationError('Pro vlastní odkaz musíte vyplnit URL adresu.', $menuId, ['item_id' => $itemId], 422);
         }
 
         if ($linkData['type'] !== 'custom' && !$linkData['valid']) {
             $messages = $this->linkStatusMessages();
             $reason = $linkData['reason'] ?? 'missing';
             $message = $messages[$reason] ?? 'Vybraný obsah není možné použít v navigaci.';
-            $this->flash('danger', $message);
-            $this->redirectTo($menuId, ['item_id' => $itemId]);
+            $this->respondNavigationError($message, $menuId, ['item_id' => $itemId], 422);
         }
 
         $linkType = $linkData['type'];
@@ -952,8 +1070,10 @@ final class NavigationController extends BaseAdminController
             ->where('id', '=', $itemId)
             ->execute();
 
-        $this->flash('success', 'Položka byla upravena.');
-        $this->redirectTo($menuId, ['item_id' => $itemId]);
+        $this->respondNavigationSuccess('Položka byla upravena.', $menuId, ['item_id' => $itemId], [
+            'action' => 'update-item',
+            'itemId' => $itemId,
+        ]);
     }
 
     private function deleteItem(): void
@@ -962,8 +1082,7 @@ final class NavigationController extends BaseAdminController
         $itemId = (int)($_POST['id'] ?? 0);
         $menuId = (int)($_POST['menu_id'] ?? 0);
         if ($itemId <= 0 || $menuId <= 0) {
-            $this->flash('danger', 'Chybí údaje položky.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Chybí údaje položky.', null, [], 422);
         }
 
         $item = DB::query()
@@ -972,8 +1091,7 @@ final class NavigationController extends BaseAdminController
             ->where('id', '=', $itemId)
             ->first();
         if (!$item || (int)$item['menu_id'] !== $menuId) {
-            $this->flash('danger', 'Položka nebyla nalezena.');
-            $this->redirectTo(null);
+            $this->respondNavigationError('Položka nebyla nalezena.', $menuId, [], 404);
         }
 
         DB::query()
@@ -988,7 +1106,9 @@ final class NavigationController extends BaseAdminController
             ->delete()
             ->execute();
 
-        $this->flash('success', 'Položka byla odstraněna.');
-        $this->redirectTo($menuId);
+        $this->respondNavigationSuccess('Položka byla odstraněna.', $menuId, [], [
+            'action' => 'delete-item',
+            'itemId' => $itemId,
+        ]);
     }
 }
