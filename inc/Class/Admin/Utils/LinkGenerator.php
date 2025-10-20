@@ -52,8 +52,16 @@ final class LinkGenerator
 
     private function basePath(): string
     {
-        $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
-        return $base === '/' ? '' : $base;
+        $script = (string)($_SERVER['SCRIPT_NAME'] ?? '/');
+        $dir = dirname($script);
+        $dir = str_replace('\\', '/', $dir);
+        $dir = rtrim($dir, '/');
+
+        if ($dir === '' || $dir === '.' || $dir === '/') {
+            return '';
+        }
+
+        return $dir;
     }
 
     private function prettyPath(string $path): string
