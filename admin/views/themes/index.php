@@ -11,11 +11,11 @@ declare(strict_types=1);
 $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($themes,$activeSlug,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
-  <div class="row g-3">
+  <div class="row g-3" data-themes-page data-csrf="<?= $h($csrf) ?>">
     <div class="col-lg-8">
-      <div class="row g-3">
+      <div class="row g-3" data-themes-list>
         <?php foreach ($themes as $t): ?>
-          <div class="col-md-6">
+          <div class="col-md-6" data-theme-card data-theme-slug="<?= $h($t['slug']) ?>">
             <div class="card h-100 shadow-sm">
               <?php if ($t['screenshot']): ?>
                 <img src="<?= $h($t['screenshot']) ?>" class="card-img-top" alt="screenshot" style="object-fit:cover;max-height:180px">
@@ -29,32 +29,32 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 </span>
               </div>
               <div class="card-footer d-flex align-items-center gap-2">
-                <?php if ($t['slug'] === $activeSlug): ?>
-                  <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle">Aktivní</span>
-                <?php else: ?>
-                  <form method="post" action="admin.php?r=themes&a=activate" class="ms-auto" data-ajax>
-                    <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-                    <input type="hidden" name="slug" value="<?= $h($t['slug']) ?>">
-                    <button class="btn btn-light btn-sm border" type="submit">Aktivovat</button>
-                  </form>
-                <?php endif; ?>
+                <span class="badge text-bg-primary-subtle text-primary-emphasis border border-primary-subtle<?= $t['slug'] === $activeSlug ? '' : ' d-none' ?>" data-theme-active-badge>Aktivní</span>
+                <form method="post" action="admin.php?r=themes&a=activate" class="ms-auto<?= $t['slug'] === $activeSlug ? ' d-none' : '' ?>" data-ajax data-theme-activate-form>
+                  <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+                  <input type="hidden" name="slug" value="<?= $h($t['slug']) ?>">
+                  <button class="btn btn-light btn-sm border" type="submit">Aktivovat</button>
+                </form>
               </div>
             </div>
           </div>
         <?php endforeach; ?>
         <?php if (!$themes): ?>
-          <div class="col-12"><div class="alert alert-info">Zatím žádné šablony v <code>/themes</code>.</div></div>
+          <div class="col-12" data-theme-empty><div class="alert alert-info">Zatím žádné šablony v <code>/themes</code>.</div></div>
         <?php endif; ?>
       </div>
     </div>
 
     <div class="col-lg-4">
-      <form class="card shadow-sm" method="post" action="admin.php?r=themes&a=upload" enctype="multipart/form-data" data-ajax>
+      <form class="card shadow-sm" method="post" action="admin.php?r=themes&a=upload" enctype="multipart/form-data" data-ajax data-theme-upload-form>
         <div class="card-header">Nahrát šablonu (ZIP)</div>
         <div class="card-body">
           <input type="file" class="form-control" name="theme_zip" accept=".zip,application/zip" required>
           <div class="form-text mt-2">
             ZIP musí obsahovat <code>theme.json</code> s <code>{"slug": "...", "name": "..."}</code>.
+          </div>
+          <div class="progress mt-3 d-none" data-theme-upload-progress>
+            <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" data-theme-upload-progress-bar>0%</div>
           </div>
         </div>
         <div class="card-footer">
