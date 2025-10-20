@@ -279,7 +279,7 @@
 
     function renderLibrary(items) {
       if (!libraryGrid) { return; }
-      libraryGrid.innerHTML = '';
+      clearElement(libraryGrid);
       libraryItemsMap.clear();
       clearLibrarySelection();
 
@@ -552,6 +552,105 @@
       FIGURE: true
     };
 
+    function clearElement(element) {
+      if (!element) {
+        return;
+      }
+      while (element.firstChild) {
+        element.removeChild(element.firstChild);
+      }
+    }
+
+    function elementHasMeaningfulContent(element) {
+      if (!element) {
+        return false;
+      }
+      var nodes = element.childNodes ? Array.prototype.slice.call(element.childNodes) : [];
+      return nodes.some(function (node) {
+        if (!node) {
+          return false;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+          return !!(node.textContent && node.textContent.trim() !== '');
+        }
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          if (node.tagName === 'BR') {
+            return false;
+          }
+          if (node.hasAttribute && node.hasAttribute('data-ce-marker')) {
+            return false;
+          }
+          return true;
+        }
+        return false;
+      });
+    }
+
+    function ensureParagraphPlaceholder(paragraph) {
+      if (!paragraph || paragraph.tagName !== 'P') {
+        return;
+      }
+      if (elementHasMeaningfulContent(paragraph)) {
+        return;
+      }
+      clearElement(paragraph);
+      paragraph.appendChild(document.createElement('br'));
+    }
+
+    function createFragmentFromHtml(html) {
+      var fragment = document.createDocumentFragment();
+      if (!html) {
+        return fragment;
+      }
+      if (typeof DOMParser === 'function') {
+        try {
+          var parser = new DOMParser();
+          var doc = parser.parseFromString('<!DOCTYPE html><html><body>' + html + '</body></html>', 'text/html');
+          if (doc && doc.body) {
+            while (doc.body.firstChild) {
+              fragment.appendChild(doc.body.firstChild);
+            }
+            return fragment;
+          }
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      if (document.createRange) {
+        try {
+          var range = document.createRange();
+          var context = area && area.parentNode ? area.parentNode : document.body;
+          range.selectNodeContents(context);
+          var parsed = range.createContextualFragment(html);
+          fragment.appendChild(parsed);
+          return fragment;
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      fragment.appendChild(document.createTextNode(html));
+      return fragment;
+    }
+
+    function setAreaContentFromHtml(html) {
+      clearElement(area);
+      var fragment = createFragmentFromHtml(html || '');
+      if (fragment && fragment.childNodes && fragment.childNodes.length) {
+        area.appendChild(fragment);
+      } else {
+        area.appendChild(createEmptyParagraph());
+      }
+      normalizeEditorContent();
+    }
+
+    function getAreaHtmlString() {
+      var container = document.createElement('div');
+      Array.prototype.slice.call(area.childNodes || []).forEach(function (node) {
+        container.appendChild(node.cloneNode(true));
+      });
+      return container.innerHTML;
+    }
+
     function createEmptyParagraph() {
       var paragraph = document.createElement('p');
       paragraph.appendChild(document.createElement('br'));
@@ -601,18 +700,16 @@
 
     function wrapNodeInParagraph(node) {
       var paragraph = createEmptyParagraph();
-      if (node && node.parentNode === area) {
-        area.replaceChild(paragraph, node);
-      } else if (node && node.parentNode) {
-        node.parentNode.replaceChild(paragraph, node);
-      }
       if (node) {
-        paragraph.innerHTML = '';
+        if (node.parentNode === area) {
+          area.replaceChild(paragraph, node);
+        } else if (node.parentNode) {
+          node.parentNode.replaceChild(paragraph, node);
+        }
+        clearElement(paragraph);
         paragraph.appendChild(node);
       }
-      if (!paragraph.innerHTML || paragraph.innerHTML.trim() === '') {
-        paragraph.innerHTML = '<br>';
-      }
+      ensureParagraphPlaceholder(paragraph);
       return paragraph;
     }
 
@@ -620,8 +717,8 @@
       if (!block || block.nodeType !== Node.ELEMENT_NODE) {
         return;
       }
-      if (block.tagName === 'P' && block.innerHTML.trim() === '') {
-        block.innerHTML = '<br>';
+      if (block.tagName === 'P') {
+        ensureParagraphPlaceholder(block);
       }
       if ((block.tagName === 'UL' || block.tagName === 'OL') && !block.querySelector('li')) {
         var li = document.createElement('li');
@@ -822,9 +919,7 @@
             while (child.firstChild) {
               replacement.appendChild(child.firstChild);
             }
-            if (replacement.innerHTML.trim() === '') {
-              replacement.innerHTML = '<br>';
-            }
+            ensureParagraphPlaceholder(replacement);
             area.replaceChild(replacement, child);
             ensureBlockPlaceholder(replacement);
             return;
@@ -855,8 +950,9 @@
       if (!html) {
         return [];
       }
+      var fragment = createFragmentFromHtml(html);
       var container = document.createElement('div');
-      container.innerHTML = html;
+      container.appendChild(fragment);
       var imgs = container.querySelectorAll ? container.querySelectorAll('img[data-media-id]') : [];
       var collected = [];
       Array.prototype.forEach.call(imgs, function (img) {
@@ -916,8 +1012,16 @@
         button.setAttribute('aria-label', srLabel);
       }
       if (buttonConfig.icon) {
-        button.innerHTML = '<i class="bi ' + buttonConfig.icon + '" aria-hidden="true"></i>' +
-          '<span class="visually-hidden">' + srLabel + '</span>';
+        var iconEl = document.createElement('i');
+        iconEl.className = 'bi ' + buttonConfig.icon;
+        iconEl.setAttribute('aria-hidden', 'true');
+        button.appendChild(iconEl);
+        if (srLabel) {
+          var srSpan = document.createElement('span');
+          srSpan.className = 'visually-hidden';
+          srSpan.textContent = srLabel;
+          button.appendChild(srSpan);
+        }
       } else if (buttonConfig.label) {
         button.textContent = buttonConfig.label;
       } else if (srLabel) {
@@ -961,7 +1065,7 @@
         sourceTextarea.value = textarea.value;
         sourceToggle.classList.add('active');
       } else {
-        area.innerHTML = sourceTextarea.value;
+        setAreaContentFromHtml(sourceTextarea.value);
         sourceToggle.classList.remove('active');
       }
       updateTextarea();
@@ -1185,9 +1289,10 @@
         currentHtml = sourceTextarea.value;
       } else {
         normalizeEditorContent();
-        textarea.value = area.innerHTML;
-        sourceTextarea.value = textarea.value;
-        currentHtml = textarea.value;
+        var html = getAreaHtmlString();
+        textarea.value = html;
+        sourceTextarea.value = html;
+        currentHtml = html;
       }
       refreshAttachmentsFromHtml(currentHtml);
     }
@@ -1211,7 +1316,7 @@
 
     function restoreInitialContent() {
       var value = textarea.value || '';
-      area.innerHTML = value;
+      setAreaContentFromHtml(value);
       sourceTextarea.value = value;
       updateTextarea();
       syncState();

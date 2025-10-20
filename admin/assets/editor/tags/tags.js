@@ -70,6 +70,15 @@
     return out;
   }
 
+  function clearElement(element) {
+    if (!element) {
+      return;
+    }
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+  }
+
   function createSuggestionList(items, query, selectedIds) {
     var normalizedQuery = query.trim().toLowerCase();
     var filtered = items.filter(function (item) {
@@ -167,7 +176,7 @@
     }
 
     function renderChips() {
-      chips.innerHTML = '';
+      clearElement(chips);
       if (!state.length) {
         var emptyState = document.createElement('div');
         emptyState.className = 'tag-field-empty';
@@ -182,7 +191,7 @@
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.setAttribute('aria-label', 'Odebrat');
-        btn.innerHTML = '&times;';
+        btn.textContent = '×';
         btn.addEventListener('click', function () {
           state.splice(index, 1);
           renderChips();
@@ -221,13 +230,13 @@
     }
 
     function closeSuggestions() {
-      suggestionBox.innerHTML = '';
+      clearElement(suggestionBox);
       suggestionBox.classList.remove('show');
       suggestionBox.dataset.activeIndex = '';
     }
 
     function openSuggestions(list) {
-      suggestionBox.innerHTML = '';
+      clearElement(suggestionBox);
       if (!list.length) {
         closeSuggestions();
         return;
