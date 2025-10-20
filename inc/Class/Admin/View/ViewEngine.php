@@ -94,6 +94,18 @@ final class ViewEngine
         $this->includeTemplate($resolved, $payload, $contentBlock);
     }
 
+    public function renderToString(string $template, array $data = [], ?callable $contentBlock = null): string
+    {
+        ob_start();
+        try {
+            $this->render($template, $data, $contentBlock);
+        } finally {
+            $buffer = ob_get_clean();
+        }
+
+        return $buffer === false ? '' : $buffer;
+    }
+
     public function share(array $data): void
     {
         foreach ($data as $key => $value) {

@@ -337,6 +337,103 @@
     return message;
   }
 
+  function fragmentFromHtml(html) {
+    var template = document.createElement('template');
+    template.innerHTML = typeof html === 'string' ? html : '';
+    return template.content;
+  }
+
+  function transferFragment(parent, referenceNode, fragment) {
+    var inserted = [];
+    if (!parent || !fragment) {
+      return inserted;
+    }
+    var node;
+    while ((node = fragment.firstChild)) {
+      fragment.removeChild(node);
+      parent.insertBefore(node, referenceNode);
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        inserted.push(node);
+      }
+    }
+    return inserted;
+  }
+
+  function applyAjaxFragments(fragments) {
+    if (!Array.isArray(fragments) || fragments.length === 0) {
+      return [];
+    }
+
+    var touchedRoots = [];
+
+    fragments.forEach(function (fragment) {
+      if (!fragment || typeof fragment.selector !== 'string' || fragment.selector.trim() === '') {
+        return;
+      }
+
+      var selector = fragment.selector.trim();
+      var mode = typeof fragment.mode === 'string' ? fragment.mode : 'replace';
+      var html = fragment.html;
+      var targets = Array.prototype.slice.call(document.querySelectorAll(selector));
+
+      targets.forEach(function (target) {
+        if (!target) {
+          return;
+        }
+
+        var inserted = [];
+
+        switch (mode) {
+          case 'replace':
+            if (!target.parentNode) {
+              return;
+            }
+            inserted = transferFragment(target.parentNode, target, fragmentFromHtml(html));
+            target.parentNode.removeChild(target);
+            break;
+          case 'replaceChildren':
+            target.innerHTML = typeof html === 'string' ? html : '';
+            inserted = [target];
+            break;
+          case 'append':
+            inserted = transferFragment(target, null, fragmentFromHtml(html));
+            if (!inserted.length) {
+              inserted = [target];
+            }
+            break;
+          case 'prepend':
+            inserted = transferFragment(target, target.firstChild, fragmentFromHtml(html));
+            if (!inserted.length) {
+              inserted = [target];
+            }
+            break;
+          case 'remove':
+            if (target.parentNode) {
+              target.parentNode.removeChild(target);
+            }
+            inserted = [];
+            break;
+          case 'text':
+            target.textContent = typeof html === 'string' ? html : '';
+            inserted = [target];
+            break;
+          default:
+            target.innerHTML = typeof html === 'string' ? html : '';
+            inserted = [target];
+            break;
+        }
+
+        inserted.forEach(function (node) {
+          if (node && node.nodeType === Node.ELEMENT_NODE && touchedRoots.indexOf(node) === -1) {
+            touchedRoots.push(node);
+          }
+        });
+      });
+    });
+
+    return touchedRoots;
+  }
+
   function dispatchNavigated(url, options) {
     var detail = {
       url: url,
@@ -1381,6 +1478,7 @@
       var data = payload.data;
       var normalizedResponse = null;
       var normalizedMessageShown = false;
+      var fragmentRoots = [];
 
       if (!response.ok) {
         var message = extractMessageFromData(data, 'Došlo k chybě (' + response.status + ')');
@@ -1433,6 +1531,9 @@
           dispatchNavigated(window.location.href, { source: 'form', root: formAppliedRoot });
           return Promise.resolve();
         }
+        if (Array.isArray(data.fragments) && data.fragments.length) {
+          fragmentRoots = applyAjaxFragments(data.fragments);
+        }
       } else if (typeof payload.text === 'string' && payload.text.trim() !== '') {
         var trimmed = payload.text.trim();
         if (trimmed.charAt(0) === '<') {
@@ -1459,6 +1560,12 @@
         }
         if (!flash && !normalizedMessageShown && typeof data.message === 'string' && data.message) {
           showFlashMessage(data.success === false ? 'danger' : 'info', data.message, form);
+        }
+        if (fragmentRoots.length) {
+          var fragmentRoot = fragmentRoots.length === 1 ? fragmentRoots[0] : document;
+          dispatchNavigated(window.location.href, { source: 'fragment', root: fragmentRoot });
+        } else if (Array.isArray(data.fragments) && data.fragments.length) {
+          dispatchNavigated(window.location.href, { source: 'fragment', root: document });
         }
       } else if (!flash && typeof payload.text === 'string' && payload.text.trim() !== '') {
         showFlashMessage('info', payload.text.trim(), form);

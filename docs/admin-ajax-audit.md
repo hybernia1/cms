@@ -8,6 +8,7 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
   - `html` + volitelný `title` (render celé stránky) – vrací jej `BaseAdminController::renderAdmin()`.
   - nebo `redirect` + volitelný `flash` (po úspěšném POSTu) – generuje `BaseAdminController::redirect()`.
   - výjimkou je autosave (`posts_autosave`), který vrací vlastní JSON payload.
+  - nově také `success` + `fragments` pro dílčí přerenderování (u `posts` bulk/toggle/delete).
 
 ## `auth` (přihlášení)
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |
@@ -23,9 +24,9 @@ Tento přehled mapuje všechna současná `data-ajax` odesílání v administrac
 | UI místo | Endpoint | Metoda | Klíčové parametry | Handler | Současná odpověď |
 | --- | --- | --- | --- | --- | --- |
 | Toolbar filtr/seach (`admin/views/posts/index.php` → `parts/listing/toolbar.php`) | `admin.php` (`r=posts`, `type`, volitelně `status`,`author`,`q`) | GET | `q`, `status`, `author`, `type`, `page` | `PostsController::index()` | Vrací HTML (`renderAdmin`). |
-| Bulk akce (`parts/listing/bulk-form.php`) | `admin.php?r=posts&a=bulk&type=…` | POST | `bulk_action`, `ids[]`, `csrf`, zachované filtry | `PostsController::bulk()` | Redirect na listing + flash. |
-| Přepnutí stavu řádku | `admin.php?r=posts&a=toggle&type=…` | POST | `id`, `csrf` | `PostsController::toggleStatus()` | Redirect na listing + flash. |
-| Smazání řádku | `admin.php?r=posts&a=delete&type=…` | POST | `id`, `csrf` | `PostsController::delete()` | Redirect na listing + flash. |
+| Bulk akce (`parts/listing/bulk-form.php`) | `admin.php?r=posts&a=bulk&type=…` | POST | `bulk_action`, `ids[]`, `csrf`, zachované filtry | `PostsController::bulk()` | JSON `success` + `fragments` (toolbar, tabulka, stránkování) s flash zprávou; fallback redirect mimo AJAX. |
+| Přepnutí stavu řádku | `admin.php?r=posts&a=toggle&type=…` | POST | `id`, `csrf` | `PostsController::toggleStatus()` | JSON `success` + `fragments` s novým stavem, případně redirect mimo AJAX. |
+| Smazání řádku | `admin.php?r=posts&a=delete&type=…` | POST | `id`, `csrf` | `PostsController::delete()` | JSON `success` + `fragments` (obnovený listing) nebo redirect při ne-AJAX požadavku. |
 | Formulář editace/vytvoření (`admin/views/posts/edit.php`) | `admin.php?r=posts&a=create|edit&type=…` | POST (multipart) | Obsahuje `title`, `slug` (edit), `status`, `content`, `comments_allowed`, výběr termů (`categories[]`,`tags[]`,`new_*`), přiložená média (`attached_media`), `selected_thumbnail_id`, `remove_thumbnail`, upload `thumbnail`, `csrf` | `PostsController::store()` / `update()` | Redirect na detail s flash (`success`/`danger`). |
 | Autosave (trigger přes `data-autosave-url`) | `admin.php?r=posts&a=autosave&type=…` | POST (AJAX skriptem) | Shodná data jako editace + `id/post_id`, `status` | `PostsController::autosave()` | JSON `{success,message,postId,status,statusLabel,actionUrl,…}` nebo `success:false` s chybou. |
 
