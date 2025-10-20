@@ -16,6 +16,18 @@
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
   }
 
+  function shouldResetFormOnSuccess(form) {
+    if (!form || !form.hasAttribute || !form.hasAttribute('data-reset-on-success')) {
+      return false;
+    }
+    var attr = form.getAttribute('data-reset-on-success');
+    if (attr === null || attr === '') {
+      return true;
+    }
+    var normalized = String(attr).toLowerCase();
+    return normalized !== 'false' && normalized !== '0';
+  }
+
   function findFlashContainer(form) {
     if (form && typeof form.closest === 'function') {
       var closest = form.closest('[data-flash-container]');
@@ -885,9 +897,13 @@
       function setCurrentPostId(value) {
         var parsed = parseInt(value, 10);
         if (isNaN(parsed) || parsed <= 0) {
-          return;
+          return false;
         }
-        postId = String(parsed);
+        var normalized = String(parsed);
+        if (postId === normalized) {
+          return false;
+        }
+        postId = normalized;
         form.setAttribute('data-post-id', postId);
         form.dataset.postId = postId;
         if (idDisplayEl) {
@@ -897,6 +913,7 @@
         if (editorTextarea) {
           editorTextarea.setAttribute('data-post-id', postId);
         }
+        return true;
       }
 
       function updateStatus(message, isError) {
@@ -964,6 +981,7 @@
         var formData = collectFormData();
         var serialized = serializeAutosaveData(formData);
         var currentPostId = getCurrentPostId();
+        var hadPostIdBefore = currentPostId !== '';
 
         if (!hasMeaningfulAutosaveData(form, formData, currentPostId)) {
           return;
@@ -1026,8 +1044,16 @@
             return;
           }
 
+          var assignedPostId = false;
           if (data.postId) {
-            setCurrentPostId(data.postId);
+            assignedPostId = setCurrentPostId(data.postId) || assignedPostId;
+          }
+
+          if (!hadPostIdBefore && assignedPostId) {
+            var targetUrl = (typeof data.actionUrl === 'string' && data.actionUrl)
+              ? data.actionUrl
+              : (form.getAttribute('action') || window.location.href);
+            return loadAdminPage(targetUrl, { replaceHistory: true });
           }
 
           if (data.actionUrl) {
@@ -1428,6 +1454,8 @@
       action = ajaxUrl.toString();
     }
     var restoreDisabled = false;
+    var shouldResetOnSuccess = shouldResetFormOnSuccess(form);
+    var formShouldReset = false;
 
     if (submitter && typeof submitter.disabled === 'boolean' && !submitter.disabled) {
       submitter.disabled = true;
@@ -1571,7 +1599,20 @@
         showFlashMessage('info', payload.text.trim(), form);
       }
 
+      if (shouldResetOnSuccess) {
+        formShouldReset = true;
+      }
+
       return Promise.resolve();
+    }).then(function (result) {
+      if (formShouldReset && typeof form.reset === 'function') {
+        try {
+          form.reset();
+        } catch (err) {
+          /* ignore reset errors */
+        }
+      }
+      return result;
     }).catch(function (error) {
       if (!error || !error.__handled) {
         if (error && error.name === 'AbortError') {
