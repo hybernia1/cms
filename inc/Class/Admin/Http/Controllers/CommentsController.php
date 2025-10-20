@@ -310,7 +310,16 @@ final class CommentsController extends BaseAdminController
             DateTimeFactory::nowString(),
         ])->execute();
 
-        $this->redirect('admin.php?r=comments&a=show&id=' . $threadRootId, 'success', 'Odpověď byla přidána.');
+        $redirectTarget = 'admin.php?r=comments&a=show&id=' . $threadRootId;
+        $back = isset($_POST['_back']) ? (string)$_POST['_back'] : '';
+        if ($back !== '') {
+            $normalizedBack = ltrim($back, '/');
+            if (str_starts_with($normalizedBack, 'admin.php')) {
+                $redirectTarget = $normalizedBack;
+            }
+        }
+
+        $this->redirect($redirectTarget, 'success', 'Odpověď byla přidána.');
     }
 
     private function collectThreadIds(int $rootId): array
