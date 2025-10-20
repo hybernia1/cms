@@ -74,42 +74,45 @@ final class ThemesController extends BaseAdminController
         $this->assertCsrf();
         $slug = preg_replace('~[^a-z0-9\-_]~i','', (string)($_POST['slug'] ?? ''));
         if ($slug === '') {
-            $this->flash('danger','Chybí slug.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Chybí slug.');
         }
         if (!is_dir($this->themesDir.'/'.$slug)) {
-            $this->flash('danger','Šablona neexistuje.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Šablona neexistuje.');
         }
+
+        $previousSlug = $this->activeSlug();
 
         DB::query()->table('settings')->update([
             'theme_slug' => $slug,
             'updated_at' => DateTimeFactory::nowString(),
         ])->where('id','=',1)->execute();
 
-        $this->flash('success','Šablona aktivována.');
-        $this->redirect('admin.php?r=themes');
+        $payload = [
+            'themes'     => $this->listThemes(),
+            'activeSlug' => $slug,
+            'previousSlug' => $previousSlug,
+            'csrf'       => $this->token(),
+        ];
+
+        $this->respondThemesSuccess($payload, 'Šablona aktivována.');
     }
 
     public function upload(): void
     {
         $this->assertCsrf();
         if (empty($_FILES['theme_zip']) || (int)$_FILES['theme_zip']['error'] !== UPLOAD_ERR_OK) {
-            $this->flash('danger','Soubor se nepodařilo nahrát.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Soubor se nepodařilo nahrát.');
         }
         $name = (string)$_FILES['theme_zip']['name'];
         $tmp  = (string)$_FILES['theme_zip']['tmp_name'];
 
         if (!preg_match('~\.zip$~i', $name)) {
-            $this->flash('danger','Povolen je pouze ZIP.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Povolen je pouze ZIP.');
         }
 
         $zip = new \ZipArchive();
         if ($zip->open($tmp) !== true) {
-            $this->flash('danger','ZIP nelze otevřít.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('ZIP nelze otevřít.');
         }
 
         // Zjisti kořenový adresář v ZIPu (většina šablon má root folder)
@@ -120,8 +123,7 @@ final class ThemesController extends BaseAdminController
             $name = $st['name'];
             if (str_contains($name, '../') || str_starts_with($name, '/')) {
                 $zip->close();
-                $this->flash('danger','ZIP obsahuje nebezpečné cesty.');
-                $this->redirect('admin.php?r=themes');
+                $this->respondThemesError('ZIP obsahuje nebezpečné cesty.');
             }
             $parts = explode('/', $name);
             if (count($parts) > 1 && $parts[0] !== '') { $rootHint = $parts[0]; break; }
@@ -130,8 +132,7 @@ final class ThemesController extends BaseAdminController
         @mkdir($tempDir, 0775, true);
         if (!$zip->extractTo($tempDir)) {
             $zip->close();
-            $this->flash('danger','Chyba při rozbalování.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Chyba při rozbalování.');
         }
         $zip->close();
 
@@ -147,21 +148,18 @@ final class ThemesController extends BaseAdminController
         }
         if (!$manifest) {
             $this->rrmdir($tempDir);
-            $this->flash('danger','Manifest theme.json nebyl nalezen.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Manifest theme.json nebyl nalezen.');
         }
         $info = json_decode((string)file_get_contents($manifest), true);
         if (!is_array($info) || empty($info['slug']) || empty($info['name'])) {
             $this->rrmdir($tempDir);
-            $this->flash('danger','Manifest theme.json je neplatný.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Manifest theme.json je neplatný.');
         }
 
         $slug = preg_replace('~[^a-z0-9\-_]~i', '', (string)$info['slug']);
         if ($slug === '') {
             $this->rrmdir($tempDir);
-            $this->flash('danger','Neplatný slug v manifestu.');
-            $this->redirect('admin.php?r=themes');
+            $this->respondThemesError('Neplatný slug v manifestu.');
         }
 
         $target = $this->themesDir.'/'.$slug;
@@ -176,8 +174,60 @@ final class ThemesController extends BaseAdminController
         // dočasný upload adresář zruš
         $this->rrmdir($tempDir);
 
-        $this->flash('success','Šablona nahrána: '.$slug);
-        $this->redirect('admin.php?r=themes');
+        $themes = $this->listThemes();
+        $newTheme = null;
+        foreach ($themes as $theme) {
+            if ($theme['slug'] === $slug) {
+                $newTheme = $theme;
+                break;
+            }
+        }
+
+        $payload = [
+            'themes'     => $themes,
+            'theme'      => $newTheme,
+            'activeSlug' => $this->activeSlug(),
+            'csrf'       => $this->token(),
+        ];
+
+        $this->respondThemesSuccess($payload, 'Šablona nahrána: '.$slug);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function respondThemesSuccess(array $data, string $message, string $type = 'success'): void
+    {
+        if (!$this->isAjax()) {
+            $this->flash($type, $message);
+            $this->redirect('admin.php?r=themes');
+        }
+
+        $payload = array_merge(['success' => true], $data);
+        if ($message !== '') {
+            $payload['flash'] = [
+                'type' => $type,
+                'msg'  => $message,
+            ];
+        }
+
+        $this->jsonResponse($payload);
+    }
+
+    private function respondThemesError(string $message, int $status = 400): void
+    {
+        if (!$this->isAjax()) {
+            $this->flash('danger', $message);
+            $this->redirect('admin.php?r=themes');
+        }
+
+        $this->jsonResponse([
+            'success' => false,
+            'flash'   => [
+                'type' => 'danger',
+                'msg'  => $message,
+            ],
+        ], $status);
     }
 
     private function rrmdir(string $dir): void
