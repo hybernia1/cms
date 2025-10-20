@@ -1434,11 +1434,20 @@
         if (!postPayload || typeof postPayload !== 'object') {
           return;
         }
+        var hadIdBefore = postId !== '';
+        var actionUrlFromPayload = typeof postPayload.actionUrl === 'string' ? postPayload.actionUrl : '';
+        if (actionUrlFromPayload) {
+          form.setAttribute('action', actionUrlFromPayload);
+        }
         if (postPayload.id !== undefined && postPayload.id !== null && String(postPayload.id).trim() !== '') {
           setCurrentPostId(postPayload.id);
-        }
-        if (postPayload.actionUrl) {
-          form.setAttribute('action', postPayload.actionUrl);
+          if (!hadIdBefore) {
+            var targetUrl = actionUrlFromPayload || form.getAttribute('action') || '';
+            if (targetUrl) {
+              loadAdminPage(targetUrl, { replaceHistory: true });
+              return;
+            }
+          }
         }
         if (statusInput && postPayload.status) {
           statusInput.value = String(postPayload.status);
@@ -4582,9 +4591,31 @@
     }
 
     if (actionType === 'reply') {
+      if (typeof form.reset === 'function') {
+        form.reset();
+      } else {
+        var textInput = form.querySelector('textarea[name="content"]');
+        if (textInput) {
+          textInput.value = '';
+        }
+      }
+      var csrfInput = form.querySelector('input[name="csrf"]');
+      if (csrfInput && !csrfInput.value) {
+        var defaultCsrf = csrfInput.getAttribute('value');
+        if (defaultCsrf) {
+          csrfInput.value = defaultCsrf;
+        }
+      }
+      var parentInput = form.querySelector('input[name="parent_id"]');
+      if (parentInput && !parentInput.value) {
+        var defaultParent = parentInput.getAttribute('value');
+        if (defaultParent) {
+          parentInput.value = defaultParent;
+        }
+      }
       var textarea = form.querySelector('textarea[name="content"]');
-      if (textarea) {
-        textarea.value = '';
+      if (textarea && typeof textarea.focus === 'function') {
+        textarea.focus();
       }
       return;
     }
@@ -5698,6 +5729,9 @@
         }
         var action = (form.getAttribute('data-media-action') || '').toLowerCase();
         if (action === 'upload') {
+          if (typeof form.reset === 'function') {
+            form.reset();
+          }
           if (data.html && data.html.items) {
             insertMediaCards(data.html.items, 'prepend');
           }

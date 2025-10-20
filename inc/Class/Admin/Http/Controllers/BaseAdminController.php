@@ -329,7 +329,7 @@ abstract class BaseAdminController
         return $normalized;
     }
 
-    private function captureView(string $template, array $payload): string
+    final protected function captureView(string $template, array $payload): string
     {
         ob_start();
         try {
