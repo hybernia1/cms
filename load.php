@@ -10,8 +10,9 @@ declare(strict_types=1);
 // ---------------------------------------------------------
 // Konstanty
 // ---------------------------------------------------------
-const BASE_DIR  = __DIR__;
-const CLASS_DIR = __DIR__ . '/inc/Class';
+const BASE_DIR      = __DIR__;
+const CLASS_DIR     = __DIR__ . '/inc/Class';
+const FUNCTIONS_DIR = __DIR__ . '/inc/functions';
 
 /**
  * @var array<string,string>
@@ -22,7 +23,15 @@ const CLASS_NAMESPACE_MAP = [
     'Core\\'        => __DIR__ . '/inc/Class/Core',
 ];
 
-//require_once BASE_DIR . '/inc/general_functions.php';
+if (is_dir(FUNCTIONS_DIR)) {
+    /** @var list<string> $functionFiles */
+    $functionFiles = glob(FUNCTIONS_DIR . '/*.php') ?: [];
+    sort($functionFiles);
+
+    foreach ($functionFiles as $file) {
+        require_once $file;
+    }
+}
 
 // ---------------------------------------------------------
 // Autoload pro /inc/Class (PSR-4 + fallback s podtržítky)

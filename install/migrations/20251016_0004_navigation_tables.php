@@ -15,7 +15,7 @@ final class _20251016_0004_navigation_tables extends Migration
             description TEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NULL,
-            INDEX ix_nav_menus_location (location)
+            UNIQUE KEY uq_nav_menus_location (location)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS navigation_items (

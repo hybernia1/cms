@@ -4,6 +4,16 @@
     "version": "1.0.0",
     "description": "Elegantní výchozí šablona s důrazem na čitelnost obsahu a přehlednou navigaci.",
     "author": "CMS Team",
+    "menus": {
+        "primary": {
+            "label": "Hlavní navigace",
+            "description": "Menu zobrazené v hlavičce webu."
+        },
+        "footer": {
+            "label": "Patička",
+            "description": "Odkazy v zápatí stránky."
+        }
+    },
     "supports": {
         "menus": ["primary", "footer"],
         "custom_logo": true,

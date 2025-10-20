@@ -9,6 +9,7 @@ use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Core\Navigation\LinkResolver;
+use Core\Navigation\ThemeMenuLocator;
 
 final class NavigationController extends BaseAdminController
 {
@@ -109,6 +110,109 @@ final class NavigationController extends BaseAdminController
             ->select(['id', 'name', 'slug', 'location', 'description', 'created_at', 'updated_at'])
             ->orderBy('name', 'ASC')
             ->get() ?? [];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $menus
+     * @return array<string,array{value:string,label:string,description:?string,assigned_menu_id:?int,assigned_menu_name:?string}>
+     */
+    private function menuLocationOptions(array $menus): array
+    {
+        $locator = new ThemeMenuLocator();
+        $locations = $locator->activeLocations();
+
+        $assigned = [];
+        foreach ($menus as $menu) {
+            $loc = isset($menu['location']) ? (string)$menu['location'] : '';
+            if ($loc === '') {
+                continue;
+            }
+            $normalized = $this->sanitizeLocation($loc);
+            if ($normalized === '') {
+                continue;
+            }
+            $assigned[$normalized] = [
+                'id' => (int)($menu['id'] ?? 0),
+                'name' => (string)($menu['name'] ?? ''),
+            ];
+        }
+
+        $options = [];
+        foreach ($locations as $key => $info) {
+            $value = $this->sanitizeLocation((string)$key);
+            if ($value === '') {
+                continue;
+            }
+            $label = is_string($info['label'] ?? null) ? trim((string)$info['label']) : '';
+            if ($label === '') {
+                $label = $this->humanizeLocation($value);
+            }
+            $description = isset($info['description']) && is_string($info['description'])
+                ? trim((string)$info['description'])
+                : null;
+            $assignedMenu = $assigned[$value] ?? null;
+            $options[$value] = [
+                'value' => $value,
+                'label' => $label,
+                'description' => $description !== '' ? $description : null,
+                'assigned_menu_id' => $assignedMenu['id'] ?? null,
+                'assigned_menu_name' => $assignedMenu['name'] ?? null,
+            ];
+        }
+
+        foreach ($assigned as $value => $menuInfo) {
+            if (!isset($options[$value])) {
+                $options[$value] = [
+                    'value' => $value,
+                    'label' => $this->humanizeLocation($value),
+                    'description' => null,
+                    'assigned_menu_id' => $menuInfo['id'],
+                    'assigned_menu_name' => $menuInfo['name'],
+                ];
+            }
+        }
+
+        ksort($options);
+
+        return $options;
+    }
+
+    private function humanizeLocation(string $location): string
+    {
+        $normalized = str_replace(['-', '_'], ' ', $location);
+        $normalized = preg_replace('~\s+~u', ' ', $normalized ?? '') ?? '';
+        $normalized = trim($normalized);
+        if ($normalized === '') {
+            return 'Menu';
+        }
+        return ucwords(mb_strtolower($normalized, 'UTF-8'));
+    }
+
+    private function sanitizeLocation(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            $trimmed = 'primary';
+        }
+        $lower = mb_strtolower($trimmed, 'UTF-8');
+        if (strlen($lower) > 64) {
+            $lower = substr($lower, 0, 64);
+        }
+        return $lower;
+    }
+
+    private function menuByLocation(string $location, ?int $excludeId = null): ?array
+    {
+        $query = DB::query()
+            ->table('navigation_menus')
+            ->select(['id', 'name', 'location'])
+            ->where('location', '=', $location);
+
+        if ($excludeId !== null && $excludeId > 0) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        return $query->first() ?: null;
     }
 
     private function findMenu(int $menuId): ?array
@@ -408,6 +512,9 @@ final class NavigationController extends BaseAdminController
         }
         $parentOptions = $this->parentOptions($flat, $editingItem ? (int)$editingItem['id'] : null, $invalidParents);
 
+        $menuLocations = $this->menuLocationOptions($menus);
+        $menuLocationValue = $menu ? $this->sanitizeLocation((string)$menu['location']) : null;
+
         $this->renderAdmin('navigation/index', [
             'pageTitle' => 'Navigace',
             'nav' => AdminNavigation::build('navigation'),
@@ -415,6 +522,8 @@ final class NavigationController extends BaseAdminController
             'menus' => $menus,
             'menu' => $menu,
             'menuId' => $menuId,
+            'menuLocations' => $menuLocations,
+            'menuLocationValue' => $menuLocationValue,
             'items' => $flat,
             'editingItem' => $editingItem,
             'parentOptions' => $parentOptions,
@@ -566,7 +675,7 @@ final class NavigationController extends BaseAdminController
 
         $name = trim((string)($_POST['name'] ?? ''));
         $slugInput = trim((string)($_POST['slug'] ?? ''));
-        $location = trim((string)($_POST['location'] ?? 'primary'));
+        $location = $this->sanitizeLocation((string)($_POST['location'] ?? 'primary'));
         $description = trim((string)($_POST['description'] ?? ''));
 
         if ($name === '') {
@@ -574,11 +683,12 @@ final class NavigationController extends BaseAdminController
             $this->redirectTo(null);
         }
 
-        if ($location === '') {
-            $location = 'primary';
-        }
-        if (strlen($location) > 64) {
-            $location = substr($location, 0, 64);
+        $existingLocation = $this->menuByLocation($location);
+        if ($existingLocation) {
+            $label = $this->humanizeLocation($location);
+            $nameExisting = (string)($existingLocation['name'] ?? '');
+            $this->flash('danger', sprintf('Umístění „%s“ již používá menu „%s“. Nejprve změňte nebo odeberte existující menu.', $label, $nameExisting));
+            $this->redirectTo((int)($existingLocation['id'] ?? 0));
         }
 
         $slugBase = $slugInput !== '' ? $slugInput : $name;
@@ -617,7 +727,7 @@ final class NavigationController extends BaseAdminController
 
         $name = trim((string)($_POST['name'] ?? ''));
         $slugInput = trim((string)($_POST['slug'] ?? ''));
-        $location = trim((string)($_POST['location'] ?? 'primary'));
+        $location = $this->sanitizeLocation((string)($_POST['location'] ?? 'primary'));
         $description = trim((string)($_POST['description'] ?? ''));
 
         if ($name === '') {
@@ -625,11 +735,12 @@ final class NavigationController extends BaseAdminController
             $this->redirectTo($menuId);
         }
 
-        if ($location === '') {
-            $location = 'primary';
-        }
-        if (strlen($location) > 64) {
-            $location = substr($location, 0, 64);
+        $existingLocation = $this->menuByLocation($location, $menuId);
+        if ($existingLocation) {
+            $label = $this->humanizeLocation($location);
+            $nameExisting = (string)($existingLocation['name'] ?? '');
+            $this->flash('danger', sprintf('Umístění „%s“ již používá menu „%s“. Nejprve uvolněte danou lokaci.', $label, $nameExisting));
+            $this->redirectTo($menuId);
         }
 
         $slugBase = $slugInput !== '' ? $slugInput : $name;
