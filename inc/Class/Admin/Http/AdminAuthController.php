@@ -63,18 +63,20 @@ final class AdminAuthController
 
             $email = trim((string)($_POST['email'] ?? ''));
             $pass  = (string)($_POST['password'] ?? '');
+            $remember = !empty($_POST['remember']);
 
             if ($email === '' || $pass === '') {
-                $this->respondLoginError('Vyplňte e-mail i heslo.');
+                $this->respondLoginError('Vyplňte e-mail i heslo.', $email, $remember);
                 return;
             }
 
             if ($this->auth->attempt($email, $pass)) {
+                $this->finalizeLogin($remember);
                 $this->respondLoginSuccess();
                 return;
             }
 
-            $this->respondLoginError('Nesprávný e-mail nebo heslo.');
+            $this->respondLoginError('Nesprávný e-mail nebo heslo.', $email, $remember);
             return;
         }
 
@@ -84,6 +86,7 @@ final class AdminAuthController
     private function logout(): void
     {
         $this->auth->logout();
+        $this->clearSessionCookie();
         unset($_SESSION['_flash']);
 
         if ($this->isAjax()) {
@@ -104,6 +107,8 @@ final class AdminAuthController
             'pageTitle' => 'Přihlášení do administrace',
             'csrf'      => $this->token(),
             'error'     => null,
+            'email'     => '',
+            'remember'  => false,
         ], $data);
 
         if ($this->isAjax()) {
@@ -142,7 +147,7 @@ final class AdminAuthController
         exit;
     }
 
-    private function respondLoginError(string $message): void
+    private function respondLoginError(string $message, string $email = '', bool $remember = false): void
     {
         if ($this->isAjax()) {
             $this->json([
@@ -155,7 +160,53 @@ final class AdminAuthController
             return;
         }
 
-        $this->renderLogin(['error' => $message]);
+        $this->renderLogin([
+            'error' => $message,
+            'email' => $email,
+            'remember' => $remember,
+        ]);
+    }
+
+    private function finalizeLogin(bool $remember): void
+    {
+        session_regenerate_id(true);
+
+        $params = session_get_cookie_params();
+        $cookie = [
+            'expires' => $remember ? time() + 60 * 60 * 24 * 30 : 0,
+            'path' => $params['path'] ?? '/',
+            'secure' => $params['secure'] ?? false,
+            'httponly' => true,
+        ];
+        $domain = $params['domain'] ?? '';
+        if ($domain !== '') {
+            $cookie['domain'] = $domain;
+        }
+        if (isset($params['samesite'])) {
+            $cookie['samesite'] = $params['samesite'];
+        }
+
+        setcookie(session_name(), session_id(), $cookie);
+    }
+
+    private function clearSessionCookie(): void
+    {
+        $params = session_get_cookie_params();
+        $cookie = [
+            'expires' => time() - 3600,
+            'path' => $params['path'] ?? '/',
+            'secure' => $params['secure'] ?? false,
+            'httponly' => true,
+        ];
+        $domain = $params['domain'] ?? '';
+        if ($domain !== '') {
+            $cookie['domain'] = $domain;
+        }
+        if (isset($params['samesite'])) {
+            $cookie['samesite'] = $params['samesite'];
+        }
+
+        setcookie(session_name(), '', $cookie);
     }
 
     private function json(array $payload, int $status = 200): void
