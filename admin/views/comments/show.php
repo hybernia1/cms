@@ -93,11 +93,10 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <div class="card mb-3">
     <div class="card-header">Odpovědět</div>
     <div class="card-body">
-      <form method="post" action="admin.php?r=comments&a=reply" data-ajax data-action="comments_reply" data-reset-on-success="true">
+      <form method="post" action="admin.php?r=comments&a=reply" data-ajax data-action="comments_reply">
         <textarea class="form-control mb-2" name="content" rows="4" placeholder="Napiš odpověď…"></textarea>
         <input type="hidden" name="parent_id" value="<?= (int)$replyParentId ?>">
         <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-        <input type="hidden" name="_back" value="<?= $h('admin.php?' . http_build_query(['r' => 'comments', 'a' => 'show', 'id' => (int)$replyParentId])) ?>">
         <?php if ((int)$comment['id'] !== (int)$replyParentId): ?>
           <div class="form-text mb-2">Odpověď bude připojena k hlavnímu komentáři #<?= (int)$replyParentId ?>.</div>
         <?php endif; ?>
