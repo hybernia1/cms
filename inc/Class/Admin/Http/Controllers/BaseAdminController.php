@@ -121,29 +121,7 @@ abstract class BaseAdminController
             $data,
         );
 
-        if ($this->isAjax()) {
-            $html = $this->captureView($template, $payload);
-            $response = [
-                'success' => true,
-                'html'    => $html,
-            ];
-
-            if (!empty($payload['flash']) && is_array($payload['flash'])) {
-                $response['flash'] = [
-                    'type' => (string)($payload['flash']['type'] ?? ''),
-                    'msg'  => (string)($payload['flash']['msg'] ?? ''),
-                ];
-            }
-
-            if (!empty($payload['pageTitle'])) {
-                $response['title'] = (string)$payload['pageTitle'];
-            }
-
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            return;
-        }
-
+        header('Content-Type: text/html; charset=utf-8');
         $this->view->render($template, $payload);
     }
 
@@ -237,18 +215,6 @@ abstract class BaseAdminController
         }
 
         return $normalized;
-    }
-
-    private function captureView(string $template, array $payload): string
-    {
-        ob_start();
-        try {
-            $this->view->render($template, $payload);
-        } finally {
-            $output = ob_get_clean();
-        }
-
-        return $output === false ? '' : $output;
     }
 
     final protected function uploadPaths(): PathResolver

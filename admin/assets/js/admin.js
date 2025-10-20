@@ -1247,6 +1247,9 @@
         throw error;
       }
 
+      var contentType = response.headers ? (response.headers.get('Content-Type') || '') : '';
+      var isHtmlResponse = contentType.toLowerCase().indexOf('text/html') !== -1;
+
       if (payload.isJson && data && typeof data === 'object') {
         if (typeof data.redirect === 'string' && data.redirect !== '') {
           return loadAdminPage(data.redirect, { pushState: true });
@@ -1256,11 +1259,18 @@
         }
       }
 
-      var html = payload.isJson
-        ? (data && typeof data.html === 'string' ? data.html : (data && typeof data.raw === 'string' ? data.raw : ''))
-        : payload.text;
+      var html = null;
+      if (isHtmlResponse && typeof payload.text === 'string') {
+        html = payload.text;
+      } else if (!payload.isJson && typeof payload.text === 'string') {
+        html = payload.text;
+      } else if (payload.isJson && data && typeof data.html === 'string') {
+        html = data.html;
+      } else if (payload.isJson && data && typeof data.raw === 'string') {
+        html = data.raw;
+      }
 
-      var appliedRoot = applyAdminHtml(html);
+      var appliedRoot = applyAdminHtml(typeof html === 'string' ? html : '');
       if (!appliedRoot) {
         window.location.href = targetUrl;
         return;
@@ -1378,6 +1388,9 @@
         throw error;
       }
 
+      var contentType = response.headers ? (response.headers.get('Content-Type') || '') : '';
+      var isHtmlResponse = contentType.toLowerCase().indexOf('text/html') !== -1;
+
       if (payload.isJson && data && typeof data === 'object' && typeof data.success === 'boolean') {
         normalizedResponse = normalizeAjaxPayload(data);
         if (!normalizedResponse.success) {
@@ -1394,6 +1407,17 @@
         data = normalizedResponse.data && typeof normalizedResponse.data === 'object'
           ? normalizedResponse.data
           : {};
+      }
+
+      if (isHtmlResponse && typeof payload.text === 'string') {
+        var formAppliedRoot = applyAdminHtml(payload.text);
+        if (!formAppliedRoot) {
+          window.location.reload();
+          return Promise.resolve();
+        }
+        window.history.replaceState(buildHistoryState(window.history.state), '', window.location.href);
+        dispatchNavigated(window.location.href, { source: 'form', root: formAppliedRoot });
+        return Promise.resolve();
       }
 
       if (payload.isJson && data && typeof data === 'object') {
