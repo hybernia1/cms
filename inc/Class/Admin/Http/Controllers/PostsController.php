@@ -169,6 +169,7 @@ final class PostsController extends BaseAdminController
     {
         $repo = new PostsRepository();
 
+        $types = $this->typeConfig();
         $type = $this->requestedType();
         $filters = [
             'type'   => $type,
@@ -192,19 +193,74 @@ final class PostsController extends BaseAdminController
         ]);
 
         $items = $this->normalizeCreatedAt($pag['items'] ?? [], true);
+        $urls = new LinkGenerator();
+
+        if ($this->wantsJsonIndex()) {
+            $partials = [
+                'toolbar' => $this->renderPartial('posts/partials/toolbar', [
+                    'filters'      => $filters,
+                    'type'         => $type,
+                    'types'        => $types,
+                    'urls'         => $urls,
+                    'statusCounts' => $statusCounts,
+                    'buildUrl'     => $buildUrl,
+                ]),
+                'table' => $this->renderPartial('posts/partials/table', [
+                    'items' => $items,
+                    'csrf'  => $this->token(),
+                    'type'  => $type,
+                    'urls'  => $urls,
+                ]),
+                'pagination' => $this->renderPartial('posts/partials/pagination', [
+                    'pagination' => $pagination,
+                    'buildUrl'   => $buildUrl,
+                ]),
+            ];
+
+            $payload = [
+                'success'      => true,
+                'items'        => $items,
+                'filters'      => $filters,
+                'pagination'   => $pagination,
+                'statusCounts' => $statusCounts,
+                'partials'     => $partials,
+            ];
+
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return;
+        }
 
         $this->renderAdmin('posts/index', [
-            'pageTitle'  => $this->typeConfig()[$type]['list'],
+            'pageTitle'  => $types[$type]['list'] ?? 'Příspěvky',
             'nav'        => AdminNavigation::build('posts:' . $type),
             'filters'    => $filters,
             'items'      => $items,
             'pagination' => $pagination,
             'type'       => $type,
-            'types'      => $this->typeConfig(),
-            'urls'       => new LinkGenerator(),
+            'types'      => $types,
+            'urls'       => $urls,
             'statusCounts' => $statusCounts,
             'buildUrl'   => $buildUrl,
         ]);
+    }
+
+    private function wantsJsonIndex(): bool
+    {
+        $format = isset($_GET['format']) ? strtolower((string)$_GET['format']) : '';
+        return $format === 'json';
+    }
+
+    private function renderPartial(string $template, array $data): string
+    {
+        ob_start();
+        try {
+            $this->view->render($template, $data);
+        } finally {
+            $output = ob_get_clean();
+        }
+
+        return $output === false ? '' : $output;
     }
 
     private function bulk(): void
