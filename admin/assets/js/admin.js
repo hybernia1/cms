@@ -14,6 +14,7 @@
   var formHelperRegistry = Object.create(null);
   var formHelperInstances = new WeakMap();
   var bulkFormStateUpdaters = new WeakMap();
+  var commentsListingControllers = new WeakMap();
 
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
@@ -1709,6 +1710,7 @@
     initFormHelpers(root);
     initTooltips(root);
     initBulkForms(root);
+    initCommentsListing(root);
     initTermsListing(root);
     initTermsForm(root);
     initPostsListing(root);
@@ -2121,6 +2123,329 @@
     if (typeof updateFn === 'function') {
       updateFn();
     }
+  }
+
+  function createCommentsListingController(container) {
+    var state = {
+      pending: null,
+      lastUrl: container.getAttribute('data-comments-url') || window.location.href,
+      searchForm: null,
+      searchHandler: null
+    };
+
+    function setLoading(isLoading) {
+      if (isLoading) {
+        container.classList.add('is-loading');
+        container.setAttribute('aria-busy', 'true');
+      } else {
+        container.classList.remove('is-loading');
+        container.removeAttribute('aria-busy');
+      }
+    }
+
+    function cleanUrl(url) {
+      if (!url) {
+        return url;
+      }
+      try {
+        var parsed = new URL(url, window.location.href);
+        parsed.searchParams.delete('format');
+        return parsed.toString();
+      } catch (err) {
+        return url;
+      }
+    }
+
+    function buildJsonUrl(url) {
+      try {
+        var parsed = new URL(url, window.location.href);
+        parsed.searchParams.set('format', 'json');
+        return parsed.toString();
+      } catch (err) {
+        return url;
+      }
+    }
+
+    function updateHistory(url) {
+      if (!url || !window.history || typeof window.history.pushState !== 'function') {
+        return;
+      }
+      try {
+        var parsed = new URL(url, window.location.href);
+        parsed.searchParams.delete('format');
+        window.history.pushState(buildHistoryState(window.history.state), '', parsed.toString());
+      } catch (err) {
+        /* ignore history errors */
+      }
+    }
+
+    function updateDataset(data, sourceUrl) {
+      if (data && data.filters && typeof data.filters === 'object') {
+        if (Object.prototype.hasOwnProperty.call(data.filters, 'status')) {
+          container.setAttribute('data-comments-status', String(data.filters.status || ''));
+        }
+        if (Object.prototype.hasOwnProperty.call(data.filters, 'q')) {
+          container.setAttribute('data-comments-query', String(data.filters.q || ''));
+        }
+        if (Object.prototype.hasOwnProperty.call(data.filters, 'post')) {
+          container.setAttribute('data-comments-post', String(data.filters.post || ''));
+        }
+      }
+      if (data && data.pagination && typeof data.pagination === 'object' && Object.prototype.hasOwnProperty.call(data.pagination, 'page')) {
+        container.setAttribute('data-comments-page', String(data.pagination.page || ''));
+      }
+
+      var nextUrl = sourceUrl || state.lastUrl;
+      if (data && data.listing && typeof data.listing === 'object' && data.listing.url) {
+        nextUrl = data.listing.url;
+      }
+      if (nextUrl) {
+        var cleaned = cleanUrl(nextUrl);
+        if (cleaned) {
+          container.setAttribute('data-comments-url', cleaned);
+          state.lastUrl = cleaned;
+          updateHistory(cleaned);
+        }
+      }
+    }
+
+    function finalize(data, sourceUrl) {
+      if (!data || typeof data !== 'object') {
+        return;
+      }
+      bindSearchForm();
+      triggerBulkFormUpdate(container);
+      updateDataset(data, sourceUrl);
+    }
+
+    function handleRequest(url) {
+      if (!url) {
+        return Promise.resolve(null);
+      }
+      if (state.pending && typeof state.pending.abort === 'function') {
+        state.pending.abort();
+      }
+      var controller = new AbortController();
+      state.pending = controller;
+      var cleanedRequested = cleanUrl(url);
+      if (cleanedRequested) {
+        state.lastUrl = cleanedRequested;
+      }
+      setLoading(true);
+      return adminAjax.get(buildJsonUrl(url), {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' },
+        context: container
+      }).then(function (result) {
+        if (result && result.data) {
+          finalize(result.data, url);
+        }
+        return result;
+      }).catch(function (error) {
+        if (error && error.name === 'AbortError') {
+          return null;
+        }
+        throw error;
+      }).finally(function () {
+        if (state.pending === controller) {
+          state.pending = null;
+        }
+        setLoading(false);
+      });
+    }
+
+    function submitGetForm(form, submitter) {
+      if (form.dataset.commentsSubmitting === '1') {
+        return;
+      }
+      form.dataset.commentsSubmitting = '1';
+      form.classList.add('is-submitting');
+
+      var restoreDisabled = false;
+      if (submitter && typeof submitter.disabled === 'boolean' && !submitter.disabled) {
+        submitter.disabled = true;
+        restoreDisabled = true;
+      }
+
+      var params = new URLSearchParams();
+      var formData = new FormData(form);
+      formData.forEach(function (value, key) {
+        if (value instanceof File) {
+          return;
+        }
+        params.set(key, value);
+      });
+      if (submitter && submitter.name) {
+        params.set(submitter.name, submitter.value);
+      }
+
+      var action = form.getAttribute('action') || window.location.href;
+      var urlObj;
+      try {
+        urlObj = new URL(action, window.location.href);
+      } catch (err) {
+        urlObj = new URL(window.location.href);
+      }
+      urlObj.search = params.toString();
+
+      return handleRequest(urlObj.toString()).then(function (result) {
+        dispatchFormEvent(form, 'cms:admin:form:success', { result: result || null });
+        return result;
+      }).catch(function (error) {
+        if (error && error.name === 'AbortError') {
+          return null;
+        }
+        dispatchFormEvent(form, 'cms:admin:form:error', { error: error });
+        throw error;
+      }).finally(function () {
+        form.classList.remove('is-submitting');
+        delete form.dataset.commentsSubmitting;
+        if (restoreDisabled) {
+          submitter.disabled = false;
+        }
+      });
+    }
+
+    function bindSearchForm() {
+      var form = container.querySelector('[data-comments-toolbar] form[role="search"]');
+      if (state.searchForm === form) {
+        return;
+      }
+      if (state.searchForm && state.searchHandler) {
+        state.searchForm.removeEventListener('submit', state.searchHandler, true);
+      }
+      state.searchForm = form;
+      state.searchHandler = null;
+      if (!form) {
+        return;
+      }
+      var handler = function (event) {
+        if (event) {
+          event.preventDefault();
+          if (event.stopPropagation) {
+            event.stopPropagation();
+          }
+          if (event.stopImmediatePropagation) {
+            event.stopImmediatePropagation();
+          }
+        }
+        submitGetForm(form, event && event.submitter ? event.submitter : null);
+      };
+      state.searchHandler = handler;
+      form.addEventListener('submit', handler, true);
+    }
+
+    function handleSubmit(event) {
+      var form = event.target;
+      if (!(form instanceof HTMLFormElement)) {
+        return;
+      }
+      if (!container.contains(form)) {
+        return;
+      }
+      var formType = form.getAttribute('data-comments-form');
+      var isSearch = form.getAttribute('role') === 'search' && form.closest('[data-comments-toolbar]');
+      if (!formType && !isSearch) {
+        return;
+      }
+      event.preventDefault();
+      if (event.stopPropagation) {
+        event.stopPropagation();
+      }
+      if (event.stopImmediatePropagation) {
+        event.stopImmediatePropagation();
+      }
+      submitGetForm(form, event.submitter || null);
+    }
+
+    function shouldHandleAnchor(anchor) {
+      if (!anchor || !container.contains(anchor)) {
+        return false;
+      }
+      if (anchor.target && anchor.target !== '_self') {
+        return false;
+      }
+      if (anchor.classList && anchor.classList.contains('disabled')) {
+        return false;
+      }
+      var ariaDisabled = anchor.getAttribute('aria-disabled');
+      if (ariaDisabled && ariaDisabled.toLowerCase() === 'true') {
+        return false;
+      }
+      if (anchor.closest('[data-comments-pagination]')) {
+        return true;
+      }
+      if (anchor.closest('[data-comments-toolbar]')) {
+        return true;
+      }
+      if (anchor.closest('[data-comments-filters]')) {
+        return true;
+      }
+      return false;
+    }
+
+    function handleClick(event) {
+      var anchor = event.target && event.target.closest ? event.target.closest('a') : null;
+      if (!shouldHandleAnchor(anchor)) {
+        return;
+      }
+      event.preventDefault();
+      if (event.stopPropagation) {
+        event.stopPropagation();
+      }
+      if (event.stopImmediatePropagation) {
+        event.stopImmediatePropagation();
+      }
+      var href = anchor.getAttribute('href');
+      if (!href) {
+        return;
+      }
+      handleRequest(href);
+    }
+
+    function cleanup() {
+      if (state.pending && typeof state.pending.abort === 'function') {
+        state.pending.abort();
+      }
+      container.removeEventListener('click', handleClick, true);
+      container.removeEventListener('submit', handleSubmit, true);
+      if (state.searchForm && state.searchHandler) {
+        state.searchForm.removeEventListener('submit', state.searchHandler, true);
+      }
+      commentsListingControllers.delete(container);
+      document.removeEventListener('cms:admin:navigated', onNavigate);
+    }
+
+    function onNavigate() {
+      if (!document.body.contains(container)) {
+        cleanup();
+      }
+    }
+
+    container.addEventListener('click', handleClick, true);
+    container.addEventListener('submit', handleSubmit, true);
+    bindSearchForm();
+    document.addEventListener('cms:admin:navigated', onNavigate);
+
+    return {
+      reload: function () {
+        var target = container.getAttribute('data-comments-url') || state.lastUrl;
+        return handleRequest(target);
+      },
+      dispose: cleanup
+    };
+  }
+
+  function initCommentsListing(root) {
+    var scope = root || document;
+    var containers = [].slice.call(scope.querySelectorAll('[data-comments-listing]'));
+    containers.forEach(function (container) {
+      if (commentsListingControllers.has(container)) {
+        return;
+      }
+      var controller = createCommentsListingController(container);
+      commentsListingControllers.set(container, controller);
+    });
   }
 
   var termsListingControllers = new WeakMap();
@@ -2613,6 +2938,90 @@
       if (data.partials) {
         controller.finalize(data, container.getAttribute('data-terms-url') || window.location.href);
       }
+    }
+  });
+
+  function updateCommentStatusBadge(comment) {
+    if (!comment) {
+      return;
+    }
+    var badge = document.querySelector('[data-comment-status-badge]');
+    if (!badge) {
+      return;
+    }
+    var status = typeof comment.status === 'string' ? comment.status : '';
+    var variants = { published: 'success', spam: 'danger' };
+    var variant = variants[status] || 'secondary';
+    badge.textContent = status || '';
+    ['text-bg-success', 'text-bg-danger', 'text-bg-secondary'].forEach(function (cls) {
+      badge.classList.remove(cls);
+    });
+    badge.classList.add('text-bg-' + variant);
+  }
+
+  document.addEventListener('cms:admin:form:success', function (event) {
+    var form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.closest) {
+      return;
+    }
+    var container = form.closest('[data-comments-listing]');
+    if (!container) {
+      return;
+    }
+    if (form.getAttribute('data-comments-form')) {
+      return;
+    }
+    if (form.getAttribute('role') === 'search' && form.closest('[data-comments-toolbar]')) {
+      return;
+    }
+    var controller = commentsListingControllers.get(container);
+    if (!controller) {
+      return;
+    }
+    var detail = event.detail || {};
+    var result = detail.result || null;
+    var data = result && result.data ? result.data : null;
+    if (data && data.success === false) {
+      return;
+    }
+    controller.reload();
+  });
+
+  document.addEventListener('cms:admin:form:success', function (event) {
+    var form = event.target;
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+    var actionType = form.getAttribute('data-comments-action');
+    if (!actionType) {
+      return;
+    }
+    var detail = event.detail || {};
+    var result = detail.result || null;
+    var data = result && result.data ? result.data : null;
+
+    if (actionType === 'status') {
+      if (!form.closest('[data-comments-listing]') && data && data.comment) {
+        updateCommentStatusBadge(data.comment);
+      }
+      return;
+    }
+
+    if (actionType === 'reply') {
+      var textarea = form.querySelector('textarea[name="content"]');
+      if (textarea) {
+        textarea.value = '';
+      }
+      return;
+    }
+
+    if (actionType === 'delete') {
+      if (form.closest('[data-comments-listing]')) {
+        return;
+      }
+      var backInput = form.querySelector('input[name="_back"]');
+      var redirectUrl = backInput && backInput.value ? backInput.value : 'admin.php?r=comments';
+      loadAdminPage(redirectUrl, { pushState: true });
     }
   });
 
