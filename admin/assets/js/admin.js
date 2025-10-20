@@ -2125,6 +2125,33 @@
     }
   }
 
+  function updateUsersListingState(container, listing) {
+    if (!container || !listing || typeof listing !== 'object') {
+      return;
+    }
+    if (listing.url) {
+      container.setAttribute('data-users-url', String(listing.url));
+    }
+    if (listing.page !== undefined && listing.page !== null) {
+      container.setAttribute('data-users-page', String(listing.page));
+    }
+    if (listing.searchQuery !== undefined && listing.searchQuery !== null) {
+      container.setAttribute('data-users-query', String(listing.searchQuery));
+    }
+    var bulkForm = container.querySelector('form[data-bulk-form]');
+    if (bulkForm) {
+      var pageInput = bulkForm.querySelector('input[name="page"]');
+      if (pageInput) {
+        var nextPage = listing.page !== undefined && listing.page !== null ? listing.page : (container.getAttribute('data-users-page') || '1');
+        pageInput.value = String(nextPage);
+      }
+      var queryInput = bulkForm.querySelector('input[name="q"]');
+      if (queryInput) {
+        queryInput.value = listing.searchQuery !== undefined && listing.searchQuery !== null ? String(listing.searchQuery) : '';
+      }
+    }
+  }
+
   function createCommentsListingController(container) {
     var state = {
       pending: null,
@@ -2958,6 +2985,24 @@
     });
     badge.classList.add('text-bg-' + variant);
   }
+
+  document.addEventListener('cms:admin:form:success', function (event) {
+    var form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.closest) {
+      return;
+    }
+    var container = form.closest('[data-users-listing]');
+    if (!container) {
+      return;
+    }
+    var detail = event.detail || {};
+    var result = detail.result || null;
+    var data = result && result.data ? result.data : null;
+    if (data && typeof data === 'object' && data.listing) {
+      updateUsersListingState(container, data.listing);
+    }
+    triggerBulkFormUpdate(container);
+  });
 
   document.addEventListener('cms:admin:form:success', function (event) {
     var form = event.target;
