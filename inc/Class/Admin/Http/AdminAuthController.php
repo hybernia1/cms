@@ -65,8 +65,26 @@ final class AdminAuthController
             $pass  = (string)($_POST['password'] ?? '');
             $remember = !empty($_POST['remember']);
 
-            if ($email === '' || $pass === '') {
-                $this->respondLoginError('Vyplňte e-mail i heslo.', $email, $remember);
+            $errors = [];
+
+            if ($email === '') {
+                $errors['email'][] = 'Vyplňte e-mail.';
+            }
+
+            if ($pass === '') {
+                $errors['password'][] = 'Vyplňte heslo.';
+            }
+
+            if ($errors !== []) {
+                $message = 'Vyplňte e-mail i heslo.';
+                if (count($errors) === 1) {
+                    $first = reset($errors);
+                    if (is_array($first) && $first !== []) {
+                        $message = (string)reset($first);
+                    }
+                }
+
+                $this->respondLoginError($message, $email, $remember, $errors);
                 return;
             }
 
@@ -76,7 +94,12 @@ final class AdminAuthController
                 return;
             }
 
-            $this->respondLoginError('Nesprávný e-mail nebo heslo.', $email, $remember);
+            $errorMessage = 'Nesprávný e-mail nebo heslo.';
+            $credentialErrors = [
+                'email' => [$errorMessage],
+                'password' => [$errorMessage],
+            ];
+            $this->respondLoginError($errorMessage, $email, $remember, $credentialErrors);
             return;
         }
 
@@ -107,6 +130,7 @@ final class AdminAuthController
             'pageTitle' => 'Přihlášení do administrace',
             'csrf'      => $this->token(),
             'error'     => null,
+            'errors'    => [],
             'email'     => '',
             'remember'  => false,
         ], $data);
@@ -124,6 +148,9 @@ final class AdminAuthController
                     'msg'  => (string)$payload['error'],
                 ];
             }
+            if (!empty($payload['errors'])) {
+                $response['errors'] = $payload['errors'];
+            }
             $this->json($response);
             return;
         }
@@ -139,6 +166,7 @@ final class AdminAuthController
             $this->json([
                 'success'  => true,
                 'redirect' => $redirect,
+                'flash'    => null,
             ]);
             return;
         }
@@ -147,21 +175,27 @@ final class AdminAuthController
         exit;
     }
 
-    private function respondLoginError(string $message, string $email = '', bool $remember = false): void
+    /**
+     * @param array<string,mixed> $errors
+     */
+    private function respondLoginError(string $message, string $email = '', bool $remember = false, array $errors = []): void
     {
         if ($this->isAjax()) {
             $this->json([
-                'success' => false,
-                'flash'   => [
+                'success'  => false,
+                'redirect' => null,
+                'flash'    => [
                     'type' => 'danger',
                     'msg'  => $message,
                 ],
+                'errors'   => $errors,
             ]);
             return;
         }
 
         $this->renderLogin([
             'error' => $message,
+            'errors' => $errors,
             'email' => $email,
             'remember' => $remember,
         ]);
