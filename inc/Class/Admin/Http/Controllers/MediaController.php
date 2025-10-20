@@ -49,47 +49,73 @@ final class MediaController extends BaseAdminController
         $page    = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 30;
 
-        $q = DB::query()->table('media','m')
+        $query = DB::query()->table('media', 'm')
             ->select([
                 'm.id','m.user_id','m.type','m.mime','m.url','m.rel_path','m.created_at','m.meta',
                 'u.name AS author_name','u.email AS author_email'
             ])
             ->leftJoin('users u', 'u.id', '=', 'm.user_id')
-            ->orderBy('m.created_at','DESC');
+            ->orderBy('m.created_at', 'DESC');
 
-        if ($filters['type'] !== '') $q->where('m.type','=', $filters['type']);
-        if ($filters['q']   !== '') {
+        if ($filters['type'] !== '') {
+            $query->where('m.type', '=', $filters['type']);
+        }
+        if ($filters['q'] !== '') {
             $like = '%' . $filters['q'] . '%';
-            $q->where(function($w) use ($like) {
+            $query->where(static function ($w) use ($like): void {
                 $w->whereLike('m.url', $like)->orWhere('m.mime', 'LIKE', $like);
             });
         }
 
-        $pag = $q->paginate($page, $perPage);
+        $paginated = $query->paginate($page, $perPage);
+        $pagination = $this->paginationData($paginated, $page, $perPage);
 
         $paths = $this->uploadPaths();
         $settings = new CmsSettings();
-        $items = array_map(fn(array $row) => $this->prepareItem($row, $paths), $pag['items'] ?? []);
-        $mediaIds = array_map(static fn(array $item): int => (int)($item['id'] ?? 0), $items);
-        $references = $this->mediaReferences($mediaIds);
-        $items = array_map(static function (array $item) use ($references): array {
-            $id = (int)($item['id'] ?? 0);
-            $item['references'] = $references[$id] ?? ['thumbnails' => [], 'content' => []];
-            return $item;
-        }, $items);
+        $items = array_map(fn(array $row) => $this->prepareItem($row, $paths), $paginated['items'] ?? []);
+        $items = $this->attachReferences($items);
+
+        $baseQuery = [
+            'r'    => 'media',
+            'type' => $filters['type'] !== '' ? $filters['type'] : null,
+            'q'    => $filters['q'] !== '' ? $filters['q'] : null,
+            'page' => $pagination['page'],
+        ];
+        $buildUrl = $this->listingUrlBuilder($baseQuery);
+
+        if ($this->isAjax()) {
+            $gridHtml = $this->captureView('media/partials/grid', [
+                'items'       => $items,
+                'csrf'        => $this->token(),
+                'webpEnabled' => $settings->webpEnabled(),
+            ]);
+            $paginationHtml = $this->captureView('media/partials/pagination', [
+                'pagination' => $pagination,
+                'buildUrl'   => $buildUrl,
+            ]);
+
+            $this->jsonResponse([
+                'success' => true,
+                'data'    => [
+                    'filters'    => $filters,
+                    'pagination' => $pagination,
+                    'items'      => $items,
+                    'html'       => [
+                        'grid'       => $gridHtml,
+                        'pagination' => $paginationHtml,
+                    ],
+                ],
+            ]);
+        }
 
         $this->renderAdmin('media/index', [
-            'pageTitle'  => 'Média',
-            'nav'        => AdminNavigation::build('media'),
-            'filters'    => $filters,
-            'items'      => $items,
-            'pagination' => [
-                'page'     => $pag['page'] ?? $page,
-                'per_page' => $pag['per_page'] ?? $perPage,
-                'total'    => $pag['total'] ?? 0,
-                'pages'    => $pag['pages'] ?? 1,
-            ],
-            'webpEnabled'=> $settings->webpEnabled(),
+            'pageTitle'   => 'Média',
+            'nav'         => AdminNavigation::build('media'),
+            'filters'     => $filters,
+            'items'       => $items,
+            'pagination'  => $pagination,
+            'webpEnabled' => $settings->webpEnabled(),
+            'buildUrl'    => $buildUrl,
         ]);
     }
 
@@ -109,6 +135,7 @@ final class MediaController extends BaseAdminController
 
             // multiple upload podpora
             $uploadedCount = 0;
+            $createdIds = [];
             $files = $_FILES['files'];
             if (is_array($files['name'])) {
                 $count = count($files['name']);
@@ -121,12 +148,14 @@ final class MediaController extends BaseAdminController
                         'error'    => $files['error'][$i],
                         'size'     => $files['size'][$i],
                     ];
-                    $svc->uploadAndCreate($fileArr, (int)$user['id'], $paths, 'media');
+                    $created = $svc->uploadAndCreate($fileArr, (int)$user['id'], $paths, 'media');
+                    $createdIds[] = (int)($created['id'] ?? 0);
                     $uploadedCount++;
                 }
             } else {
                 if ((int)$files['error'] !== UPLOAD_ERR_NO_FILE) {
-                    $svc->uploadAndCreate($files, (int)$user['id'], $paths, 'media');
+                    $created = $svc->uploadAndCreate($files, (int)$user['id'], $paths, 'media');
+                    $createdIds[] = (int)($created['id'] ?? 0);
                     $uploadedCount++;
                 }
             }
@@ -135,9 +164,35 @@ final class MediaController extends BaseAdminController
                 throw new \RuntimeException('Nic se nenahrálo.');
             }
 
-            $this->redirect('admin.php?r=media', 'success', "Nahráno souborů: {$uploadedCount}.");
+            $message = "Nahráno souborů: {$uploadedCount}.";
+
+            if ($this->isAjax()) {
+                $settings = new CmsSettings();
+                $itemsData = $this->loadItemsByIds($createdIds, $paths);
+                $cards = $this->renderMediaCards($itemsData['list'], $settings->webpEnabled());
+
+                $this->jsonResponse([
+                    'success' => true,
+                    'flash'   => ['type' => 'success', 'msg' => $message],
+                    'data'    => [
+                        'items'  => $itemsData['list'],
+                        'html'   => ['items' => $cards],
+                        'insert' => 'prepend',
+                        'context'=> $this->extractContext($_POST),
+                    ],
+                ]);
+            }
+
+            $this->redirect('admin.php?r=media', 'success', $message);
 
         } catch (\Throwable $e) {
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error'   => $e->getMessage(),
+                ], 400);
+            }
+
             $this->redirect('admin.php?r=media', 'danger', $e->getMessage());
         }
     }
@@ -147,6 +202,13 @@ final class MediaController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error'   => 'Chybí ID.',
+                ], 422);
+            }
+
             $this->redirect('admin.php?r=media', 'danger', 'Chybí ID.');
         }
 
@@ -160,6 +222,17 @@ final class MediaController extends BaseAdminController
         if ($row && !empty($row['rel_path'])) {
             $abs = dirname(__DIR__, 5) . '/uploads/' . ltrim((string)$row['rel_path'], '/\\');
             if (is_file($abs)) @unlink($abs);
+        }
+
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => true,
+                'flash'   => ['type' => 'success', 'msg' => 'Soubor odstraněn.'],
+                'data'    => [
+                    'removedId' => $id,
+                    'context'   => $this->extractContext($_POST),
+                ],
+            ]);
         }
 
         $this->redirect('admin.php?r=media', 'success', 'Soubor odstraněn.');
@@ -222,17 +295,53 @@ final class MediaController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error'   => 'Chybí ID.',
+                ], 422);
+            }
+
             $this->redirect('admin.php?r=media', 'danger', 'Chybí ID.');
         }
 
         try {
+            $paths = $this->uploadPaths();
             $svc = new MediaService();
-            $created = $svc->optimizeWebp($id, $this->uploadPaths());
-            if ($created) {
-                $this->redirect('admin.php?r=media', 'success', 'WebP varianta byla vytvořena.');
+            $created = $svc->optimizeWebp($id, $paths);
+            $settings = new CmsSettings();
+            $itemsData = $this->loadItemsByIds([$id], $paths);
+            $item = $itemsData['map'][$id] ?? null;
+            if ($item === null) {
+                throw new \RuntimeException('Soubor nebyl nalezen.');
             }
-            $this->redirect('admin.php?r=media', 'info', 'WebP varianta již existuje.');
+
+            $message = $created ? 'WebP varianta byla vytvořena.' : 'WebP varianta již existuje.';
+            $flashType = $created ? 'success' : 'info';
+
+            if ($this->isAjax()) {
+                $cards = $this->renderMediaCards([$item], $settings->webpEnabled());
+
+                $this->jsonResponse([
+                    'success' => true,
+                    'flash'   => ['type' => $flashType, 'msg' => $message],
+                    'data'    => [
+                        'item'  => $item,
+                        'html'  => ['items' => $cards],
+                        'context' => $this->extractContext($_POST),
+                    ],
+                ]);
+            }
+
+            $this->redirect('admin.php?r=media', $flashType, $message);
         } catch (\Throwable $e) {
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error'   => $e->getMessage(),
+                ], 400);
+            }
+
             $this->redirect('admin.php?r=media', 'danger', $e->getMessage());
         }
     }
@@ -272,6 +381,143 @@ final class MediaController extends BaseAdminController
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['items' => $items], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $items
+     * @return array<int,array<string,mixed>>
+     */
+    private function attachReferences(array $items): array
+    {
+        if ($items === []) {
+            return [];
+        }
+
+        $mediaIds = array_map(static fn(array $item): int => (int)($item['id'] ?? 0), $items);
+        $references = $this->mediaReferences($mediaIds);
+
+        foreach ($items as &$item) {
+            $id = (int)($item['id'] ?? 0);
+            $item['references'] = $references[$id] ?? ['thumbnails' => [], 'content' => []];
+        }
+        unset($item);
+
+        return $items;
+    }
+
+    /**
+     * @param array<int> $ids
+     * @return array{list:array<int,array<string,mixed>>,map:array<int,array<string,mixed>>}
+     */
+    private function loadItemsByIds(array $ids, PathResolver $paths): array
+    {
+        $normalized = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $id): bool => $id > 0)));
+        if ($normalized === []) {
+            return ['list' => [], 'map' => []];
+        }
+
+        $rows = DB::query()->table('media', 'm')
+            ->select([
+                'm.id','m.user_id','m.type','m.mime','m.url','m.rel_path','m.created_at','m.meta',
+                'u.name AS author_name','u.email AS author_email'
+            ])
+            ->leftJoin('users u', 'u.id', '=', 'm.user_id')
+            ->whereIn('m.id', $normalized)
+            ->orderBy('m.created_at', 'DESC')
+            ->get();
+
+        $items = [];
+        $map = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $item = $this->prepareItem($row, $paths);
+            $items[] = $item;
+            $map[(int)($item['id'] ?? 0)] = $item;
+        }
+
+        $items = $this->attachReferences($items);
+        foreach ($items as $item) {
+            $id = (int)($item['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $map[$id] = $item;
+        }
+
+        return ['list' => $items, 'map' => $map];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $items
+     * @return array<string,string>
+     */
+    private function renderMediaCards(array $items, bool $webpEnabled): array
+    {
+        if ($items === []) {
+            return [];
+        }
+
+        $cards = [];
+        foreach ($items as $item) {
+            $id = (int)($item['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            $cards[(string)$id] = $this->captureView('media/partials/card', [
+                'item'        => $item,
+                'csrf'        => $this->token(),
+                'webpEnabled' => $webpEnabled,
+            ]);
+        }
+
+        return $cards;
+    }
+
+    /**
+     * @param array<string,mixed> $source
+     * @return array<string,mixed>
+     */
+    private function extractContext(array $source): array
+    {
+        $raw = $source['context'] ?? null;
+        if (!is_string($raw) || trim($raw) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $context = [];
+        if (isset($decoded['filters']) && is_array($decoded['filters'])) {
+            $filters = [];
+            foreach ($decoded['filters'] as $key => $value) {
+                if (!is_string($key)) {
+                    continue;
+                }
+                $filters[$key] = is_scalar($value) ? (string)$value : '';
+            }
+            if ($filters !== []) {
+                $context['filters'] = $filters;
+            }
+        }
+
+        if (isset($decoded['pagination']) && is_array($decoded['pagination'])) {
+            $pagination = [];
+            foreach (['page', 'per_page'] as $key) {
+                if (isset($decoded['pagination'][$key])) {
+                    $pagination[$key] = (int)$decoded['pagination'][$key];
+                }
+            }
+            if ($pagination !== []) {
+                $context['pagination'] = $pagination;
+            }
+        }
+
+        return $context;
     }
 
     /**

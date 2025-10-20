@@ -230,6 +230,21 @@ body.admin-sidebar-open {
   border-color: #0d6efd;
   background: rgba(13, 110, 253, 0.08);
 }
+.media-library {
+  position: relative;
+}
+.media-library__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.7);
+  z-index: 5;
+}
+.media-library__overlay.d-none {
+  display: none !important;
+}
 .admin-content {
   flex: 1;
   padding: 2rem;
