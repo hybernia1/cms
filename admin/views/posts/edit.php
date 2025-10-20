@@ -115,11 +115,13 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
               <input class="form-control form-control-lg" name="title" required value="<?= $isEdit ? $h((string)$post['title']) : '' ?>">
             </div>
 
-            <div class="mb-4<?= $isEdit ? '' : ' d-none' ?>" data-post-slug-container>
-              <label class="form-label">Slug</label>
-              <input class="form-control" name="slug" value="<?= $isEdit ? $h((string)$post['slug']) : '' ?>" data-post-slug-input>
-              <div class="form-text">Nech prázdné, pokud nechceš měnit.</div>
-            </div>
+            <?php if ($isEdit): ?>
+              <div class="mb-4">
+                <label class="form-label">Slug</label>
+                <input class="form-control" name="slug" value="<?= $h((string)$post['slug']) ?>">
+                <div class="form-text">Nech prázdné, pokud nechceš měnit.</div>
+              </div>
+            <?php endif; ?>
 
             <div>
               <label class="form-label fs-5">Obsah</label>

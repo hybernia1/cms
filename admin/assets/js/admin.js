@@ -859,8 +859,6 @@
       var statusLabelEl = form.querySelector('#status-current-label');
       var idDisplayEl = form.querySelector('[data-post-id-display]');
       var editorTextarea = form.querySelector('textarea[data-content-editor]');
-      var slugInput = form.querySelector('input[name="slug"]');
-      var slugContainer = form.querySelector('[data-post-slug-container]');
 
       if (!autosaveUrl) {
         var action = form.getAttribute('action') || '';
@@ -895,9 +893,6 @@
         if (idDisplayEl) {
           idDisplayEl.textContent = 'ID #' + postId;
           idDisplayEl.classList.remove('d-none');
-        }
-        if (slugContainer && slugContainer.classList) {
-          slugContainer.classList.remove('d-none');
         }
         if (editorTextarea) {
           editorTextarea.setAttribute('data-post-id', postId);
@@ -1048,11 +1043,9 @@
           }
 
           if (data.slug) {
+            var slugInput = form.querySelector('input[name="slug"]');
             if (slugInput) {
               slugInput.value = data.slug;
-            }
-            if (slugContainer && slugContainer.classList) {
-              slugContainer.classList.remove('d-none');
             }
           }
 
@@ -1109,62 +1102,6 @@
     });
   }
 
-  function initNavigationManager(root) {
-    var scope = root || document;
-    var scripts = [].slice.call(scope.querySelectorAll('script[type="application/json"][data-navigation-state]'));
-    if (!scripts.length && scope && scope !== document) {
-      scripts = [].slice.call(document.querySelectorAll('script[type="application/json"][data-navigation-state]'));
-    }
-    scripts.forEach(function (script) {
-      if (!script || script.dataset.navigationStateParsed === '1') {
-        return;
-      }
-      var jsonText = '';
-      try {
-        jsonText = script.textContent || script.innerText || '';
-      } catch (error) {
-        jsonText = '';
-      }
-      if (!jsonText || jsonText.trim() === '') {
-        script.dataset.navigationStateParsed = '1';
-        return;
-      }
-      var state;
-      try {
-        state = JSON.parse(jsonText);
-      } catch (error) {
-        console.error('Nepodařilo se zpracovat JSON se stavem navigace.', error);
-        script.dataset.navigationStateParsed = '1';
-        return;
-      }
-      script.dataset.navigationStateParsed = '1';
-      try {
-        if (typeof window !== 'undefined') {
-          window.cmsNavigationState = state;
-        }
-      } catch (error) {
-        console.error('Nepodařilo se uložit stav navigace do window.', error);
-      }
-      try {
-        script.navigationState = state;
-      } catch (error) {
-        console.error('Nepodařilo se zapsat stav navigace na element.', error);
-      }
-      try {
-        var event;
-        if (typeof CustomEvent === 'function') {
-          event = new CustomEvent('cms:navigation:state', { detail: state });
-        } else {
-          event = document.createEvent('CustomEvent');
-          event.initCustomEvent('cms:navigation:state', true, true, state);
-        }
-        document.dispatchEvent(event);
-      } catch (error) {
-        console.error('Chyba při předání stavu navigace.', error);
-      }
-    });
-  }
-
   function refreshDynamicUI(root) {
     initFlashMessages(root);
     initTooltips(root);
@@ -1172,7 +1109,6 @@
     initConfirmModals(root);
     initPostAutosave(root);
     initAdminMenuToggle(root);
-    initNavigationManager(root);
     initNavigationQuickAdd(root);
   }
 
@@ -1633,27 +1569,6 @@
         }
       } else if (!flash && typeof payload.text === 'string' && payload.text.trim() !== '') {
         showFlashMessage('info', payload.text.trim(), form);
-      }
-
-      if (form && form.hasAttribute('data-reset-on-success')) {
-        try {
-          form.reset();
-        } catch (error) {
-          console.error('Reset formuláře po úspěchu selhal.', error);
-        }
-        if (form && form.id === 'media-upload-form') {
-          var summaryEl = form.querySelector('#media-upload-summary');
-          if (summaryEl) {
-            summaryEl.textContent = '';
-            if (summaryEl.classList) {
-              summaryEl.classList.add('d-none');
-            }
-          }
-          var submitEl = form.querySelector('#media-upload-submit');
-          if (submitEl) {
-            submitEl.disabled = true;
-          }
-        }
       }
 
       return Promise.resolve();

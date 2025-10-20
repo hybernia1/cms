@@ -33,8 +33,7 @@ declare(strict_types=1);
       $linkTypeLabels,
       $linkStatusMessages,
       $menuLocations,
-      $menuLocationValue,
-      $navigationState
+      $menuLocationValue
   ) {
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $itemsById = [];
@@ -75,19 +74,7 @@ declare(strict_types=1);
             break;
         }
     }
-    $navigationStateJson = null;
-    if (is_array($navigationState ?? null)) {
-        $encodedState = json_encode($navigationState, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
-        if ($encodedState !== false) {
-            $navigationStateJson = $encodedState;
-        } else {
-            $navigationStateJson = '{}';
-        }
-    }
 ?>
-  <?php if ($navigationStateJson !== null): ?>
-    <script type="application/json" data-navigation-state><?= $navigationStateJson ?></script>
-  <?php endif; ?>
   <?php if (!$tablesReady): ?>
     <div class="alert alert-warning">
       Tabulky pro navigaci nebyly nalezeny. Ujistěte se, že proběhly instalace nebo migrace databáze.

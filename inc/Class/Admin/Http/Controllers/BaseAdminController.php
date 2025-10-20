@@ -112,17 +112,6 @@ abstract class BaseAdminController
 
     final protected function renderAdmin(string $template, array $data = []): void
     {
-        $captured = $this->captureView($template, $data);
-
-        header('Content-Type: text/html; charset=utf-8');
-        echo $captured['html'];
-    }
-
-    /**
-     * @return array{html:string,flash:?array}
-     */
-    final protected function captureView(string $template, array $data = []): array
-    {
         $payload = array_replace(
             [
                 'currentUser' => $this->auth->user(),
@@ -132,12 +121,8 @@ abstract class BaseAdminController
             $data,
         );
 
-        $html = $this->view->renderToString($template, $payload);
-
-        return [
-            'html'  => $html,
-            'flash' => $payload['flash'] ?? null,
-        ];
+        header('Content-Type: text/html; charset=utf-8');
+        $this->view->render($template, $payload);
     }
 
     /**

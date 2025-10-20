@@ -466,156 +466,6 @@ final class NavigationController extends BaseAdminController
         ];
     }
 
-    /**
-     * @param array<int,array<string,mixed>> $menus
-     * @param array<int,array<string,mixed>> $items
-     * @param array<int,array{value:int,label:string,disabled:bool}> $parentOptions
-     * @param array<string,array{value:string,label:string,description:?string,assigned_menu_id:?int,assigned_menu_name:?string}> $menuLocations
-     * @param array<int,array{value:string,label:string}> $targets
-     * @param array<string,string> $linkTypeLabels
-     * @param array<string,string> $linkStatusMessages
-     * @param array<int> $invalidParents
-     * @return array<string,mixed>
-     */
-    private function buildNavigationState(
-        array $menus,
-        ?array $menu,
-        int $menuId,
-        array $items,
-        ?array $editingItem,
-        array $parentOptions,
-        array $menuLocations,
-        ?string $menuLocationValue,
-        array $targets,
-        array $linkTypeLabels,
-        array $linkStatusMessages,
-        array $invalidParents,
-        bool $tablesReady
-    ): array {
-        $menusState = array_values(array_map(
-            static function (array $row): array {
-                return [
-                    'id'       => (int)($row['id'] ?? 0),
-                    'name'     => (string)($row['name'] ?? ''),
-                    'slug'     => (string)($row['slug'] ?? ''),
-                    'location' => (string)($row['location'] ?? ''),
-                ];
-            },
-            $menus
-        ));
-
-        $menuState = null;
-        if ($menu) {
-            $menuState = [
-                'id'          => (int)($menu['id'] ?? 0),
-                'name'        => (string)($menu['name'] ?? ''),
-                'slug'        => (string)($menu['slug'] ?? ''),
-                'location'    => (string)($menu['location'] ?? ''),
-                'description' => isset($menu['description']) ? (string)$menu['description'] : '',
-            ];
-        }
-
-        $itemsState = array_values(array_map(
-            static function (array $item): array {
-                return [
-                    'id'            => (int)($item['id'] ?? 0),
-                    'menuId'        => (int)($item['menu_id'] ?? 0),
-                    'parentId'      => isset($item['parent_id']) && (int)$item['parent_id'] > 0 ? (int)$item['parent_id'] : null,
-                    'title'         => (string)($item['title'] ?? ''),
-                    'linkType'      => (string)($item['link_type'] ?? ''),
-                    'linkReference' => (string)($item['link_reference'] ?? ''),
-                    'url'           => (string)($item['url'] ?? ''),
-                    'target'        => (string)($item['target'] ?? ''),
-                    'cssClass'      => (string)($item['css_class'] ?? ''),
-                    'sortOrder'     => (int)($item['sort_order'] ?? 0),
-                    'depth'         => (int)($item['depth'] ?? 0),
-                    'linkValid'     => (bool)($item['link_valid'] ?? false),
-                    'linkReason'    => isset($item['link_reason']) ? (string)$item['link_reason'] : null,
-                ];
-            },
-            $items
-        ));
-
-        $editingState = null;
-        if ($editingItem) {
-            $editingState = [
-                'id'            => (int)($editingItem['id'] ?? 0),
-                'menuId'        => (int)($editingItem['menu_id'] ?? 0),
-                'parentId'      => isset($editingItem['parent_id']) && (int)$editingItem['parent_id'] > 0 ? (int)$editingItem['parent_id'] : null,
-                'title'         => (string)($editingItem['title'] ?? ''),
-                'linkType'      => (string)($editingItem['link_type'] ?? ''),
-                'linkReference' => (string)($editingItem['link_reference'] ?? ''),
-                'url'           => (string)($editingItem['url'] ?? ''),
-                'target'        => (string)($editingItem['target'] ?? ''),
-                'cssClass'      => (string)($editingItem['css_class'] ?? ''),
-                'sortOrder'     => (int)($editingItem['sort_order'] ?? 0),
-                'linkValid'     => (bool)($editingItem['link_valid'] ?? false),
-                'linkReason'    => isset($editingItem['link_reason']) ? (string)$editingItem['link_reason'] : null,
-                'linkMeta'      => is_array($editingItem['link_meta'] ?? null) ? $editingItem['link_meta'] : [],
-            ];
-        }
-
-        $parentOptionsState = array_values(array_map(
-            static function (array $option): array {
-                return [
-                    'value'    => (int)($option['value'] ?? 0),
-                    'label'    => (string)($option['label'] ?? ''),
-                    'disabled' => (bool)($option['disabled'] ?? false),
-                ];
-            },
-            $parentOptions
-        ));
-
-        $menuLocationsState = array_values(array_map(
-            static function (array $info): array {
-                return [
-                    'value'            => (string)($info['value'] ?? ''),
-                    'label'            => (string)($info['label'] ?? ''),
-                    'description'      => isset($info['description']) ? (string)$info['description'] : null,
-                    'assignedMenuId'   => isset($info['assigned_menu_id']) && $info['assigned_menu_id'] !== null ? (int)$info['assigned_menu_id'] : null,
-                    'assignedMenuName' => isset($info['assigned_menu_name']) ? (string)$info['assigned_menu_name'] : null,
-                ];
-            },
-            array_values($menuLocations)
-        ));
-
-        $targetsState = array_values(array_map(
-            static function (array $target): array {
-                return [
-                    'value' => (string)($target['value'] ?? ''),
-                    'label' => (string)($target['label'] ?? ''),
-                ];
-            },
-            $targets
-        ));
-
-        $linkTypeLabelsState = [];
-        foreach ($linkTypeLabels as $key => $label) {
-            $linkTypeLabelsState[(string)$key] = (string)$label;
-        }
-
-        $linkStatusMessagesState = [];
-        foreach ($linkStatusMessages as $key => $label) {
-            $linkStatusMessagesState[(string)$key] = (string)$label;
-        }
-
-        return [
-            'tablesReady'        => $tablesReady,
-            'menuId'             => $menuId,
-            'menus'              => $menusState,
-            'menu'               => $menuState,
-            'items'              => $itemsState,
-            'editingItem'        => $editingState,
-            'parentOptions'      => $parentOptionsState,
-            'menuLocations'      => $menuLocationsState,
-            'menuLocationValue'  => $menuLocationValue,
-            'targets'            => $targetsState,
-            'linkTypeLabels'     => $linkTypeLabelsState,
-            'linkStatusMessages' => $linkStatusMessagesState,
-            'invalidParents'     => array_values(array_map('intval', $invalidParents)),
-        ];
-    }
-
     private function index(): void
     {
         $tablesReady = $this->tablesReady();
@@ -664,24 +514,6 @@ final class NavigationController extends BaseAdminController
 
         $menuLocations = $this->menuLocationOptions($menus);
         $menuLocationValue = $menu ? $this->sanitizeLocation((string)$menu['location']) : null;
-        $targets = $this->targetOptions();
-        $linkTypeLabels = $this->linkTypeLabels();
-        $linkStatusMessages = $this->linkStatusMessages();
-        $navigationState = $this->buildNavigationState(
-            $menus,
-            $menu,
-            $menuId,
-            $flat,
-            $editingItem,
-            $parentOptions,
-            $menuLocations,
-            $menuLocationValue,
-            $targets,
-            $linkTypeLabels,
-            $linkStatusMessages,
-            $invalidParents,
-            $tablesReady
-        );
 
         $this->renderAdmin('navigation/index', [
             'pageTitle' => 'Navigace',
@@ -695,11 +527,10 @@ final class NavigationController extends BaseAdminController
             'items' => $flat,
             'editingItem' => $editingItem,
             'parentOptions' => $parentOptions,
-            'targets' => $targets,
+            'targets' => $this->targetOptions(),
             'quickAddOptions' => $this->quickAddOptions(),
-            'linkTypeLabels' => $linkTypeLabels,
-            'linkStatusMessages' => $linkStatusMessages,
-            'navigationState' => $navigationState,
+            'linkTypeLabels' => $this->linkTypeLabels(),
+            'linkStatusMessages' => $this->linkStatusMessages(),
         ]);
     }
 

@@ -86,7 +86,7 @@ final class SaveHandler
         }
 
         return $this->successResponse('Term byl vytvořen.', [
-            'redirect' => $this->buildRedirectUrl($type),
+            'redirect' => $this->buildRedirectUrl($type, ['a' => 'edit', 'id' => $newId]),
             'id'       => $newId,
             'type'     => $type,
         ]);

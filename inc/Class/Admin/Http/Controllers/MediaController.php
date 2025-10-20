@@ -39,22 +39,17 @@ final class MediaController extends BaseAdminController
     }
 
     // ---------------- helpers ----------------
-    /**
-     * @param array<string,mixed> $query
-     * @return array<string,mixed>
-     */
-    private function mediaViewData(array $query = []): array
+    // ---------------- actions ----------------
+    private function index(): void
     {
-        $source = $query === [] ? $_GET : $query;
-
         $filters = [
-            'type' => isset($source['type']) ? (string)$source['type'] : '',
-            'q'    => isset($source['q']) ? (string)$source['q'] : '',
+            'type' => (string)($_GET['type'] ?? ''),     // image|file|<empty>
+            'q'    => (string)($_GET['q'] ?? ''),        // hledání v url/mime
         ];
-        $page = max(1, (int)($source['page'] ?? 1));
+        $page    = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 30;
 
-        $q = DB::query()->table('media', 'm')
+        $q = DB::query()->table('media','m')
             ->select([
                 'm.id','m.user_id','m.type','m.mime','m.url','m.rel_path','m.created_at','m.meta',
                 'u.name AS author_name','u.email AS author_email'
@@ -62,10 +57,8 @@ final class MediaController extends BaseAdminController
             ->leftJoin('users u', 'u.id', '=', 'm.user_id')
             ->orderBy('m.created_at','DESC');
 
-        if ($filters['type'] !== '') {
-            $q->where('m.type','=', $filters['type']);
-        }
-        if ($filters['q'] !== '') {
+        if ($filters['type'] !== '') $q->where('m.type','=', $filters['type']);
+        if ($filters['q']   !== '') {
             $like = '%' . $filters['q'] . '%';
             $q->where(function($w) use ($like) {
                 $w->whereLike('m.url', $like)->orWhere('m.mime', 'LIKE', $like);
@@ -85,7 +78,7 @@ final class MediaController extends BaseAdminController
             return $item;
         }, $items);
 
-        return [
+        $this->renderAdmin('media/index', [
             'pageTitle'  => 'Média',
             'nav'        => AdminNavigation::build('media'),
             'filters'    => $filters,
@@ -97,58 +90,7 @@ final class MediaController extends BaseAdminController
                 'pages'    => $pag['pages'] ?? 1,
             ],
             'webpEnabled'=> $settings->webpEnabled(),
-        ];
-    }
-
-    /**
-     * @param array<string,mixed> $query
-     * @param array<string,mixed> $extra
-     * @return never
-     */
-    private function respondWithMediaListing(?string $flashType, ?string $flashMessage, array $query = [], array $extra = []): never
-    {
-        if ($flashType !== null && $flashMessage !== null) {
-            $this->flash($flashType, $flashMessage);
-        }
-
-        $data = $this->mediaViewData($query);
-        $captured = $this->captureView('media/index', $data);
-
-        $payload = array_merge([
-            'success' => true,
-            'html'    => $captured['html'],
-        ], $extra);
-
-        if ($flashMessage !== null) {
-            $payload['message'] = $flashMessage;
-        }
-
-        if (is_array($captured['flash'])) {
-            $payload['flash'] = $captured['flash'];
-        }
-
-        $this->respondJson($payload);
-    }
-
-    // ---------------- actions ----------------
-    private function index(): void
-    {
-        $data = $this->mediaViewData($_GET);
-
-        if ($this->isAjax()) {
-            $captured = $this->captureView('media/index', $data);
-            $payload = [
-                'success' => true,
-                'html'    => $captured['html'],
-            ];
-            if (is_array($captured['flash'])) {
-                $payload['flash'] = $captured['flash'];
-            }
-
-            $this->respondJson($payload);
-        }
-
-        $this->renderAdmin('media/index', $data);
+        ]);
     }
 
     private function upload(): void
@@ -156,9 +98,7 @@ final class MediaController extends BaseAdminController
         $this->assertCsrf();
         try {
             $user = $this->auth->user();
-            if (!$user) {
-                throw new \RuntimeException('Nejste přihlášeni.');
-            }
+            if (!$user) throw new \RuntimeException('Nejste přihlášeni.');
 
             if (empty($_FILES['files'])) {
                 throw new \RuntimeException('Nebyl vybrán žádný soubor.');
@@ -172,10 +112,8 @@ final class MediaController extends BaseAdminController
             $files = $_FILES['files'];
             if (is_array($files['name'])) {
                 $count = count($files['name']);
-                for ($i = 0; $i < $count; $i++) {
-                    if ((int)$files['error'][$i] === UPLOAD_ERR_NO_FILE) {
-                        continue;
-                    }
+                for ($i=0; $i<$count; $i++) {
+                    if ((int)$files['error'][$i] === UPLOAD_ERR_NO_FILE) continue;
                     $fileArr = [
                         'name'     => $files['name'][$i],
                         'type'     => $files['type'][$i],
@@ -186,28 +124,21 @@ final class MediaController extends BaseAdminController
                     $svc->uploadAndCreate($fileArr, (int)$user['id'], $paths, 'media');
                     $uploadedCount++;
                 }
-            } elseif ((int)$files['error'] !== UPLOAD_ERR_NO_FILE) {
-                $svc->uploadAndCreate($files, (int)$user['id'], $paths, 'media');
-                $uploadedCount++;
+            } else {
+                if ((int)$files['error'] !== UPLOAD_ERR_NO_FILE) {
+                    $svc->uploadAndCreate($files, (int)$user['id'], $paths, 'media');
+                    $uploadedCount++;
+                }
             }
 
             if ($uploadedCount === 0) {
                 throw new \RuntimeException('Nic se nenahrálo.');
             }
 
-            $message = "Nahráno souborů: {$uploadedCount}.";
+            $this->redirect('admin.php?r=media', 'success', "Nahráno souborů: {$uploadedCount}.");
 
-            if ($this->isAjax()) {
-                $this->respondWithMediaListing('success', $message, $_GET, ['uploaded' => $uploadedCount]);
-            }
-
-            $this->redirect('admin.php?r=media', 'success', $message);
         } catch (\Throwable $e) {
-            $message = trim((string)$e->getMessage()) ?: 'Nahrání selhalo.';
-            if ($this->isAjax()) {
-                $this->jsonError($message, 400);
-            }
-            $this->redirect('admin.php?r=media', 'danger', $message);
+            $this->redirect('admin.php?r=media', 'danger', $e->getMessage());
         }
     }
 
@@ -216,39 +147,22 @@ final class MediaController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
-            if ($this->isAjax()) {
-                $this->jsonError('Chybí ID.', 422);
-            }
             $this->redirect('admin.php?r=media', 'danger', 'Chybí ID.');
         }
 
-        try {
-            $row = DB::query()->table('media')->select(['id','rel_path','url'])->where('id','=',$id)->first();
+        // Smažeme pouze DB záznam; fyzické soubory můžeš mazat také (opatrně), ukážu jednoduchou variantu:
+        $row = DB::query()->table('media')->select(['id','rel_path','url'])->where('id','=',$id)->first();
 
-            DB::query()->table('media')->delete()->where('id','=',$id)->execute();
-            DB::query()->table('post_media')->delete()->where('media_id','=',$id)->execute();
+        DB::query()->table('media')->delete()->where('id','=',$id)->execute();
+        DB::query()->table('post_media')->delete()->where('media_id','=',$id)->execute();
 
-            if ($row && !empty($row['rel_path'])) {
-                $abs = dirname(__DIR__, 5) . '/uploads/' . ltrim((string)$row['rel_path'], '/\\');
-                if (is_file($abs)) {
-                    @unlink($abs);
-                }
-            }
-
-            $message = 'Soubor odstraněn.';
-
-            if ($this->isAjax()) {
-                $this->respondWithMediaListing('success', $message, $_GET, ['deletedId' => $id]);
-            }
-
-            $this->redirect('admin.php?r=media', 'success', $message);
-        } catch (\Throwable $e) {
-            $message = trim((string)$e->getMessage()) ?: 'Smazání souboru selhalo.';
-            if ($this->isAjax()) {
-                $this->jsonError($message, 500);
-            }
-            $this->redirect('admin.php?r=media', 'danger', $message);
+        // pokus o smazání fyzického souboru jen pokud máme bezpečnou relativní cestu
+        if ($row && !empty($row['rel_path'])) {
+            $abs = dirname(__DIR__, 5) . '/uploads/' . ltrim((string)$row['rel_path'], '/\\');
+            if (is_file($abs)) @unlink($abs);
         }
+
+        $this->redirect('admin.php?r=media', 'success', 'Soubor odstraněn.');
     }
 
     private function uploadFromEditor(): void
@@ -308,33 +222,18 @@ final class MediaController extends BaseAdminController
         $this->assertCsrf();
         $id = (int)($_POST['id'] ?? 0);
         if ($id <= 0) {
-            if ($this->isAjax()) {
-                $this->jsonError('Chybí ID.', 422);
-            }
             $this->redirect('admin.php?r=media', 'danger', 'Chybí ID.');
         }
 
         try {
             $svc = new MediaService();
             $created = $svc->optimizeWebp($id, $this->uploadPaths());
-
-            $message = $created ? 'WebP varianta byla vytvořena.' : 'WebP varianta již existuje.';
-            $flashType = $created ? 'success' : 'info';
-
-            if ($this->isAjax()) {
-                $this->respondWithMediaListing($flashType, $message, $_GET, [
-                    'optimizedId' => $id,
-                    'webpCreated' => $created,
-                ]);
+            if ($created) {
+                $this->redirect('admin.php?r=media', 'success', 'WebP varianta byla vytvořena.');
             }
-
-            $this->redirect('admin.php?r=media', $flashType, $message);
+            $this->redirect('admin.php?r=media', 'info', 'WebP varianta již existuje.');
         } catch (\Throwable $e) {
-            $message = trim((string)$e->getMessage()) ?: 'Optimalizace selhala.';
-            if ($this->isAjax()) {
-                $this->jsonError($message, 500);
-            }
-            $this->redirect('admin.php?r=media', 'danger', $message);
+            $this->redirect('admin.php?r=media', 'danger', $e->getMessage());
         }
     }
 
