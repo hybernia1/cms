@@ -18,18 +18,21 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     : ['r'=>'terms','a'=>'create','type'=>$type];
   $actionUrl = 'admin.php?'.http_build_query($actionParams);
   ?>
-  <form class="card" method="post" action="<?= $actionUrl ?>" data-ajax>
+  <form class="card" method="post" action="<?= $actionUrl ?>" data-ajax data-term-form>
     <div class="card-header"><?= $h($isEdit ? ($typeCfg['edit'] ?? ('Upravit '.$typeCfg['label'])).' #'.$term['id'] : ($typeCfg['create'] ?? 'Nový term')) ?></div>
     <div class="card-body">
+      <div class="alert alert-danger mb-3" data-error-for="form" hidden></div>
       <div class="mb-3">
         <label class="form-label">Název</label>
         <input class="form-control" name="name" required value="<?= $isEdit ? $h((string)$term['name']) : '' ?>">
+        <div class="invalid-feedback" data-error-for="name" hidden></div>
       </div>
 
       <div class="mb-3">
         <label class="form-label">Slug</label>
         <input class="form-control" name="slug" value="<?= $isEdit ? $h((string)$term['slug']) : '' ?>">
         <div class="form-text">Nech prázdné pro automatické vygenerování ze jména.</div>
+        <div class="invalid-feedback" data-error-for="slug" hidden></div>
       </div>
 
       <div class="mb-3">
@@ -42,6 +45,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <div class="mb-3">
         <label class="form-label">Popis</label>
         <textarea class="form-control" name="description" rows="4"><?= $isEdit ? $h((string)($term['description'] ?? '')) : '' ?></textarea>
+        <div class="invalid-feedback" data-error-for="description" hidden></div>
       </div>
 
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
