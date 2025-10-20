@@ -189,11 +189,13 @@
     if (document.implementation && document.implementation.createHTMLDocument) {
       var doc = document.implementation.createHTMLDocument('');
       try {
-        doc.documentElement.innerHTML = html;
+        doc.open();
+        doc.write(html);
+        doc.close();
+        return doc;
       } catch (e) {
-        doc.body.innerHTML = html;
+        return null;
       }
-      return doc;
     }
     return null;
   }
