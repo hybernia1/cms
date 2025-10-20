@@ -23,8 +23,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     return \Cms\Admin\Utils\SettingsPresets::timezoneLabel($tz);
   };
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax>
+  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax data-form-helper="validation">
     <div class="card-body">
+      <div class="alert alert-danger mb-3" data-error-for="form" hidden></div>
       <div class="mb-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Základní informace</h2>
         <div class="row g-3">
@@ -35,6 +36,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           <div class="col-md-6">
             <label class="form-label" for="site_email">E-mail webu</label>
             <input class="form-control" id="site_email" name="site_email" value="<?= $h((string)($settings['site_email'] ?? '')) ?>" type="email" placeholder="admin@example.com">
+            <div class="invalid-feedback" data-error-for="site_email" hidden></div>
           </div>
         </div>
       </div>
@@ -67,6 +69,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
             <label class="form-label" for="site_url">Site URL</label>
             <input class="form-control" id="site_url" name="site_url" value="<?= $h((string)($settings['site_url'] ?? '')) ?>" placeholder="https://example.com">
             <div class="form-text">Nechte prázdné pro automatickou detekci.</div>
+            <div class="invalid-feedback" data-error-for="site_url" hidden></div>
           </div>
         </div>
       </div>
@@ -116,6 +119,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
               <?php endforeach; ?>
             </select>
             <div class="form-text">Vyberte požadovaný posun vůči UTC.</div>
+            <div class="invalid-feedback" data-error-for="timezone" hidden></div>
           </div>
         </div>
         <datalist id="dateFormatPresets">

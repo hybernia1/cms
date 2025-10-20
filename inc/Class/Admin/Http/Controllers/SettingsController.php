@@ -262,6 +262,17 @@ final class SettingsController extends BaseAdminController
             'category_base' => (string)($_POST['category_base'] ?? ''),
         ];
 
+        $errors = $this->validatePermalinkInput($input);
+        if ($errors !== []) {
+            $errors['form'][] = 'Opravte zvýrazněné chyby.';
+            $this->respondSettingsError(
+                'Trvalé odkazy nebyly uloženy.',
+                $errors,
+                422,
+                'admin.php?r=settings&a=permalinks'
+            );
+        }
+
         $permalinks = PermalinkSettings::normalize($input);
 
         $data = $this->readSettingsData();
@@ -279,8 +290,7 @@ final class SettingsController extends BaseAdminController
 
         CmsSettings::refresh();
 
-        $this->flash('success','Trvalé odkazy byly uloženy.');
-        $this->redirect('admin.php?r=settings&a=permalinks');
+        $this->respondSettingsSuccess('Trvalé odkazy byly uloženy.', 'admin.php?r=settings&a=permalinks');
     }
 
     private function detectSiteUrl(): string
@@ -317,6 +327,11 @@ final class SettingsController extends BaseAdminController
 
         $title = trim((string)($_POST['site_title'] ?? ''));
         $email = trim((string)($_POST['site_email'] ?? ''));
+        $errors = [];
+
+        if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['site_email'][] = 'Zadejte platnou e-mailovou adresu.';
+        }
 
         $formatPresets = $this->formatPresets();
         $dateOptions = is_array($formatPresets['date'] ?? null) ? $formatPresets['date'] : [];
@@ -329,7 +344,7 @@ final class SettingsController extends BaseAdminController
         $tz = SettingsPresets::normalizeTimezone($tzInput);
         $tzList = $this->timezones();
         if (!in_array($tz, $tzList, true)) {
-            $tz = 'UTC+00:00';
+            $errors['timezone'][] = 'Vyberte platnou časovou zónu.';
         }
 
         // nové: allow_registration + site_url
@@ -347,15 +362,22 @@ final class SettingsController extends BaseAdminController
             $siteUrl = $this->detectSiteUrl();
         } else {
             $siteUrl = $this->normalizeUrl($siteUrlIn);
-            // minimální validace hostu
             if (filter_var($siteUrl, FILTER_VALIDATE_URL) === false) {
-                // fallback na autodetekci při neplatném vstupu
-                $siteUrl = $this->detectSiteUrl();
+                $errors['site_url'][] = 'Zadejte platnou URL adresu.';
             }
         }
 
         $webpEnabled = (int)($_POST['webp_enabled'] ?? 0) === 1;
         $webpCompression = $this->normalizeWebpCompression((string)($_POST['webp_compression'] ?? ''));
+
+        if ($errors !== []) {
+            $errors['form'][] = 'Opravte zvýrazněné chyby.';
+            $this->respondSettingsError('Nastavení se nepodařilo uložit.', $errors, 422, 'admin.php?r=settings');
+        }
+
+        if (!in_array($tz, $tzList, true)) {
+            $tz = 'UTC+00:00';
+        }
 
         $data = $this->readSettingsData();
         if (!isset($data['media']) || !is_array($data['media'])) {
@@ -385,8 +407,7 @@ final class SettingsController extends BaseAdminController
         // promaž cache settings
         CmsSettings::refresh();
 
-        $this->flash('success','Nastavení uloženo.');
-        $this->redirect('admin.php?r=settings');
+        $this->respondSettingsSuccess('Nastavení uloženo.', 'admin.php?r=settings');
     }
 
     private function saveMail(): void
@@ -395,8 +416,9 @@ final class SettingsController extends BaseAdminController
 
         $driver = $this->normalizeMailDriver((string)($_POST['mail_driver'] ?? 'php'));
         $fromEmail = trim((string)($_POST['mail_from_email'] ?? ''));
+        $errors = [];
         if ($fromEmail !== '' && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
-            $fromEmail = '';
+            $errors['mail_from_email'][] = 'Zadejte platnou e-mailovou adresu.';
         }
         $fromName = trim((string)($_POST['mail_from_name'] ?? ''));
         $signature = trim((string)($_POST['mail_signature'] ?? ''));
@@ -404,11 +426,24 @@ final class SettingsController extends BaseAdminController
         $smtpHost = trim((string)($_POST['mail_smtp_host'] ?? ''));
         $smtpPort = (int)($_POST['mail_smtp_port'] ?? 587);
         if ($smtpPort <= 0 || $smtpPort > 65535) {
-            $smtpPort = 587;
+            $errors['mail_smtp_port'][] = 'Zadejte platné číslo portu (1-65535).';
         }
         $smtpUsername = trim((string)($_POST['mail_smtp_username'] ?? ''));
         $smtpPassword = (string)($_POST['mail_smtp_password'] ?? '');
         $smtpSecure = $this->normalizeMailSecure((string)($_POST['mail_smtp_secure'] ?? ''));
+
+        if ($driver === 'smtp' && $smtpHost === '') {
+            $errors['mail_smtp_host'][] = 'Vyplňte adresu SMTP serveru.';
+        }
+
+        if ($errors !== []) {
+            $errors['form'][] = 'Opravte zvýrazněné chyby.';
+            $this->respondSettingsError('E-mailové nastavení nebylo uloženo.', $errors, 422, 'admin.php?r=settings&a=mail');
+        }
+
+        if ($smtpPort <= 0 || $smtpPort > 65535) {
+            $smtpPort = 587;
+        }
 
         $data = $this->readSettingsData();
         if (!isset($data['mail']) || !is_array($data['mail'])) {
@@ -441,8 +476,7 @@ final class SettingsController extends BaseAdminController
 
         CmsSettings::refresh();
 
-        $this->flash('success','E-mailové nastavení bylo uloženo.');
-        $this->redirect('admin.php?r=settings&a=mail');
+        $this->respondSettingsSuccess('E-mailové nastavení bylo uloženo.', 'admin.php?r=settings&a=mail');
     }
 
     private function sendTestMail(): void
@@ -451,8 +485,11 @@ final class SettingsController extends BaseAdminController
 
         $email = trim((string)($_POST['test_email'] ?? ''));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $this->flash('danger','Zadejte platnou e-mailovou adresu pro test.');
-            $this->redirect('admin.php?r=settings&a=mail');
+            $errors = [
+                'test_email' => ['Zadejte platnou e-mailovou adresu.'],
+                'form'       => ['Opravte zvýrazněné chyby.'],
+            ];
+            $this->respondSettingsError('Testovací e-mail nebyl odeslán.', $errors, 422, 'admin.php?r=settings&a=mail');
         }
 
         $settings = new CmsSettings();
@@ -463,12 +500,18 @@ final class SettingsController extends BaseAdminController
         $ok = $mailService->sendTemplate($email, $template);
 
         if ($ok) {
-            $this->flash('success', sprintf('Testovací e-mail byl odeslán na %s.', $email));
-        } else {
-            $this->flash('danger','Testovací e-mail se nepodařilo odeslat. Zkontrolujte nastavení serveru.');
+            $this->respondSettingsSuccess(
+                sprintf('Testovací e-mail byl odeslán na %s.', $email),
+                'admin.php?r=settings&a=mail'
+            );
         }
 
-        $this->redirect('admin.php?r=settings&a=mail');
+        $this->respondSettingsError(
+            'Testovací e-mail se nepodařilo odeslat. Zkontrolujte nastavení serveru.',
+            [],
+            500,
+            'admin.php?r=settings&a=mail'
+        );
     }
 
     private function pickPresetValue(array $options, string $selected, string $default): string
@@ -486,5 +529,67 @@ final class SettingsController extends BaseAdminController
             }
         }
         return $selected;
+    }
+
+    /**
+     * @param array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string} $input
+     * @return array<string,array<int,string>>
+     */
+    private function validatePermalinkInput(array $input): array
+    {
+        $errors = [];
+        $fields = [
+            'post_base'     => 'Zadejte slug pro příspěvky.',
+            'page_base'     => 'Zadejte slug pro stránky.',
+            'category_base' => 'Zadejte slug pro kategorie.',
+            'tag_base'      => 'Zadejte slug pro štítky.',
+        ];
+
+        foreach ($fields as $field => $emptyMessage) {
+            $value = trim((string)($input[$field] ?? ''));
+            if ($value === '') {
+                $errors[$field][] = $emptyMessage;
+                continue;
+            }
+            if (!preg_match('~^[a-z0-9\-]+$~', $value)) {
+                $errors[$field][] = 'Použijte pouze malá písmena, čísla a pomlčky.';
+            }
+        }
+
+        return $errors;
+    }
+
+    private function respondSettingsSuccess(string $message, string $redirectUrl): never
+    {
+        $this->respondSettings(true, 'success', $message, [], 200, $redirectUrl);
+    }
+
+    /**
+     * @param array<string,array<int,string>> $errors
+     */
+    private function respondSettingsError(string $message, array $errors, int $status, string $redirectUrl, string $flashType = 'danger'): never
+    {
+        $this->respondSettings(false, $flashType, $message, $errors, $status, $redirectUrl);
+    }
+
+    /**
+     * @param array<string,array<int,string>> $errors
+     */
+    private function respondSettings(bool $success, string $flashType, string $flashMessage, array $errors, int $status, string $redirectUrl): never
+    {
+        if ($this->isAjax()) {
+            $payload = [
+                'success' => $success,
+                'flash'   => [
+                    'type' => $flashType,
+                    'msg'  => $flashMessage,
+                ],
+                'errors'  => $errors === [] ? new \stdClass() : $errors,
+            ];
+
+            $this->jsonResponse($payload, $status);
+        }
+
+        $this->redirect($redirectUrl, $flashType, $flashMessage);
     }
 }
