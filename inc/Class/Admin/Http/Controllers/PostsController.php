@@ -263,6 +263,36 @@ final class PostsController extends BaseAdminController
         return $output === false ? '' : $output;
     }
 
+    /**
+     * @param array<int> $affectedIds
+     */
+    private function respondListingAction(string $type, bool $success, string $flashType, string $message, array $affectedIds, ?string $nextState, int $status = 200): never
+    {
+        $normalizedIds = [];
+        foreach ($affectedIds as $id) {
+            $value = (int)$id;
+            if ($value > 0) {
+                $normalizedIds[] = $value;
+            }
+        }
+
+        $payload = [
+            'success'     => $success,
+            'flash'       => [
+                'type' => $flashType,
+                'msg'  => $message,
+            ],
+            'affectedIds' => $normalizedIds,
+            'nextState'   => $nextState,
+        ];
+
+        if ($this->isAjax()) {
+            $this->jsonResponse($payload, $status);
+        }
+
+        $this->redirect($this->listUrl($type), $flashType, $message);
+    }
+
     private function bulk(): void
     {
         $this->assertCsrf();
@@ -277,7 +307,7 @@ final class PostsController extends BaseAdminController
         $ids = array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
 
         if ($ids === [] || $action === '') {
-            $this->redirect($this->listUrl($type), 'warning', 'Vyberte položky a požadovanou akci.');
+            $this->respondListingAction($type, false, 'warning', 'Vyberte položky a požadovanou akci.', [], null, 422);
         }
 
         $existing = DB::query()->table('posts')
@@ -293,10 +323,13 @@ final class PostsController extends BaseAdminController
         $targetIds = array_values(array_filter($targetIds, static fn (int $id): bool => $id > 0));
 
         if ($targetIds === []) {
-            $this->redirect($this->listUrl($type), 'warning', 'Žádné platné položky pro hromadnou akci.');
+            $this->respondListingAction($type, false, 'warning', 'Žádné platné položky pro hromadnou akci.', [], null, 404);
         }
 
-        $count = count($targetIds);
+        $affected = $targetIds;
+        $nextState = null;
+        $message = '';
+
         try {
             switch ($action) {
                 case 'publish':
@@ -308,6 +341,7 @@ final class PostsController extends BaseAdminController
                     $message = $action === 'publish'
                         ? 'Položky byly publikovány.'
                         : 'Položky byly přepnuty na koncept.';
+                    $nextState = $action;
                     break;
 
                 case 'delete':
@@ -328,19 +362,24 @@ final class PostsController extends BaseAdminController
                         ->whereIn('id', $targetIds)
                         ->execute();
                     $message = 'Položky byly odstraněny.';
+                    $nextState = 'deleted';
                     break;
 
                 default:
-                    $this->redirect($this->listUrl($type), 'warning', 'Neznámá hromadná akce.');
+                    $this->respondListingAction($type, false, 'warning', 'Neznámá hromadná akce.', [], null, 400);
             }
         } catch (\Throwable $e) {
-            $this->redirect($this->listUrl($type), 'danger', $e->getMessage());
+            $this->respondListingAction($type, false, 'danger', $e->getMessage(), [], null, 500);
         }
 
-        $this->redirect(
-            $this->listUrl($type),
+        $count = count($affected);
+        $this->respondListingAction(
+            $type,
+            true,
             'success',
-            $message . ' (' . $count . ')'
+            $message . ' (' . $count . ')',
+            $affected,
+            $nextState
         );
     }
 
@@ -839,7 +878,7 @@ final class PostsController extends BaseAdminController
         $id = (int)($_POST['id'] ?? 0);
         $type = $this->requestedType();
         if ($id <= 0) {
-            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+            $this->respondListingAction($type, false, 'danger', 'Chybí ID.', [], null, 422);
         }
 
         $post = (new PostsRepository())->find($id);
@@ -848,15 +887,21 @@ final class PostsController extends BaseAdminController
             if (array_key_exists($rowType, $this->typeConfig())) {
                 $type = $rowType;
             }
+        } else {
+            $this->respondListingAction($type, false, 'danger', 'Příspěvek nebyl nalezen.', [], null, 404);
         }
 
-        // smaž vazby i post
-        DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
-        DB::query()->table('post_media')->delete()->where('post_id','=', $id)->execute();
-        DB::query()->table('comments')->delete()->where('post_id', '=', $id)->execute();
-        (new PostsRepository())->delete($id);
+        try {
+            // smaž vazby i post
+            DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
+            DB::query()->table('post_media')->delete()->where('post_id','=', $id)->execute();
+            DB::query()->table('comments')->delete()->where('post_id', '=', $id)->execute();
+            (new PostsRepository())->delete($id);
+        } catch (\Throwable $e) {
+            $this->respondListingAction($type, false, 'danger', $e->getMessage(), [], null, 500);
+        }
 
-        $this->redirect($this->listUrl($type), 'success', 'Příspěvek byl odstraněn.');
+        $this->respondListingAction($type, true, 'success', 'Příspěvek byl odstraněn.', [$id], 'deleted');
     }
 
     private function toggleStatus(): void
@@ -865,12 +910,12 @@ final class PostsController extends BaseAdminController
         $id = (int)($_POST['id'] ?? 0);
         $type = $this->requestedType();
         if ($id <= 0) {
-            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+            $this->respondListingAction($type, false, 'danger', 'Chybí ID.', [], null, 422);
         }
 
         $post = (new PostsRepository())->find($id);
         if (!$post) {
-            $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nenalezen.');
+            $this->respondListingAction($type, false, 'danger', 'Příspěvek nenalezen.', [], null, 404);
         }
         $rowType = (string)($post['type'] ?? 'post');
         if (array_key_exists($rowType, $this->typeConfig())) {
@@ -878,12 +923,19 @@ final class PostsController extends BaseAdminController
         }
 
         $new = ((string)$post['status'] === 'publish') ? 'draft' : 'publish';
-        (new PostsService())->update($id, ['status'=>$new]);
+        try {
+            (new PostsService())->update($id, ['status'=>$new]);
+        } catch (\Throwable $e) {
+            $this->respondListingAction($type, false, 'danger', $e->getMessage(), [], null, 500);
+        }
 
-        $this->redirect(
-            $this->listUrl($type),
+        $this->respondListingAction(
+            $type,
+            true,
             'success',
-            $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.'
+            $new === 'publish' ? 'Publikováno.' : 'Přepnuto na draft.',
+            [$id],
+            $new
         );
     }
 }
