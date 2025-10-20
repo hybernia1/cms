@@ -259,13 +259,72 @@
     });
   }
 
+  function normalizeAjaxPayload(raw) {
+    var success = true;
+    var data = {};
+    var message = '';
+    var errors = [];
+
+    if (!raw || typeof raw !== 'object') {
+      return { success: success, data: data, message: message, errors: errors };
+    }
+
+    if (typeof raw.success === 'boolean') {
+      success = raw.success;
+    }
+
+    if (Array.isArray(raw.errors)) {
+      raw.errors.forEach(function (value) {
+        if (typeof value === 'string' && value.trim() !== '') {
+          errors.push(value.trim());
+        }
+      });
+    } else if (typeof raw.errors === 'string' && raw.errors.trim() !== '') {
+      errors.push(raw.errors.trim());
+    }
+
+    if (raw.data && typeof raw.data === 'object') {
+      data = raw.data;
+    } else if (success) {
+      data = raw;
+    }
+
+    if (typeof raw.message === 'string' && raw.message.trim() !== '') {
+      message = raw.message.trim();
+    } else if (data && typeof data.message === 'string' && data.message.trim() !== '') {
+      message = data.message.trim();
+    } else if (!success && errors.length > 0) {
+      message = errors.join(' ');
+    }
+
+    return { success: success, data: data, message: message, errors: errors };
+  }
+
   function extractMessageFromData(data, fallback) {
     var message = fallback || '';
     if (!data || typeof data !== 'object') {
       return message;
     }
+    if (typeof data.success === 'boolean') {
+      var normalized = normalizeAjaxPayload(data);
+      if (!normalized.success) {
+        return normalized.message || (normalized.errors.length ? normalized.errors.join(' ') : message);
+      }
+      if (normalized.message) {
+        return normalized.message;
+      }
+      data = normalized.data || {};
+    }
     if (typeof data.error === 'string' && data.error.trim() !== '') {
       return data.error.trim();
+    }
+    if (Array.isArray(data.errors) && data.errors.length > 0) {
+      return data.errors.map(function (value) {
+        return typeof value === 'string' ? value.trim() : String(value || '');
+      }).join(' ').trim() || message;
+    }
+    if (typeof data.errors === 'string' && data.errors.trim() !== '') {
+      return data.errors.trim();
     }
     if (typeof data.message === 'string' && data.message.trim() !== '') {
       return data.message.trim();
@@ -849,42 +908,49 @@
             }
           });
         }).then(function (payload) {
-          if (!payload || payload.success === false) {
-            if (payload && payload.message === '') {
+          var normalized = normalizeAjaxPayload(payload || {});
+          var data = normalized.data && typeof normalized.data === 'object' ? normalized.data : {};
+
+          if (!normalized.success) {
+            if (data && data.created === false) {
               lastSavedSerialized = serializeAutosaveData(collectFormData());
               lastSentSerialized = lastSavedSerialized;
               return;
             }
-            var failMessage = payload && typeof payload.message === 'string' && payload.message !== ''
-              ? payload.message
-              : 'Automatické uložení selhalo.';
+            var failMessage = normalized.message || (normalized.errors.length ? normalized.errors.join(' ') : 'Automatické uložení selhalo.');
             throw new Error(failMessage);
           }
 
-          if (payload.postId) {
-            setCurrentPostId(payload.postId);
+          if (data.created === false) {
+            lastSavedSerialized = serializeAutosaveData(collectFormData());
+            lastSentSerialized = lastSavedSerialized;
+            return;
           }
 
-          if (payload.actionUrl) {
-            form.setAttribute('action', payload.actionUrl);
+          if (data.postId) {
+            setCurrentPostId(data.postId);
           }
 
-          if (statusInput && payload.status) {
-            statusInput.value = payload.status;
+          if (data.actionUrl) {
+            form.setAttribute('action', data.actionUrl);
           }
 
-          if (statusLabelEl && payload.statusLabel) {
-            statusLabelEl.textContent = payload.statusLabel;
+          if (statusInput && data.status) {
+            statusInput.value = data.status;
           }
 
-          if (payload.slug) {
+          if (statusLabelEl && data.statusLabel) {
+            statusLabelEl.textContent = data.statusLabel;
+          }
+
+          if (data.slug) {
             var slugInput = form.querySelector('input[name="slug"]');
             if (slugInput) {
-              slugInput.value = payload.slug;
+              slugInput.value = data.slug;
             }
           }
 
-          updateStatus(payload.message || 'Automaticky uloženo.', false);
+          updateStatus(normalized.message || data.message || 'Automaticky uloženo.', false);
 
           lastSavedSerialized = serializeAutosaveData(collectFormData());
           lastSentSerialized = lastSavedSerialized;
@@ -1236,6 +1302,22 @@
   function ajaxFormRequest(form, submitter) {
     var method = (form.getAttribute('method') || 'GET').toUpperCase();
     var action = form.getAttribute('action') || window.location.href;
+    var ajaxActionName = form.getAttribute('data-action');
+    if (ajaxActionName) {
+      var endpointAttr = form.getAttribute('data-endpoint') || action;
+      if (!endpointAttr || endpointAttr.indexOf('admin-ajax.php') === -1) {
+        endpointAttr = 'admin-ajax.php';
+      }
+      var normalizedEndpoint = normalizeUrl(endpointAttr);
+      var ajaxUrl;
+      try {
+        ajaxUrl = new URL(normalizedEndpoint);
+      } catch (err) {
+        ajaxUrl = new URL(normalizedEndpoint, window.location.href);
+      }
+      ajaxUrl.searchParams.set('action', ajaxActionName);
+      action = ajaxUrl.toString();
+    }
     var restoreDisabled = false;
 
     if (submitter && typeof submitter.disabled === 'boolean' && !submitter.disabled) {
@@ -1285,6 +1367,8 @@
     }).then(readResponsePayload).then(function (payload) {
       var response = payload.response;
       var data = payload.data;
+      var normalizedResponse = null;
+      var normalizedMessageShown = false;
 
       if (!response.ok) {
         var message = extractMessageFromData(data, 'Došlo k chybě (' + response.status + ')');
@@ -1292,6 +1376,24 @@
         error.__handled = true;
         showFlashMessage('danger', message, form);
         throw error;
+      }
+
+      if (payload.isJson && data && typeof data === 'object' && typeof data.success === 'boolean') {
+        normalizedResponse = normalizeAjaxPayload(data);
+        if (!normalizedResponse.success) {
+          var normalizedErrorMessage = normalizedResponse.message || (normalizedResponse.errors.length ? normalizedResponse.errors.join(' ') : 'Došlo k chybě.');
+          var normalizedError = new Error(normalizedErrorMessage);
+          normalizedError.__handled = true;
+          showFlashMessage('danger', normalizedErrorMessage, form);
+          throw normalizedError;
+        }
+        if (normalizedResponse.message) {
+          showFlashMessage('success', normalizedResponse.message, form);
+          normalizedMessageShown = true;
+        }
+        data = normalizedResponse.data && typeof normalizedResponse.data === 'object'
+          ? normalizedResponse.data
+          : {};
       }
 
       if (payload.isJson && data && typeof data === 'object') {
@@ -1329,7 +1431,7 @@
         if (typeof data.reload === 'boolean' && data.reload) {
           return loadAdminPage(window.location.href, { replaceHistory: true });
         }
-        if (!flash && typeof data.message === 'string' && data.message) {
+        if (!flash && !normalizedMessageShown && typeof data.message === 'string' && data.message) {
           showFlashMessage(data.success === false ? 'danger' : 'info', data.message, form);
         }
       } else if (!flash && typeof payload.text === 'string' && payload.text.trim() !== '') {
