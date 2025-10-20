@@ -90,27 +90,64 @@ final class Migrator
         return (int)($row['b'] ?? 0) + 1;
     }
 
-    /** Spustí všechny čekající migrace (v jedné transakci, pokud lze). Vrátí počet. */
-    public function runPending(): int
+    /**
+     * Spustí všechny čekající migrace (v jedné transakci, pokud lze).
+     *
+     * @param callable(string):void|null $logger
+     */
+    public function runPending(?callable $logger = null): int
     {
         $pending = $this->pending();
-        if (!$pending) return 0;
+        if (!$pending) {
+            if ($logger) {
+                $logger('Žádné čekající migrace.');
+            }
+            return 0;
+        }
 
         $batch = $this->nextBatch();
         $pdo = $this->pdo();
 
         $commit = false;
-        if (!$pdo->inTransaction()) { $pdo->beginTransaction(); $commit = true; }
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $commit = true;
+            if ($logger) {
+                $logger('Zahájena transakce migrací.');
+            }
+        }
 
         try {
             foreach ($pending as $m) {
+                if ($logger) {
+                    $logger('Spouštím migraci: ' . $m->name());
+                }
                 $m->up($pdo);
                 $this->recordApplied($m->name(), $batch);
+                if ($logger) {
+                    $logger('Dokončeno: ' . $m->name());
+                }
             }
-            if ($commit) $pdo->commit();
+            if ($commit) {
+                $pdo->commit();
+                if ($logger) {
+                    $logger('Transakce migrací potvrzena.');
+                }
+            }
+            if ($logger) {
+                $logger('Hotovo. Celkem spuštěno migrací: ' . count($pending));
+            }
             return count($pending);
         } catch (\Throwable $e) {
-            if ($commit) $pdo->rollBack();
+            if ($logger) {
+                $logger('Chyba migrace: ' . $e->getMessage());
+            }
+            if ($commit) {
+                $pdo->rollBack();
+                if ($logger) {
+                    $logger('Transakce migrací vrácena zpět.');
+                }
+            }
             throw $e;
         }
     }
@@ -142,11 +179,20 @@ final class Migrator
         return $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
     }
 
-    /** Rollbackne poslední batch (volá down v opačném pořadí). Vrátí počet. */
-    public function rollbackLastBatch(): int
+    /**
+     * Rollbackne poslední batch (volá down v opačném pořadí). Vrátí počet.
+     *
+     * @param callable(string):void|null $logger
+     */
+    public function rollbackLastBatch(?callable $logger = null): int
     {
         $names = $this->lastBatchApplied();
-        if (!$names) return 0;
+        if (!$names) {
+            if ($logger) {
+                $logger('Žádné migrace k rollbacku.');
+            }
+            return 0;
+        }
 
         // Znovu najdeme instance migrací
         $byName = [];
@@ -154,18 +200,51 @@ final class Migrator
 
         $pdo = $this->pdo();
         $commit = false;
-        if (!$pdo->inTransaction()) { $pdo->beginTransaction(); $commit = true; }
+        if (!$pdo->inTransaction()) {
+            $pdo->beginTransaction();
+            $commit = true;
+            if ($logger) {
+                $logger('Zahájena transakce rollbacku.');
+            }
+        }
 
         try {
             foreach ($names as $name) {
-                if (!isset($byName[$name])) continue; // chybějící soubor – přeskoč
+                if (!isset($byName[$name])) {
+                    if ($logger) {
+                        $logger('Soubor migrace nenalezen, přeskočeno: ' . $name);
+                    }
+                    continue; // chybějící soubor – přeskoč
+                }
+                if ($logger) {
+                    $logger('Rollback migrace: ' . $name);
+                }
                 $byName[$name]->down($pdo);
                 $this->forget($name);
+                if ($logger) {
+                    $logger('Rollback dokončen: ' . $name);
+                }
             }
-            if ($commit) $pdo->commit();
+            if ($commit) {
+                $pdo->commit();
+                if ($logger) {
+                    $logger('Transakce rollbacku potvrzena.');
+                }
+            }
+            if ($logger) {
+                $logger('Hotovo. Celkem rollbacknuto migrací: ' . count($names));
+            }
             return count($names);
         } catch (\Throwable $e) {
-            if ($commit) $pdo->rollBack();
+            if ($logger) {
+                $logger('Chyba rollbacku: ' . $e->getMessage());
+            }
+            if ($commit) {
+                $pdo->rollBack();
+                if ($logger) {
+                    $logger('Transakce rollbacku vrácena zpět.');
+                }
+            }
             throw $e;
         }
     }
