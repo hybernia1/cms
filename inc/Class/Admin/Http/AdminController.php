@@ -246,8 +246,92 @@ final class AdminController
     {
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function jsonSuccess(array $data = [], int $status = 200): never
+    {
+        $payload = ['success' => true, 'ok' => true];
+
+        if ($data !== []) {
+            $payload = array_merge($payload, $data);
+        }
+
+        $this->jsonResponse($payload, $status);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function jsonError(string|array $errors, array $data = [], int $status = 400): never
+    {
+        $payload = array_merge(['success' => false, 'ok' => false], $data);
+        $normalized = $this->normalizeErrors($errors);
+
+        if (count($normalized) === 1) {
+            $payload['error'] = $normalized[0];
+        } elseif ($normalized !== []) {
+            $payload['errors'] = $normalized;
+        }
+
+        $this->jsonResponse($payload, $status);
+    }
+
+    /**
+     * @param array{type?:string,msg?:string}|null $flash
+     */
+    private function jsonRedirect(string $url, ?array $flash = null, int $status = 200): never
+    {
+        $success = $this->flashIndicatesSuccess($flash);
+        $payload = [
+            'success'  => $success,
+            'ok'       => $success,
+            'redirect' => $url,
+        ];
+
+        if ($flash !== null) {
+            $payload['flash'] = [
+                'type' => (string)($flash['type'] ?? ''),
+                'msg'  => (string)($flash['msg'] ?? ''),
+            ];
+        }
+
+        $this->jsonResponse($payload, $status);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeErrors(string|array $errors): array
+    {
+        if (is_string($errors)) {
+            $errors = [$errors];
+        }
+
+        $normalized = [];
+
+        foreach ($errors as $error) {
+            if (is_string($error)) {
+                $trimmed = trim($error);
+                if ($trimmed !== '') {
+                    $normalized[] = $trimmed;
+                }
+                continue;
+            }
+
+            if (is_array($error)) {
+                foreach ($this->normalizeErrors($error) as $nested) {
+                    $normalized[] = $nested;
+                }
+            }
+        }
+
+        return $normalized;
     }
 
     /**
@@ -310,7 +394,13 @@ final class AdminController
     {
         $incoming = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
         if (empty($_SESSION['csrf_admin']) || !hash_equals((string)$_SESSION['csrf_admin'], (string)$incoming)) {
+            if ($this->isAjax()) {
+                $this->jsonError('CSRF token invalid', status: 419);
+            }
+
             http_response_code(419);
+            header('Content-Type: text/plain; charset=utf-8');
+            header('X-Content-Type-Options: nosniff');
             echo 'CSRF token invalid';
             exit;
         }
@@ -328,23 +418,10 @@ final class AdminController
         }
 
         $flash = $_SESSION['_flash'] ?? null;
+        $flashPayload = is_array($flash) ? $flash : null;
 
         if ($this->isAjax()) {
-            $payload = [
-                'success'  => $this->flashIndicatesSuccess($flash),
-                'redirect' => $url,
-            ];
-
-            if (is_array($flash)) {
-                $payload['flash'] = [
-                    'type' => (string)($flash['type'] ?? ''),
-                    'msg'  => (string)($flash['msg'] ?? ''),
-                ];
-            }
-
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            exit;
+            $this->jsonRedirect($url, $flashPayload);
         }
 
         header('Location: ' . $url);
@@ -391,9 +468,9 @@ final class AdminController
         return is_array($f) ? $f : null;
     }
 
-    private function flashIndicatesSuccess($flash): bool
+    private function flashIndicatesSuccess(?array $flash): bool
     {
-        if (!is_array($flash)) {
+        if ($flash === null) {
             return true;
         }
 
