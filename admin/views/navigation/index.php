@@ -106,7 +106,7 @@ declare(strict_types=1);
         <div class="card mb-3">
           <div class="card-header">Upravit menu</div>
           <div class="card-body">
-            <form method="post" action="admin.php?r=navigation&a=update-menu" class="mb-3" data-ajax>
+            <form method="post" action="admin.php?r=navigation&a=update-menu" class="mb-3" data-ajax data-action="navigation_update_menu">
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="id" value="<?= $h((string)$menu['id']) ?>">
               <div class="mb-3">
@@ -148,7 +148,7 @@ declare(strict_types=1);
                 <button class="btn btn-primary" type="submit">Uložit změny</button>
               </div>
             </form>
-              <form method="post" action="admin.php?r=navigation&a=delete-menu" data-ajax data-confirm-modal="Opravdu smazat toto menu včetně všech položek?" data-confirm-modal-title="Smazat menu" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne">
+              <form method="post" action="admin.php?r=navigation&a=delete-menu" data-ajax data-action="navigation_delete_menu" data-confirm-modal="Opravdu smazat toto menu včetně všech položek?" data-confirm-modal-title="Smazat menu" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne">
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="id" value="<?= $h((string)$menu['id']) ?>">
               <button class="btn btn-outline-danger w-100" type="submit">Smazat menu</button>
@@ -163,7 +163,7 @@ declare(strict_types=1);
           <?php if (!$tablesReady): ?>
             <p class="text-secondary small mb-0">Nejprve dokončete migrace databáze, poté bude možné menu vytvořit.</p>
           <?php else: ?>
-            <form method="post" action="admin.php?r=navigation&a=create-menu" data-ajax>
+            <form method="post" action="admin.php?r=navigation&a=create-menu" data-ajax data-action="navigation_create_menu">
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <div class="mb-3">
                 <label class="form-label">Název</label>
@@ -244,7 +244,7 @@ declare(strict_types=1);
         <div class="card mb-3" id="item-form">
           <div class="card-header"><?= $editingItem ? 'Upravit položku' : 'Přidat položku' ?></div>
           <div class="card-body">
-            <form method="post" id="navigation-item-form" action="admin.php?r=navigation&a=<?= $editingItem ? 'update-item' : 'create-item' ?>" data-ajax>
+            <form method="post" id="navigation-item-form" action="admin.php?r=navigation&a=<?= $editingItem ? 'update-item' : 'create-item' ?>" data-ajax data-action="<?= $editingItem ? 'navigation_update_item' : 'navigation_create_item' ?>">
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
               <?php if ($editingItem): ?>
@@ -408,7 +408,7 @@ declare(strict_types=1);
                         <a class="admin-icon-btn" href="admin.php?r=navigation&menu_id=<?= $h((string)$menu['id']) ?>&item_id=<?= $h((string)$it['id']) ?>#item-form" aria-label="Upravit položku" data-bs-toggle="tooltip" data-bs-title="Upravit položku">
                           <i class="bi bi-pencil" aria-hidden="true"></i>
                         </a>
-                        <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" data-ajax data-confirm-modal="Opravdu odstranit tuto položku?" data-confirm-modal-title="Smazat položku" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne">
+                        <form method="post" action="admin.php?r=navigation&a=delete-item" class="d-inline" data-ajax data-action="navigation_delete_item" data-confirm-modal="Opravdu odstranit tuto položku?" data-confirm-modal-title="Smazat položku" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne">
                           <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
                           <input type="hidden" name="menu_id" value="<?= $h((string)$menu['id']) ?>">
                           <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">

@@ -343,7 +343,7 @@
         libraryError.classList.add('d-none');
       }
 
-      fetch('admin.php?r=media&a=library&type=image&limit=60', {
+      fetch('admin-ajax.php?action=media_library&type=image&limit=60', {
         headers: { 'Accept': 'application/json' }
       })
         .then(function (response) {
@@ -402,7 +402,7 @@
       setError('');
       updateConfirm('Nahrávání…', false);
 
-      fetch('admin.php?r=media&a=upload-editor', {
+      fetch('admin-ajax.php?action=media_editor_upload', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

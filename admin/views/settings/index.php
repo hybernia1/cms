@@ -23,7 +23,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     return \Cms\Admin\Utils\SettingsPresets::timezoneLabel($tz);
   };
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax>
+  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax data-action="settings_save">
     <div class="card-body">
       <div class="mb-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Základní informace</h2>

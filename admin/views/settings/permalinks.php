@@ -35,7 +35,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     $currentTag = $seoEnabled ? $tagPretty : $tagFallback;
     $currentCategory = $seoEnabled ? $categoryPretty : $categoryFallback;
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=permalinks" data-ajax>
+  <form class="card" method="post" action="admin.php?r=settings&a=permalinks" data-ajax data-action="settings_permalinks_save">
     <div class="card-body">
       <div class="mb-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">SEO URL</h2>

@@ -37,17 +37,26 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     'spam'    => ['route' => 'spam',    'icon' => 'bi-slash-circle', 'title' => 'Označit jako spam'],
   ];
   $backUrl = $_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments';
-  $renderStatusAction = function(string $key, array $comment) use ($actionDefinitions, $h, $csrf, $backUrl): string {
+  $statusMap = [
+    'approve' => 'published',
+    'draft'   => 'draft',
+    'spam'    => 'spam',
+  ];
+  $renderStatusAction = function(string $key, array $comment) use ($actionDefinitions, $statusMap, $h, $csrf, $backUrl): string {
     if (!isset($actionDefinitions[$key])) {
       return '';
     }
     $def = $actionDefinitions[$key];
+    $newStatus = $statusMap[$key] ?? null;
     ob_start();
     ?>
-    <form method="post" action="admin.php?r=comments&a=<?= $h($def['route']) ?>" class="d-inline" data-ajax>
+    <form method="post" action="admin.php?r=comments&a=<?= $h($def['route']) ?>" class="d-inline" data-ajax data-action="comments_status">
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
       <input type="hidden" name="id" value="<?= (int)($comment['id'] ?? 0) ?>">
       <input type="hidden" name="_back" value="<?= $h($backUrl) ?>">
+      <?php if ($newStatus !== null): ?>
+        <input type="hidden" name="status" value="<?= $h($newStatus) ?>">
+      <?php endif; ?>
       <button class="btn btn-light btn-sm border px-2" type="submit" aria-label="<?= $h($def['title']) ?>" data-bs-toggle="tooltip" data-bs-title="<?= $h($def['title']) ?>">
         <i class="<?= $h($def['icon']) ?>"></i>
       </button>
@@ -62,6 +71,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
           action="admin.php?r=comments&a=delete"
           class="d-inline"
           data-ajax
+          data-action="comments_delete"
           data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
           data-confirm-modal-title="Potvrzení smazání"
           data-confirm-modal-confirm-label="Smazat"
@@ -153,6 +163,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
   <?php $this->render('parts/listing/bulk-form', [
     'formId'       => 'comments-bulk-form',
     'action'       => 'admin.php?r=comments&a=bulk',
+    'ajax_action'  => 'comments_bulk',
     'csrf'         => $csrf,
     'selectAll'    => '#comments-select-all',
     'rowSelector'  => '.comment-row-check',

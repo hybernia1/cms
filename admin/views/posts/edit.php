@@ -735,7 +735,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
         libraryLoaded = true;
         if (libraryLoading) libraryLoading.classList.remove('d-none');
         if (libraryError) libraryError.classList.add('d-none');
-        fetch('admin.php?r=media&a=library&type=image&limit=60', {
+        fetch('admin-ajax.php?action=media_library&type=image&limit=60', {
           headers: { 'Accept': 'application/json' }
         })
           .then(function (response) {
