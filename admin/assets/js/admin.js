@@ -13,6 +13,7 @@
   var flashRemoveTimeout = null;
   var formHelperRegistry = Object.create(null);
   var formHelperInstances = new WeakMap();
+  var bulkFormStateUpdaters = new WeakMap();
 
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
@@ -1881,6 +1882,178 @@
     });
   }
 
+  function cssEscapeValue(value) {
+    var str = String(value);
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      return window.CSS.escape(str);
+    }
+    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  function findPostsListing(form) {
+    if (!form || typeof form.closest !== 'function') {
+      return null;
+    }
+    return form.closest('[data-posts-listing]');
+  }
+
+  function getPostsTableElements(listing) {
+    if (!listing) {
+      return null;
+    }
+    var container = listing.querySelector('[data-posts-table]');
+    if (!container) {
+      return null;
+    }
+    var wrapper = container.querySelector('[data-posts-table-wrapper]') || container;
+    var tbody = wrapper.querySelector('[data-posts-tbody]');
+    var template = wrapper.querySelector('template[data-posts-empty-template]') || container.querySelector('template[data-posts-empty-template]');
+    return { listing: listing, container: container, wrapper: wrapper, tbody: tbody, template: template };
+  }
+
+  function removePostsEmptyRow(tbody) {
+    if (!tbody) {
+      return;
+    }
+    var empty = tbody.querySelector('[data-posts-empty-row]');
+    if (empty && empty.parentNode) {
+      empty.parentNode.removeChild(empty);
+    }
+  }
+
+  function ensurePostsEmptyRow(elements) {
+    if (!elements || !elements.tbody) {
+      return;
+    }
+    var tbody = elements.tbody;
+    var hasRow = tbody.querySelector('[data-post-row]');
+    if (hasRow) {
+      removePostsEmptyRow(tbody);
+      return;
+    }
+    var existing = tbody.querySelector('[data-posts-empty-row]');
+    if (existing) {
+      return;
+    }
+    var clone = null;
+    var template = elements.template;
+    if (template && template.content && template.content.firstElementChild) {
+      clone = template.content.firstElementChild.cloneNode(true);
+    } else {
+      clone = document.createElement('tr');
+      clone.setAttribute('data-posts-empty-row', '1');
+      var cell = document.createElement('td');
+      cell.colSpan = 4;
+      cell.className = 'text-center text-secondary py-4';
+      cell.innerHTML = '<i class="bi bi-inbox me-1"></i>Žádné položky';
+      clone.appendChild(cell);
+    }
+    if (clone) {
+      tbody.appendChild(clone);
+    }
+  }
+
+  function updatePostRowToggleState(row, state) {
+    if (!row) {
+      return;
+    }
+    row.setAttribute('data-post-status', state);
+    var button = row.querySelector('[data-post-toggle-button]');
+    if (!button) {
+      return;
+    }
+    button.setAttribute('data-state', state);
+    var label = state === 'publish'
+      ? button.getAttribute('data-label-publish')
+      : button.getAttribute('data-label-draft');
+    var iconClass = state === 'publish'
+      ? button.getAttribute('data-icon-publish')
+      : button.getAttribute('data-icon-draft');
+    if (label) {
+      button.setAttribute('aria-label', label);
+      button.setAttribute('data-bs-title', label);
+      button.setAttribute('data-bs-original-title', label);
+      button.setAttribute('title', label);
+    }
+    if (typeof bootstrap !== 'undefined' && typeof bootstrap.Tooltip === 'function') {
+      var existingTooltip = bootstrap.Tooltip.getInstance(button);
+      if (existingTooltip && typeof existingTooltip.dispose === 'function') {
+        existingTooltip.dispose();
+      }
+    }
+    var icon = button.querySelector('i');
+    if (!icon) {
+      icon = document.createElement('i');
+      button.appendChild(icon);
+    }
+    icon.className = iconClass || '';
+    initTooltips(row);
+  }
+
+  function triggerBulkFormUpdate(listing) {
+    if (!listing) {
+      return;
+    }
+    var form = listing.querySelector('form[data-bulk-form]');
+    if (!form) {
+      return;
+    }
+    var updateFn = bulkFormStateUpdaters.get(form);
+    if (typeof updateFn === 'function') {
+      updateFn();
+    }
+  }
+
+  function handlePostsActionResponse(form, result) {
+    if (!result || !result.data) {
+      return;
+    }
+    var data = result.data;
+    if (!data || typeof data !== 'object') {
+      return;
+    }
+    if (!Array.isArray(data.affectedIds) || data.affectedIds.length === 0) {
+      return;
+    }
+    var listing = findPostsListing(form);
+    if (!listing) {
+      return;
+    }
+    var elements = getPostsTableElements(listing);
+    if (!elements || !elements.tbody) {
+      return;
+    }
+
+    var ids = data.affectedIds.map(function (id) { return String(id); });
+    var nextState = typeof data.nextState === 'string' ? data.nextState : '';
+
+    removePostsEmptyRow(elements.tbody);
+
+    ids.forEach(function (id) {
+      var selector = '[data-post-row][data-post-id="' + cssEscapeValue(id) + '"]';
+      var row = elements.tbody.querySelector(selector);
+      if (!row) {
+        return;
+      }
+      var checkbox = row.querySelector('input[type="checkbox"][name="ids[]"]');
+      if (checkbox) {
+        checkbox.checked = false;
+      }
+      if (nextState === 'deleted') {
+        if (row.parentNode) {
+          row.parentNode.removeChild(row);
+        }
+        return;
+      }
+      if (nextState === 'publish' || nextState === 'draft') {
+        updatePostRowToggleState(row, nextState);
+      }
+    });
+
+    ensurePostsEmptyRow(elements);
+    triggerBulkFormUpdate(listing);
+  }
+
   function ajaxFormRequest(form, submitter) {
     var method = (form.getAttribute('method') || 'GET').toUpperCase();
     var action = form.getAttribute('action') || window.location.href;
@@ -1941,6 +2114,7 @@
       if (result.redirected || result.reloaded || result.htmlRoot) {
         return result;
       }
+      handlePostsActionResponse(form, result);
       dispatchFormEvent(form, 'cms:admin:form:success', { result: result });
       return result;
     }).catch(function (error) {
@@ -2036,6 +2210,7 @@
       var counter = counterSelector ? document.querySelector(counterSelector) : null;
 
       function updateState() {
+        checkboxes = checkboxes.filter(function (cb) { return cb && cb.isConnected; });
         var checked = checkboxes.filter(function (cb) { return cb.checked; });
         var count = checked.length;
         if (selectAll) {
@@ -2052,6 +2227,7 @@
 
       if (selectAll) {
         selectAll.addEventListener('change', function () {
+          checkboxes = checkboxes.filter(function (cb) { return cb && cb.isConnected; });
           var isChecked = selectAll.checked;
           checkboxes.forEach(function (cb) { cb.checked = isChecked; });
           updateState();
@@ -2072,6 +2248,7 @@
         }
       });
 
+      bulkFormStateUpdaters.set(form, updateState);
       updateState();
     });
   }

@@ -15,7 +15,7 @@ $urls = $urls ?? new \Cms\Admin\Utils\LinkGenerator();
 
 $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
-<div class="table-responsive">
+<div class="table-responsive" data-posts-table-wrapper>
   <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
       <tr>
@@ -25,7 +25,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
         <th style="width:140px" class="text-end">Akce</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody data-posts-tbody>
       <?php foreach ($items as $it): ?>
         <?php
           $isPublished = ($it['status'] ?? '') === 'publish';
@@ -38,7 +38,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
               : $urls->post($slug);
           }
         ?>
-        <tr>
+        <tr data-post-row data-post-id="<?= $h((string)$it['id']) ?>" data-post-status="<?= $isPublished ? 'publish' : 'draft' ?>">
           <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku" form="posts-bulk-form"></td>
           <td>
             <?php if ($frontUrl !== ''): ?>
@@ -67,12 +67,18 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
               <i class="bi bi-pencil"></i>
             </a>
 
-            <form method="post" action="<?= $h('admin.php?' . http_build_query(['r' => 'posts', 'a' => 'toggle', 'type' => $type])) ?>" class="d-inline" data-ajax>
+            <form method="post" action="<?= $h('admin.php?' . http_build_query(['r' => 'posts', 'a' => 'toggle', 'type' => $type])) ?>" class="d-inline" data-ajax data-post-toggle-form>
               <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
               <input type="hidden" name="id" value="<?= $h((string)$it['id']) ?>">
               <button class="btn btn-light btn-sm border me-1" type="submit"
                       aria-label="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>"
-                      data-bs-toggle="tooltip" data-bs-title="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>">
+                      data-bs-toggle="tooltip" data-bs-title="<?= $isPublished ? 'Zneviditelnit' : 'Publikovat' ?>"
+                      data-post-toggle-button
+                      data-state="<?= $isPublished ? 'publish' : 'draft' ?>"
+                      data-label-publish="Zneviditelnit"
+                      data-label-draft="Publikovat"
+                      data-icon-publish="bi bi-eye"
+                      data-icon-draft="bi bi-eye-slash">
                 <?php if ($isPublished): ?>
                   <i class="bi bi-eye"></i>
                 <?php else: ?>
@@ -102,7 +108,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       <?php endforeach; ?>
 
       <?php if ($items === []): ?>
-        <tr>
+        <tr data-posts-empty-row>
           <td colspan="4" class="text-center text-secondary py-4">
             <i class="bi bi-inbox me-1"></i>Žádné položky
           </td>
@@ -110,4 +116,11 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       <?php endif; ?>
     </tbody>
   </table>
+  <template data-posts-empty-template>
+    <tr data-posts-empty-row>
+      <td colspan="4" class="text-center text-secondary py-4">
+        <i class="bi bi-inbox me-1"></i>Žádné položky
+      </td>
+    </tr>
+  </template>
 </div>
