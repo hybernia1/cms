@@ -783,7 +783,8 @@ final class NavigationController extends BaseAdminController
 
         $name = trim((string)($_POST['name'] ?? ''));
         $slugInput = trim((string)($_POST['slug'] ?? ''));
-        $location = $this->sanitizeLocation((string)($_POST['location'] ?? 'primary'));
+        $locationInput = $_POST['location'] ?? ($_POST['menu_location'] ?? ($_POST['location_value'] ?? ''));
+        $location = $this->sanitizeLocation((string)$locationInput);
         $description = trim((string)($_POST['description'] ?? ''));
 
         if ($name === '') {
@@ -838,7 +839,8 @@ final class NavigationController extends BaseAdminController
 
         $name = trim((string)($_POST['name'] ?? ''));
         $slugInput = trim((string)($_POST['slug'] ?? ''));
-        $location = $this->sanitizeLocation((string)($_POST['location'] ?? 'primary'));
+        $locationInput = $_POST['location'] ?? ($_POST['menu_location'] ?? ($_POST['location_value'] ?? ''));
+        $location = $this->sanitizeLocation((string)$locationInput);
         $description = trim((string)($_POST['description'] ?? ''));
 
         if ($name === '') {
@@ -927,7 +929,8 @@ final class NavigationController extends BaseAdminController
         $linkTypeInput = (string)($_POST['link_type'] ?? 'custom');
         $linkReferenceInput = trim((string)($_POST['link_reference'] ?? ''));
         $target = $this->sanitizeTarget((string)($_POST['target'] ?? '_self'));
-        $cssClass = trim((string)($_POST['css_class'] ?? ''));
+        $cssClassInput = $_POST['css_class'] ?? ($_POST['css_selector'] ?? '');
+        $cssClass = trim((string)$cssClassInput);
         $parentId = (int)($_POST['parent_id'] ?? 0);
         $sortOrder = (int)($_POST['sort_order'] ?? 0);
 
@@ -1010,7 +1013,8 @@ final class NavigationController extends BaseAdminController
         $linkTypeInput = (string)($_POST['link_type'] ?? 'custom');
         $linkReferenceInput = trim((string)($_POST['link_reference'] ?? ''));
         $target = $this->sanitizeTarget((string)($_POST['target'] ?? '_self'));
-        $cssClass = trim((string)($_POST['css_class'] ?? ''));
+        $cssClassInput = $_POST['css_class'] ?? ($_POST['css_selector'] ?? '');
+        $cssClass = trim((string)$cssClassInput);
         $parentId = (int)($_POST['parent_id'] ?? 0);
         $sortOrder = (int)($_POST['sort_order'] ?? 0);
 
