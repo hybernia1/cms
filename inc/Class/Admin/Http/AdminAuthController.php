@@ -247,6 +247,7 @@ final class AdminAuthController
     {
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');
+        header('X-Content-Type-Options: nosniff');
         echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
@@ -274,7 +275,17 @@ final class AdminAuthController
     {
         $incoming = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
         if (empty($_SESSION['csrf_admin']) || !hash_equals((string)$_SESSION['csrf_admin'], (string)$incoming)) {
+            if ($this->isAjax()) {
+                $this->json([
+                    'success' => false,
+                    'ok'      => false,
+                    'error'   => 'CSRF token invalid',
+                ], 419);
+            }
+
             http_response_code(419);
+            header('Content-Type: text/plain; charset=utf-8');
+            header('X-Content-Type-Options: nosniff');
             echo 'CSRF token invalid';
             exit;
         }

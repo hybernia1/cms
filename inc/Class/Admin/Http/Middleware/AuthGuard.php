@@ -13,13 +13,23 @@ final class AuthGuard
         if (!$auth->check()) {
             http_response_code(401);
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['ok'=>false,'error'=>'Unauthorized'], JSON_UNESCAPED_UNICODE);
+            header('X-Content-Type-Options: nosniff');
+            echo json_encode([
+                'success' => false,
+                'ok'      => false,
+                'error'   => 'Unauthorized',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
         if ($role && !$auth->requireRole($role)) {
             http_response_code(403);
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['ok'=>false,'error'=>'Forbidden'], JSON_UNESCAPED_UNICODE);
+            header('X-Content-Type-Options: nosniff');
+            echo json_encode([
+                'success' => false,
+                'ok'      => false,
+                'error'   => 'Forbidden',
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
     }
