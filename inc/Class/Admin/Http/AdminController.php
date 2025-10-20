@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin\Http;
 
 use Cms\Admin\Auth\AuthService;
+use Cms\Admin\Domain\Repositories\PostsRepository;
 use Cms\Admin\Domain\Services\PostsService;
 use Cms\Admin\Http\Controllers\CommentsController;
 use Cms\Admin\Http\Controllers\MediaController;
@@ -112,7 +113,19 @@ final class AdminController
         $user = $this->auth->user();
         $authorId = isset($user['id']) ? (int)$user['id'] : 0;
         if ($authorId <= 0) {
-            $this->redirect('admin.php?r=dashboard', 'danger', 'Nelze ověřit autora konceptu.');
+            $message = 'Nelze ověřit autora konceptu.';
+
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'flash'   => [
+                        'type' => 'danger',
+                        'msg'  => $message,
+                    ],
+                ], 403);
+            }
+
+            $this->redirect('admin.php?r=dashboard', 'danger', $message);
         }
 
         $title = trim((string)($_POST['title'] ?? ''));
@@ -124,9 +137,19 @@ final class AdminController
             'content' => $content,
             'type'    => $type,
         ];
-        $this->storeQuickDraftOld($values);
-
         if ($title === '') {
+            $this->storeQuickDraftOld($values);
+
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'flash'   => [
+                        'type' => 'warning',
+                        'msg'  => 'Zadejte prosím titulek konceptu.',
+                    ],
+                ], 422);
+            }
+
             $this->redirect('admin.php?r=dashboard', 'warning', 'Zadejte prosím titulek konceptu.');
         }
 
@@ -140,12 +163,91 @@ final class AdminController
                 'author_id'  => $authorId,
             ]);
         } catch (\Throwable $e) {
-            $this->redirect('admin.php?r=dashboard', 'danger', 'Koncept se nepodařilo uložit: ' . $e->getMessage());
+            $this->storeQuickDraftOld($values);
+
+            $message = 'Koncept se nepodařilo uložit: ' . $e->getMessage();
+
+            if ($this->isAjax()) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'flash'   => [
+                        'type' => 'danger',
+                        'msg'  => $message,
+                    ],
+                ], 500);
+            }
+
+            $this->redirect('admin.php?r=dashboard', 'danger', $message);
         }
 
         $this->storeQuickDraftOld([]);
 
+        $draftPayload = $this->buildQuickDraftPayload($postId, $type);
+
+        if ($this->isAjax()) {
+            $this->jsonResponse([
+                'success' => true,
+                'flash'   => [
+                    'type' => 'success',
+                    'msg'  => 'Koncept byl vytvořen.',
+                ],
+                'draft'   => $draftPayload,
+            ]);
+        }
+
         $this->redirect('admin.php?r=dashboard', 'success', 'Koncept byl vytvořen.');
+    }
+
+    /**
+     * @return array{id:int,title:string,type:string,created_at:?string,created_at_display:string,url:string}
+     */
+    private function buildQuickDraftPayload(int $postId, string $fallbackType): array
+    {
+        $repository = new PostsRepository();
+        $row = $repository->find($postId);
+        if (!is_array($row)) {
+            $row = [];
+        }
+
+        $title = trim((string)($row['title'] ?? ''));
+        $type = (string)($row['type'] ?? $fallbackType);
+        $createdRaw = isset($row['created_at']) ? (string)$row['created_at'] : null;
+
+        $settings = new CmsSettings();
+        $createdAtDisplay = '';
+        if ($createdRaw) {
+            $createdAt = DateTimeFactory::fromStorage($createdRaw);
+            if ($createdAt) {
+                $createdAtDisplay = $settings->formatDateTime($createdAt);
+            }
+        }
+
+        $query = http_build_query([
+            'r'    => 'posts',
+            'a'    => 'edit',
+            'id'   => $postId,
+            'type' => $type !== '' ? $type : $fallbackType,
+        ]);
+
+        return [
+            'id'                  => $postId,
+            'title'               => $title,
+            'type'                => $type !== '' ? $type : $fallbackType,
+            'created_at'          => $createdRaw,
+            'created_at_display'  => $createdAtDisplay,
+            'url'                 => 'admin.php?' . $query,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     */
+    private function jsonResponse(array $data, int $status = 200): never
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
     /**

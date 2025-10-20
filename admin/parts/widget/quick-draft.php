@@ -7,10 +7,11 @@ $currentType = 'post';
 $titleValue = $values['title'] ?? '';
 $contentValue = $values['content'] ?? '';
 ?>
-<div class="card shadow-sm h-100">
+<div class="card shadow-sm h-100" data-quick-draft-widget>
   <div class="card-header fw-semibold">Rychlý koncept</div>
-  <form method="post" action="admin.php?r=dashboard&a=quick-draft" data-ajax>
+  <form method="post" action="admin.php?r=dashboard&a=quick-draft" data-ajax data-quick-draft-form>
     <div class="card-body">
+      <div class="quick-draft-flash" data-flash-container></div>
       <div class="mb-3">
         <label class="form-label" for="quick-draft-title">Titulek</label>
         <input class="form-control form-control-sm" id="quick-draft-title" name="title" placeholder="Název konceptu" value="<?= $h($titleValue) ?>">
@@ -32,10 +33,10 @@ $contentValue = $values['content'] ?? '';
       <a class="btn btn-outline-secondary btn-sm" href="admin.php?r=posts&type=<?= $h($currentType) ?>" data-no-ajax>Otevřít přehled</a>
     </div>
   </form>
-  <div class="card-body border-top bg-body-tertiary">
+  <div class="card-body border-top bg-body-tertiary" data-quick-draft-list-wrapper>
     <div class="small fw-semibold mb-2">Poslední koncepty</div>
     <?php if ($recentDrafts): ?>
-      <ul class="list-unstyled mb-0 small">
+      <ul class="list-unstyled mb-0 small" data-quick-draft-list>
         <?php foreach ($recentDrafts as $draft): ?>
           <?php
             $title = trim((string)($draft['title'] ?? ''));
@@ -54,7 +55,7 @@ $contentValue = $values['content'] ?? '';
         <?php endforeach; ?>
       </ul>
     <?php else: ?>
-      <p class="text-secondary small mb-0">Zatím žádné koncepty.</p>
+      <p class="text-secondary small mb-0" data-quick-draft-empty>Zatím žádné koncepty.</p>
     <?php endif; ?>
   </div>
 </div>
