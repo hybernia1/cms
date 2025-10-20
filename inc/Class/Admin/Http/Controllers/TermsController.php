@@ -221,16 +221,20 @@ final class TermsController extends BaseAdminController
         ];
         $termData = $this->serializeTerm($term, new LinkGenerator());
 
+        $redirectUrl = 'admin.php?r=terms&type=' . rawurlencode($type);
+
         if ($this->isAjax()) {
             $this->jsonResponse([
-                'success' => true,
-                'message' => 'Term byl vytvořen.',
-                'term'    => $termData,
-                'type'    => $type,
+                'success'  => true,
+                'message'  => 'Term byl vytvořen.',
+                'term'     => $termData,
+                'type'     => $type,
+                'redirect' => $redirectUrl,
+                'flash'    => ['type' => 'success', 'msg' => 'Term byl vytvořen.'],
             ]);
         }
 
-        $this->redirect('admin.php?r=terms&a=edit&id=' . $id . '&type=' . urlencode($type), 'success', 'Term byl vytvořen.');
+        $this->redirect($redirectUrl, 'success', 'Term byl vytvořen.');
     }
 
     /** Update existujícího termu */

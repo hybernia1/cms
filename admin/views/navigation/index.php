@@ -76,6 +76,8 @@ declare(strict_types=1);
             break;
         }
     }
+    $jsonEscape = static fn(string $s): string => htmlspecialchars($s, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
     $initialState = [
         'tablesReady' => $tablesReady,
         'menus' => $menus,
@@ -93,6 +95,11 @@ declare(strict_types=1);
         'csrf' => $csrf,
         'hasQuickAdd' => $hasQuickAdd,
     ];
+
+    $initialStateJson = json_encode($initialState, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($initialStateJson === false) {
+        $initialStateJson = '{}';
+    }
 ?>
   <?php if (!$tablesReady): ?>
     <div class="alert alert-warning">
@@ -101,7 +108,7 @@ declare(strict_types=1);
   <?php endif; ?>
 
   <div class="row g-3" data-navigation-manager>
-    <script type="application/json" data-navigation-state><?= $h(json_encode($initialState, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?></script>
+    <script type="application/json" data-navigation-state><?= $jsonEscape($initialStateJson) ?></script>
     <div class="col-lg-4">
       <div class="card mb-3">
         <div class="card-header">Dostupná menu</div>
