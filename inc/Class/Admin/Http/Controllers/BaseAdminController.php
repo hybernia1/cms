@@ -121,24 +121,8 @@ abstract class BaseAdminController
             $data,
         );
 
-        if ($this->isAjax()) {
-            $html = $this->view->renderToString($template, $payload);
-
-            $response = ['html' => $html];
-            if (!empty($payload['flash'])) {
-                $response['flash'] = $payload['flash'];
-            }
-
-            $this->jsonSuccess(null, $response, null);
-        }
-
         header('Content-Type: text/html; charset=utf-8');
         $this->view->render($template, $payload);
-    }
-
-    final protected function captureView(string $template, array $data = [], ?callable $contentBlock = null): string
-    {
-        return $this->view->renderToString($template, $data, $contentBlock);
     }
 
     /**
