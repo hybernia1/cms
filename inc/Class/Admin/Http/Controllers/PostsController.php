@@ -421,50 +421,83 @@ final class PostsController extends BaseAdminController
     private function store(): void
     {
         $this->assertCsrf();
+
+        $type = $this->requestedType();
+        $user = $this->auth->user();
+        if (!$user) {
+            $this->respondPostFormResult(
+                false,
+                'Nejste přihlášeni.',
+                [],
+                ['form' => ['Nejste přihlášeni.']],
+                null,
+                'admin.php?r=posts&a=create&type=' . $type,
+                401
+            );
+        }
+
+        $title   = trim((string)($_POST['title'] ?? ''));
+        $status  = (string)($_POST['status'] ?? 'draft');
+        $content = (string)($_POST['content'] ?? '');
+        $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
+        if ($type !== 'post') {
+            $commentsAllowed = 0;
+        }
+
+        $validationErrors = [];
+        if ($title === '') {
+            $validationErrors['title'][] = 'Titulek je povinný.';
+        }
+        if (!in_array($status, ['draft', 'publish'], true)) {
+            $validationErrors['form'][] = 'Neplatný stav.';
+        }
+
+        if ($validationErrors !== []) {
+            $this->respondPostFormResult(
+                false,
+                'Opravte chyby ve formuláři.',
+                [],
+                $validationErrors,
+                null,
+                'admin.php?r=posts&a=create&type=' . $type,
+                422
+            );
+        }
+
+        // terms z formuláře
+        $catIds = [];
+        $tagIds = [];
+        if ($type === 'post') {
+            $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
+            $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+
+            $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+            $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
+
+            if ($newCatNames !== []) {
+                $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
+            }
+            if ($newTagNames !== []) {
+                $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
+            }
+        }
+
+        $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
+        $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+        $thumbId = null;
+        if (!$removeThumb) {
+            if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
+                $mediaSvc = new MediaService();
+                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
+                $thumbId = (int)$up['id'];
+            } elseif ($selectedThumbId > 0) {
+                $thumbId = $selectedThumbId;
+            }
+        }
+
+        $attachedMedia = $this->parseAttachedMedia((string)($_POST['attached_media'] ?? ''));
+
         try {
-            $user = $this->auth->user();
-            if (!$user) throw new \RuntimeException('Nejste přihlášeni.');
-
-            $title   = trim((string)($_POST['title'] ?? ''));
-            $type    = $this->requestedType();
-            $status  = (string)($_POST['status'] ?? 'draft');
-            $content = (string)($_POST['content'] ?? '');
-            $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
-            if ($type !== 'post') {
-                $commentsAllowed = 0;
-            }
-
-            // terms z formuláře
-            $catIds = [];
-            $tagIds = [];
-            if ($type === 'post') {
-                $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
-
-                $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
-                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
-
-                if ($newCatNames !== []) {
-                    $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
-                }
-                if ($newTagNames !== []) {
-                    $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
-                }
-            }
-
-            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
-            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
-            $thumbId = null;
-            if (!$removeThumb) {
-                if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    $mediaSvc = new MediaService();
-                    $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
-                    $thumbId = (int)$up['id'];
-                } elseif ($selectedThumbId > 0) {
-                    $thumbId = $selectedThumbId;
-                }
-            }
-
             $svc = new PostsService();
             $postId = $svc->create([
                 'title'        => $title,
@@ -476,28 +509,53 @@ final class PostsController extends BaseAdminController
             ]);
 
             if ($commentsAllowed === 0) {
-                $svc->update($postId, ['comments_allowed'=>0]);
+                $svc->update($postId, ['comments_allowed' => 0]);
             }
 
-            $this->syncPostMedia($postId, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
+            $this->syncPostMedia($postId, $attachedMedia);
 
-            // ulož vazby termů
             if ($type === 'post') {
                 $this->syncTerms($postId, $catIds, $tagIds);
             }
 
-            $this->redirect(
-                'admin.php?r=posts&a=edit&id=' . (int)$postId . '&type=' . $type,
-                'success',
-                'Příspěvek byl vytvořen.'
-            );
+            $repo = new PostsRepository();
+            $row = $repo->find($postId) ?: [];
+            $slug = (string)($row['slug'] ?? '');
 
-        } catch (\Throwable $e) {
-            $type = $this->requestedType();
-            $this->redirect(
+            $redirect = 'admin.php?' . http_build_query([
+                'r'    => 'posts',
+                'a'    => 'edit',
+                'id'   => $postId,
+                'type' => $type,
+            ]);
+
+            $this->respondPostFormResult(
+                true,
+                'Příspěvek byl vytvořen.',
+                $this->buildPostResponseData($postId, $type, $status, $slug, $redirect),
+                [],
+                $redirect
+            );
+        } catch (\InvalidArgumentException $e) {
+            $errors = $this->decodeValidationErrors($e->getMessage());
+            $this->respondPostFormResult(
+                false,
+                'Opravte chyby ve formuláři.',
+                [],
+                $errors,
+                null,
                 'admin.php?r=posts&a=create&type=' . $type,
-                'danger',
-                $e->getMessage()
+                422
+            );
+        } catch (\Throwable $e) {
+            $this->respondPostFormResult(
+                false,
+                $e->getMessage(),
+                [],
+                ['form' => [$e->getMessage()]],
+                null,
+                'admin.php?r=posts&a=create&type=' . $type,
+                500
             );
         }
     }
@@ -508,12 +566,28 @@ final class PostsController extends BaseAdminController
         $id = (int)($_GET['id'] ?? 0);
         $type = $this->requestedType();
         if ($id <= 0) {
-            $this->redirect($this->listUrl($type), 'danger', 'Chybí ID.');
+            $this->respondPostFormResult(
+                false,
+                'Chybí ID.',
+                [],
+                ['form' => ['Chybí ID.']],
+                null,
+                $this->listUrl($type),
+                422
+            );
         }
 
         $post = (new PostsRepository())->find($id);
         if (!$post) {
-            $this->redirect($this->listUrl($type), 'danger', 'Příspěvek nebyl nalezen.');
+            $this->respondPostFormResult(
+                false,
+                'Příspěvek nebyl nalezen.',
+                [],
+                ['form' => ['Příspěvek nebyl nalezen.']],
+                null,
+                $this->listUrl($type),
+                404
+            );
         }
         $rowType = (string)($post['type'] ?? '');
         if (array_key_exists($rowType, $this->typeConfig())) {
@@ -524,14 +598,40 @@ final class PostsController extends BaseAdminController
             $user = $this->auth->user();
             if (!$user) throw new \RuntimeException('Nejste přihlášeni.');
 
+            $title = trim((string)($_POST['title'] ?? ''));
+            $status = (string)($_POST['status'] ?? 'draft');
+            $content = (string)($_POST['content'] ?? '');
+            $slugInput = isset($_POST['slug']) ? trim((string)$_POST['slug']) : '';
+            $commentsAllowed = $type === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0;
+
+            $validationErrors = [];
+            if ($title === '') {
+                $validationErrors['title'][] = 'Titulek je povinný.';
+            }
+            if (!in_array($status, ['draft', 'publish'], true)) {
+                $validationErrors['form'][] = 'Neplatný stav.';
+            }
+
+            if ($validationErrors !== []) {
+                $this->respondPostFormResult(
+                    false,
+                    'Opravte chyby ve formuláři.',
+                    [],
+                    $validationErrors,
+                    null,
+                    'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
+                    422
+                );
+            }
+
             $upd = [
-                'title'            => (string)($_POST['title'] ?? ''),
-                'status'           => (string)($_POST['status'] ?? 'draft'),
-                'content'          => (string)($_POST['content'] ?? ''),
-                'comments_allowed' => $type === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0,
+                'title'            => $title,
+                'status'           => $status,
+                'content'          => $content,
+                'comments_allowed' => $commentsAllowed,
             ];
-            if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
-                $upd['slug'] = (string)$_POST['slug'];
+            if ($slugInput !== '') {
+                $upd['slug'] = $slugInput;
             }
 
             // terms z formuláře
@@ -568,7 +668,8 @@ final class PostsController extends BaseAdminController
                 $upd['thumbnail_id'] = $selectedThumbId;
             }
 
-            (new PostsService())->update($id, $upd);
+            $service = new PostsService();
+            $service->update($id, $upd);
 
             $this->syncPostMedia($id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
 
@@ -579,17 +680,53 @@ final class PostsController extends BaseAdminController
                 $this->syncTerms($id, [], []);
             }
 
-            $this->redirect(
-                'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
-                'success',
-                'Změny byly uloženy.'
+            $repo = new PostsRepository();
+            $fresh = $repo->find($id) ?: [];
+            $resolvedType = (string)($fresh['type'] ?? $type);
+            if (!array_key_exists($resolvedType, $this->typeConfig())) {
+                $resolvedType = $type;
+            }
+            $resolvedStatus = (string)($fresh['status'] ?? $status);
+            $resolvedSlug = (string)($fresh['slug'] ?? $slugInput);
+
+            $editUrl = 'admin.php?' . http_build_query([
+                'r'    => 'posts',
+                'a'    => 'edit',
+                'id'   => $id,
+                'type' => $resolvedType,
+            ]);
+
+            $this->respondPostFormResult(
+                true,
+                'Změny byly uloženy.',
+                $this->buildPostResponseData($id, $resolvedType, $resolvedStatus, $resolvedSlug, $editUrl),
+                [],
+                null,
+                $editUrl
             );
 
         } catch (\Throwable $e) {
-            $this->redirect(
+            if ($e instanceof \InvalidArgumentException) {
+                $errors = $this->decodeValidationErrors($e->getMessage());
+                $this->respondPostFormResult(
+                    false,
+                    'Opravte chyby ve formuláři.',
+                    [],
+                    $errors,
+                    null,
+                    'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
+                    422
+                );
+            }
+
+            $this->respondPostFormResult(
+                false,
+                $e->getMessage(),
+                [],
+                ['form' => [$e->getMessage()]],
+                null,
                 'admin.php?r=posts&a=edit&id=' . $id . '&type=' . $type,
-                'danger',
-                $e->getMessage()
+                500
             );
         }
     }
@@ -605,6 +742,7 @@ final class PostsController extends BaseAdminController
             echo json_encode([
                 'success' => false,
                 'message' => 'Neplatný CSRF token.',
+                'data'    => [],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             return;
         }
@@ -656,6 +794,7 @@ final class PostsController extends BaseAdminController
             $now = DateTimeFactory::nowString();
             $type = $requestedType;
             $currentStatus = $status;
+            $currentSlug = null;
 
             if ($id > 0) {
                 $existing = $repo->find($id);
@@ -669,6 +808,7 @@ final class PostsController extends BaseAdminController
                 }
 
                 $currentStatus = (string)($existing['status'] ?? $currentStatus);
+                $currentSlug = isset($existing['slug']) ? (string)$existing['slug'] : null;
 
                 if ($type !== 'post') {
                     $commentsAllowed = 0;
@@ -689,6 +829,7 @@ final class PostsController extends BaseAdminController
 
                 if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
                     $updates['slug'] = Slugger::uniqueInPosts((string)$_POST['slug'], $type, $id);
+                    $currentSlug = $updates['slug'];
                 }
 
                 if ($status !== $currentStatus) {
@@ -712,6 +853,7 @@ final class PostsController extends BaseAdminController
                     echo json_encode([
                         'success' => false,
                         'message' => '',
+                        'data'    => [],
                     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                     return;
                 }
@@ -719,6 +861,7 @@ final class PostsController extends BaseAdminController
                 $type = $requestedType;
                 $slugSource = $title !== '' ? $title : ('koncept-' . bin2hex(random_bytes(3)));
                 $slug = Slugger::uniqueInPosts($slugSource, $type);
+                $currentSlug = $slug;
 
                 if ($type !== 'post') {
                     $commentsAllowed = 0;
@@ -753,22 +896,21 @@ final class PostsController extends BaseAdminController
                 $this->syncTerms($id, [], []);
             }
 
-            $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
-            $statusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
+            $fresh = $repo->find($id) ?: [];
+            $finalType = (string)($fresh['type'] ?? $type);
+            if (!array_key_exists($finalType, $this->typeConfig())) {
+                $finalType = $type;
+            }
+            $finalStatus = (string)($fresh['status'] ?? $currentStatus);
+            $finalSlug = isset($fresh['slug']) ? (string)$fresh['slug'] : ($currentSlug ?? '');
+
+            $actionUrl = 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'edit', 'id' => $id, 'type' => $finalType]);
 
             $response = [
-                'success'     => true,
-                'message'     => 'Automaticky uloženo v ' . date('H:i:s'),
-                'postId'      => $id,
-                'status'      => $currentStatus,
-                'statusLabel' => $statusLabel,
-                'actionUrl'   => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'edit', 'id' => $id, 'type' => $type]),
-                'type'        => $type,
+                'success' => true,
+                'message' => 'Automaticky uloženo v ' . date('H:i:s'),
+                'data'    => $this->buildPostResponseData($id, $finalType, $finalStatus, $finalSlug, $actionUrl),
             ];
-
-            if (isset($updates['slug']) && $updates['slug'] !== '') {
-                $response['slug'] = $updates['slug'];
-            }
 
             echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         } catch (\Throwable $e) {
@@ -776,8 +918,131 @@ final class PostsController extends BaseAdminController
             echo json_encode([
                 'success' => false,
                 'message' => $e->getMessage(),
+                'data'    => [],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @param array<string,array<int,string>> $errors
+     */
+    private function respondPostFormResult(
+        bool $success,
+        string $message,
+        array $data,
+        array $errors,
+        ?string $redirect = null,
+        ?string $nonAjaxRedirect = null,
+        int $status = 200
+    ): never {
+        $payload = ['success' => $success];
+        if ($message !== '') {
+            $payload['message'] = $message;
+        }
+        if ($data !== []) {
+            $payload['data'] = $data;
+        }
+        if ($errors !== []) {
+            $payload['errors'] = $errors;
+        }
+        if ($redirect !== null && $redirect !== '') {
+            $payload['redirect'] = $redirect;
+        }
+
+        if ($this->isAjax()) {
+            $this->jsonResponse($payload, $status);
+        }
+
+        $target = $nonAjaxRedirect ?? $redirect ?? $this->listUrl($this->requestedType());
+        $flashType = $success ? 'success' : 'danger';
+        $flashMessage = $message !== '' ? $message : ($success ? 'Akce proběhla úspěšně.' : 'Došlo k chybě.');
+        $this->redirect($target, $flashType, $flashMessage);
+    }
+
+    /**
+     * @return array{post: array<string,mixed>}
+     */
+    private function buildPostResponseData(int $id, string $type, string $status, ?string $slug, string $actionUrl): array
+    {
+        $normalizedStatus = $this->normalizePostStatus($status);
+
+        $post = [
+            'id'          => $id,
+            'type'        => $type,
+            'status'      => $normalizedStatus,
+            'statusLabel' => $this->statusLabelFor($normalizedStatus),
+            'actionUrl'   => $actionUrl,
+        ];
+
+        if ($slug !== null) {
+            $post['slug'] = $slug;
+        }
+
+        return ['post' => $post];
+    }
+
+    private function normalizePostStatus(string $status): string
+    {
+        $allowed = ['draft', 'publish'];
+        $normalized = strtolower($status);
+        return in_array($normalized, $allowed, true) ? $normalized : 'draft';
+    }
+
+    private function statusLabelFor(string $status): string
+    {
+        return match ($status) {
+            'publish' => 'Publikováno',
+            'draft' => 'Koncept',
+            default => ucfirst($status),
+        };
+    }
+
+    /**
+     * @return array<string,array<int,string>>
+     */
+    private function decodeValidationErrors(string $message): array
+    {
+        $decoded = json_decode($message, true);
+        if (is_array($decoded)) {
+            return $this->normalizeValidationErrorsArray($decoded);
+        }
+
+        $text = trim($message);
+        if ($text === '') {
+            $text = 'Opravte chyby ve formuláři.';
+        }
+
+        return ['form' => [$text]];
+    }
+
+    /**
+     * @param array<string|int,mixed> $errors
+     * @return array<string,array<int,string>>
+     */
+    private function normalizeValidationErrorsArray(array $errors): array
+    {
+        $normalized = [];
+        foreach ($errors as $field => $messages) {
+            $key = is_string($field) && $field !== '' ? $field : 'form';
+            $list = is_array($messages) ? $messages : [$messages];
+            $collected = [];
+            foreach ($list as $message) {
+                $text = trim((string)$message);
+                if ($text !== '') {
+                    $collected[] = $text;
+                }
+            }
+            if ($collected !== []) {
+                $normalized[$key] = $collected;
+            }
+        }
+
+        if ($normalized === []) {
+            return ['form' => ['Opravte chyby ve formuláři.']];
+        }
+
+        return $normalized;
     }
 
     private function parseNewTerms(string $input): array

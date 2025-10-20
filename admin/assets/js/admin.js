@@ -458,6 +458,81 @@
     };
   });
 
+  function extractPostPayload(source) {
+    if (!source || typeof source !== 'object') {
+      return null;
+    }
+
+    var candidate = null;
+    if (source.data && typeof source.data === 'object' && source.data.post && typeof source.data.post === 'object') {
+      candidate = source.data.post;
+    } else if (source.post && typeof source.post === 'object') {
+      candidate = source.post;
+    } else {
+      var fallback = {};
+      var hasFallback = false;
+      if (Object.prototype.hasOwnProperty.call(source, 'postId')) {
+        fallback.id = source.postId;
+        hasFallback = true;
+      } else if (Object.prototype.hasOwnProperty.call(source, 'id')) {
+        fallback.id = source.id;
+        hasFallback = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(source, 'type')) {
+        fallback.type = source.type;
+        hasFallback = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(source, 'status')) {
+        fallback.status = source.status;
+        hasFallback = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(source, 'statusLabel')) {
+        fallback.statusLabel = source.statusLabel;
+        hasFallback = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(source, 'actionUrl')) {
+        fallback.actionUrl = source.actionUrl;
+        hasFallback = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(source, 'slug')) {
+        fallback.slug = source.slug;
+        hasFallback = true;
+      }
+      if (!hasFallback) {
+        return null;
+      }
+      candidate = fallback;
+    }
+
+    var result = {};
+    if (candidate) {
+      if (Object.prototype.hasOwnProperty.call(candidate, 'id') || Object.prototype.hasOwnProperty.call(candidate, 'postId')) {
+        var idValue = Object.prototype.hasOwnProperty.call(candidate, 'id') ? candidate.id : candidate.postId;
+        if (idValue !== undefined && idValue !== null && String(idValue).trim() !== '') {
+          result.id = String(idValue);
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(candidate, 'type') && candidate.type !== undefined && candidate.type !== null) {
+        result.type = String(candidate.type);
+      }
+      if (Object.prototype.hasOwnProperty.call(candidate, 'status') && candidate.status !== undefined && candidate.status !== null) {
+        result.status = String(candidate.status);
+      }
+      if (Object.prototype.hasOwnProperty.call(candidate, 'statusLabel') && candidate.statusLabel !== undefined && candidate.statusLabel !== null) {
+        result.statusLabel = String(candidate.statusLabel);
+      }
+      if (Object.prototype.hasOwnProperty.call(candidate, 'actionUrl') && candidate.actionUrl !== undefined && candidate.actionUrl !== null) {
+        result.actionUrl = String(candidate.actionUrl);
+      }
+      if (Object.prototype.hasOwnProperty.call(candidate, 'slug')) {
+        var slugValue = candidate.slug;
+        result.slug = slugValue === undefined || slugValue === null ? '' : String(slugValue);
+      }
+    }
+
+    return Object.keys(result).length ? result : null;
+  }
+
   function normalizeUrl(url) {
     try {
       return new URL(url, window.location.href).toString();
@@ -1353,6 +1428,35 @@
       var idDisplayEl = form.querySelector('[data-post-id-display]');
       var editorTextarea = form.querySelector('textarea[data-content-editor]');
 
+      function applyPostPayload(postPayload) {
+        if (!postPayload || typeof postPayload !== 'object') {
+          return;
+        }
+        if (postPayload.id !== undefined && postPayload.id !== null && String(postPayload.id).trim() !== '') {
+          setCurrentPostId(postPayload.id);
+        }
+        if (postPayload.actionUrl) {
+          form.setAttribute('action', postPayload.actionUrl);
+        }
+        if (statusInput && postPayload.status) {
+          statusInput.value = String(postPayload.status);
+        }
+        if (statusLabelEl && postPayload.statusLabel) {
+          statusLabelEl.textContent = String(postPayload.statusLabel);
+        }
+        if (Object.prototype.hasOwnProperty.call(postPayload, 'slug')) {
+          var slugInput = form.querySelector('input[name="slug"]');
+          if (slugInput) {
+            slugInput.value = postPayload.slug !== undefined && postPayload.slug !== null
+              ? String(postPayload.slug)
+              : '';
+          }
+        }
+        if (postPayload.type) {
+          form.setAttribute('data-post-type', String(postPayload.type));
+        }
+      }
+
       if (!autosaveUrl) {
         var action = form.getAttribute('action') || '';
         if (action) {
@@ -1418,6 +1522,7 @@
       var lastSentSerialized = null;
       var inFlight = false;
       var debounceTimer = null;
+      var intervalHandle = null;
 
       function collectFormData() {
         var formData = new FormData(form);
@@ -1437,6 +1542,18 @@
           window.clearTimeout(debounceTimer);
           debounceTimer = null;
         }
+      }
+
+      function stopAutosaveInterval() {
+        if (intervalHandle) {
+          window.clearInterval(intervalHandle);
+          intervalHandle = null;
+        }
+      }
+
+      function startAutosaveInterval() {
+        stopAutosaveInterval();
+        intervalHandle = window.setInterval(attemptAutosave, AUTOSAVE_INTERVAL);
       }
 
       function attemptAutosave() {
@@ -1512,30 +1629,13 @@
             throw new Error(failMessage);
           }
 
-          if (payload.postId) {
-            setCurrentPostId(payload.postId);
-          }
+          var postPayload = extractPostPayload(payload);
+          applyPostPayload(postPayload);
 
-          if (payload.actionUrl) {
-            form.setAttribute('action', payload.actionUrl);
-          }
-
-          if (statusInput && payload.status) {
-            statusInput.value = payload.status;
-          }
-
-          if (statusLabelEl && payload.statusLabel) {
-            statusLabelEl.textContent = payload.statusLabel;
-          }
-
-          if (payload.slug) {
-            var slugInput = form.querySelector('input[name="slug"]');
-            if (slugInput) {
-              slugInput.value = payload.slug;
-            }
-          }
-
-          updateStatus(payload.message || 'Automaticky uloženo.', false);
+          var successMessage = payload && typeof payload.message === 'string' && payload.message !== ''
+            ? payload.message
+            : 'Automaticky uloženo.';
+          updateStatus(successMessage, false);
 
           lastSavedSerialized = serializeAutosaveData(collectFormData());
           lastSentSerialized = lastSavedSerialized;
@@ -1557,14 +1657,11 @@
       }
 
       function cleanup() {
-        if (intervalHandle) {
-          window.clearInterval(intervalHandle);
-          intervalHandle = null;
-        }
+        stopAutosaveInterval();
         cleanupTimers();
       }
 
-      var intervalHandle = window.setInterval(attemptAutosave, AUTOSAVE_INTERVAL);
+      startAutosaveInterval();
 
       form.addEventListener('input', function () {
         if (statusEl && statusEl.classList.contains('text-danger')) {
@@ -1576,7 +1673,26 @@
       form.addEventListener('change', scheduleAutosaveSoon);
 
       form.addEventListener('submit', function () {
-        cleanup();
+        stopAutosaveInterval();
+        cleanupTimers();
+      });
+
+      form.addEventListener('cms:admin:form:success', function (event) {
+        var detail = event && event.detail ? event.detail : {};
+        var result = detail.result || null;
+        var data = result && result.data ? result.data : null;
+        var postPayload = extractPostPayload(data);
+        applyPostPayload(postPayload);
+
+        var message = '';
+        if (result && result.data && typeof result.data.message === 'string') {
+          message = result.data.message;
+        }
+        updateStatus(message, false);
+
+        lastSavedSerialized = serializeAutosaveData(collectFormData());
+        lastSentSerialized = lastSavedSerialized;
+        startAutosaveInterval();
       });
 
       document.addEventListener('cms:admin:navigated', function handler() {

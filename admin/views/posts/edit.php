@@ -99,6 +99,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     action="<?= $h($actionUrl) ?>"
     enctype="multipart/form-data"
     data-ajax
+    data-form-helper="validation"
     data-autosave-form="1"
     data-autosave-url="<?= $h($autosaveUrl) ?>"
     data-post-type="<?= $h($type) ?>"
@@ -110,9 +111,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       <div class="col-xl-8">
         <div class="card shadow-sm">
           <div class="card-body p-4">
+            <div class="alert alert-danger mb-4" data-error-for="form" id="post-form-error" hidden></div>
             <div class="mb-4">
               <label class="form-label fs-5">Titulek</label>
               <input class="form-control form-control-lg" name="title" required value="<?= $isEdit ? $h((string)$post['title']) : '' ?>">
+              <div class="invalid-feedback" data-error-for="title" id="post-title-error" hidden></div>
             </div>
 
             <?php if ($isEdit): ?>
@@ -120,6 +123,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 <label class="form-label">Slug</label>
                 <input class="form-control" name="slug" value="<?= $h((string)$post['slug']) ?>">
                 <div class="form-text">Nech prázdné, pokud nechceš měnit.</div>
+                <div class="invalid-feedback" data-error-for="slug" id="post-slug-error" hidden></div>
               </div>
             <?php endif; ?>
 
@@ -135,6 +139,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                 data-post-id="<?= $isEdit ? $h((string)($post['id'] ?? '')) : '' ?>"
               ><?= $isEdit ? $h((string)($post['content'] ?? '')) : '' ?></textarea>
               <input type="hidden" name="attached_media" id="attached-media-input" value="<?= !empty($attachedMedia) ? $encodeJson($attachedMedia) : '' ?>">
+              <div class="invalid-feedback" data-error-for="content" id="post-content-error" hidden></div>
             </div>
           </div>
         </div>
