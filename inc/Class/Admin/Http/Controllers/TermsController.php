@@ -141,7 +141,7 @@ final class TermsController extends BaseAdminController
             }
 
             $id = (new TermsService())->create($name, $type, $slug, $desc);
-            $this->redirect('admin.php?r=terms&a=edit&id=' . $id . '&type=' . urlencode($type), 'success', 'Term byl vytvořen.');
+            $this->redirect('admin.php?r=terms&type=' . urlencode($type), 'success', 'Term byl vytvořen.');
 
         } catch (\Throwable $e) {
             $type = $this->requestedType();
