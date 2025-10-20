@@ -49,6 +49,8 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     'actionSelect' => '#terms-bulk-action',
     'applyButton'  => '#terms-bulk-apply',
     'counter'      => '#terms-bulk-counter',
+    'hidden'       => ['type' => $type],
+    'ajaxAction'   => 'terms_bulk',
   ]); ?>
   <div class="card">
     <?php $this->render('parts/listing/bulk-header', [
@@ -103,6 +105,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
                         action="<?= $h('admin.php?'.http_build_query(['r'=>'terms','a'=>'delete','type'=>$type])) ?>"
                         class="d-inline"
                         data-ajax
+                        data-action="terms_delete"
                         data-confirm-modal="Opravdu smazat? Bude odpojen od všech příspěvků."
                         data-confirm-modal-title="Potvrzení smazání"
                         data-confirm-modal-confirm-label="Smazat"

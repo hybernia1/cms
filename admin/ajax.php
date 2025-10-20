@@ -17,6 +17,9 @@ use Cms\Admin\Http\Ajax\Navigation\DeleteItemHandler as NavigationDeleteItemHand
 use Cms\Admin\Http\Ajax\Navigation\DeleteMenuHandler as NavigationDeleteMenuHandler;
 use Cms\Admin\Http\Ajax\Navigation\UpdateItemHandler as NavigationUpdateItemHandler;
 use Cms\Admin\Http\Ajax\Navigation\UpdateMenuHandler as NavigationUpdateMenuHandler;
+use Cms\Admin\Http\Ajax\Terms\BulkHandler as TermsBulkHandler;
+use Cms\Admin\Http\Ajax\Terms\DeleteHandler as TermsDeleteHandler;
+use Cms\Admin\Http\Ajax\Terms\SaveHandler as TermsSaveHandler;
 use Cms\Admin\Http\Ajax\PostsAutosaveHandler;
 use Cms\Admin\Http\Ajax\Settings\GeneralSaveHandler as SettingsGeneralSaveHandler;
 use Cms\Admin\Http\Ajax\Settings\MailSaveHandler as SettingsMailSaveHandler;
@@ -54,3 +57,6 @@ $router->register('navigation_delete_menu', new NavigationDeleteMenuHandler());
 $router->register('navigation_create_item', new NavigationCreateItemHandler());
 $router->register('navigation_update_item', new NavigationUpdateItemHandler());
 $router->register('navigation_delete_item', new NavigationDeleteItemHandler());
+$router->register('terms_save', new TermsSaveHandler());
+$router->register('terms_delete', new TermsDeleteHandler());
+$router->register('terms_bulk', new TermsBulkHandler());

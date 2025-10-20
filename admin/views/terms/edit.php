@@ -18,7 +18,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     : ['r'=>'terms','a'=>'create','type'=>$type];
   $actionUrl = 'admin.php?'.http_build_query($actionParams);
   ?>
-  <form class="card" method="post" action="<?= $actionUrl ?>" data-ajax>
+  <form class="card" method="post" action="<?= $actionUrl ?>" data-ajax data-action="terms_save">
     <div class="card-header"><?= $h($isEdit ? ($typeCfg['edit'] ?? ('Upravit '.$typeCfg['label'])).' #'.$term['id'] : ($typeCfg['create'] ?? 'Nový term')) ?></div>
     <div class="card-body">
       <div class="mb-3">
@@ -45,6 +45,9 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       </div>
 
       <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+      <?php if ($isEdit): ?>
+        <input type="hidden" name="id" value="<?= $h((string)($term['id'] ?? '')) ?>">
+      <?php endif; ?>
     </div>
     <div class="card-footer d-flex gap-2">
       <button class="btn btn-primary" type="submit"><?= $h($isEdit ? 'Uložit změny' : 'Vytvořit') ?></button>
