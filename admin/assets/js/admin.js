@@ -17,6 +17,19 @@
   var commentsListingControllers = new WeakMap();
   var navigationManagers = new WeakMap();
 
+  var REAL_ID_PATTERN = /^[0-9]+$/;
+
+  function isRealId(value) {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    return REAL_ID_PATTERN.test(String(value));
+  }
+
+  function getRealIdOrEmpty(value) {
+    return isRealId(value) ? String(value) : '';
+  }
+
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
   }
@@ -2414,6 +2427,34 @@
 
     var state = sanitizeNavigationState(readStateFromScript(stateScript), null);
 
+    function setFormPendingState(form, pending, message) {
+      if (!form) {
+        return;
+      }
+      var submitButtons = [].slice.call(form.querySelectorAll('button[type="submit"], input[type="submit"]'));
+      submitButtons.forEach(function (button) {
+        button.disabled = !!pending;
+      });
+      var note = form.querySelector('[data-navigation-pending-note]');
+      if (pending) {
+        if (message) {
+          if (!note) {
+            note = document.createElement('div');
+            note.setAttribute('data-navigation-pending-note', '1');
+            note.className = 'small text-secondary mt-2';
+            form.appendChild(note);
+          }
+          note.textContent = message;
+        } else if (note && note.parentNode) {
+          note.parentNode.removeChild(note);
+        }
+        return;
+      }
+      if (note && note.parentNode) {
+        note.parentNode.removeChild(note);
+      }
+    }
+
     function readStateFromScript(scriptEl) {
       if (!scriptEl) {
         return {};
@@ -2720,7 +2761,7 @@
       }
       var idInput = elements.editForm.querySelector('[data-navigation-menu-id-input]');
       if (idInput) {
-        idInput.value = state.menu ? state.menu.id : '';
+        idInput.value = state.menu ? getRealIdOrEmpty(state.menu.id) : '';
       }
       var nameInput = elements.editForm.querySelector('[data-navigation-edit-name]');
       if (nameInput) {
@@ -2735,7 +2776,10 @@
         descriptionInput.value = state.menu ? state.menu.description : '';
       }
       var locationInput = elements.editForm.querySelector('[data-navigation-edit-location]');
-      applyMenuLocationsToSelect(locationInput, state.menuLocationValue, state.menu ? state.menu.id : null);
+      var currentMenuId = state.menu ? getRealIdOrEmpty(state.menu.id) || null : null;
+      applyMenuLocationsToSelect(locationInput, state.menuLocationValue, currentMenuId);
+      var menuPending = !!(state.menu && !isRealId(state.menu.id));
+      setFormPendingState(elements.editForm, menuPending, 'Čeká se na potvrzení menu ze serveru…');
     }
 
     function computeCreateLocationState() {
@@ -2885,12 +2929,12 @@
 
       var menuIdInput = elements.itemForm.querySelector('[data-navigation-field="menu_id"]');
       if (menuIdInput) {
-        menuIdInput.value = state.menu ? state.menu.id : '';
+        menuIdInput.value = state.menu ? getRealIdOrEmpty(state.menu.id) : '';
       }
 
       var idInput = elements.itemForm.querySelector('[data-navigation-field="id"]');
       if (idInput) {
-        idInput.value = editing ? editing.id : '';
+        idInput.value = editing ? getRealIdOrEmpty(editing.id) : '';
       }
 
       var linkTypeInput = elements.itemForm.querySelector('[data-navigation-field="link_type"]');
@@ -2999,6 +3043,19 @@
       clearButtons.forEach(function (btn) {
         btn.textContent = editing && editing.link_type !== 'custom' ? 'Zrušit napojení' : 'Přepnout na vlastní URL';
       });
+
+      var hasRealMenuId = !!(state.menu && isRealId(state.menu.id));
+      var hasRealItemId = editing ? isRealId(editing.id) : true;
+      var formPending = !state.menu || !hasRealMenuId || (editing && !hasRealItemId);
+      var pendingMessage = null;
+      if (state.menu) {
+        if (!hasRealMenuId) {
+          pendingMessage = 'Čeká se na potvrzení menu ze serveru…';
+        } else if (editing && !hasRealItemId) {
+          pendingMessage = 'Čeká se na potvrzení položky ze serveru…';
+        }
+      }
+      setFormPendingState(elements.itemForm, formPending, pendingMessage);
     }
 
     function renderItemsTable() {
@@ -3022,11 +3079,16 @@
         var isEditing = state.editingItem && state.editingItem.id === item.id;
         var indent = Math.max(0, item.depth) * 16;
         var targetInfo = targetIcons[item.target] || { icon: 'bi-question-circle', title: item.target };
-        var editHref = state.menu ? 'admin.php?r=navigation&menu_id=' + encodeURIComponent(state.menu.id) + '&item_id=' + encodeURIComponent(item.id) + '#item-form' : '#';
+        var realMenuId = state.menu ? getRealIdOrEmpty(state.menu.id) : '';
+        var realItemId = getRealIdOrEmpty(item.id);
+        var editHref = realMenuId && realItemId
+          ? 'admin.php?r=navigation&menu_id=' + encodeURIComponent(realMenuId) + '&item_id=' + encodeURIComponent(realItemId) + '#item-form'
+          : '#';
         var deleteAction = 'admin.php?r=navigation&a=delete-item';
         var linkLabel = state.linkTypeLabels[item.link_type] || item.link_type;
         var metaText = describeLinkMeta(item);
         var warningText = '';
+        var disableItemActions = !realMenuId || !realItemId;
         if (item.link_reason) {
           warningText = state.linkStatusMessages[item.link_reason] || 'Odkaz má problém a může vést na neplatnou stránku.';
         }
@@ -3054,12 +3116,14 @@
         rows += '<td class="text-center"><span class="admin-icon-indicator" data-bs-toggle="tooltip" data-bs-title="' + escapeHtml(targetInfo.title) + '"><i class="bi ' + escapeHtml(targetInfo.icon) + '" aria-hidden="true"></i><span class="visually-hidden">' + escapeHtml(targetInfo.title) + '</span></span></td>';
         rows += '<td data-navigation-item-sort>' + escapeHtml(String(item.sort_order)) + '</td>';
         rows += '<td class="text-end"><div class="d-inline-flex gap-2 align-items-center">';
-        rows += '<a class="admin-icon-btn" href="' + escapeHtml(editHref) + '" aria-label="Upravit položku" data-bs-toggle="tooltip" data-bs-title="Upravit položku" data-navigation-edit-link><i class="bi bi-pencil" aria-hidden="true"></i></a>';
+        var editButtonClass = 'admin-icon-btn' + (disableItemActions ? ' disabled' : '');
+        var editExtraAttrs = disableItemActions ? ' aria-disabled="true" tabindex="-1"' : '';
+        rows += '<a class="' + editButtonClass + '" href="' + escapeHtml(editHref) + '" aria-label="Upravit položku" data-bs-toggle="tooltip" data-bs-title="Upravit položku" data-navigation-edit-link' + editExtraAttrs + '><i class="bi bi-pencil" aria-hidden="true"></i></a>';
         rows += '<form method="post" action="' + escapeHtml(deleteAction) + '" class="d-inline" data-ajax data-confirm-modal="Opravdu odstranit tuto položku?" data-confirm-modal-title="Smazat položku" data-confirm-modal-confirm-label="Ano, smazat" data-confirm-modal-cancel-label="Ne" data-navigation-action="delete-item">';
         rows += '<input type="hidden" name="csrf" value="' + escapeHtml(state.csrf) + '" data-navigation-csrf>';
-        rows += '<input type="hidden" name="menu_id" value="' + (state.menu ? escapeHtml(state.menu.id) : '') + '">';
-        rows += '<input type="hidden" name="id" value="' + escapeHtml(item.id) + '">';
-        rows += '<button class="admin-icon-btn" type="submit" aria-label="Smazat položku" data-bs-toggle="tooltip" data-bs-title="Smazat položku"><i class="bi bi-trash" aria-hidden="true"></i></button>';
+        rows += '<input type="hidden" name="menu_id" value="' + escapeHtml(realMenuId) + '">';
+        rows += '<input type="hidden" name="id" value="' + escapeHtml(realItemId) + '">';
+        rows += '<button class="admin-icon-btn" type="submit" aria-label="Smazat položku" data-bs-toggle="tooltip" data-bs-title="Smazat položku"' + (disableItemActions ? ' disabled' : '') + '><i class="bi bi-trash" aria-hidden="true"></i></button>';
         rows += '</form></div></td>';
         rows += '</tr>';
       });
@@ -3079,12 +3143,15 @@
       }
       var idInput = elements.deleteForm.querySelector('[data-navigation-menu-id-input]');
       if (idInput) {
-        idInput.value = state.menu ? state.menu.id : '';
+        idInput.value = state.menu ? getRealIdOrEmpty(state.menu.id) : '';
       }
       var csrfInput = elements.deleteForm.querySelector('[data-navigation-csrf]');
       if (csrfInput) {
         csrfInput.value = state.csrf;
       }
+      var menuPendingState = state.menu && !isRealId(state.menu.id);
+      var canSubmit = !!(state.menu && isRealId(state.menu.id));
+      setFormPendingState(elements.deleteForm, !canSubmit, menuPendingState ? 'Akci lze provést až po potvrzení menu.' : null);
     }
 
     function updateVisibility() {
