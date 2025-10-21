@@ -77,6 +77,6 @@ $this->render('parts/listing/toolbar', [
         'href'  => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'create', 'type' => $type]),
         'label' => (string)($typeCfg['create'] ?? 'Nový záznam'),
         'icon'  => 'bi bi-plus-lg',
-        'class' => 'btn btn-success btn-sm order-3',
+        'class' => 'btn btn-primary order-3',
     ],
 ]);

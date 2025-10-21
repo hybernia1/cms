@@ -1,15 +1,14 @@
 .admin-flash-region {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 1.5rem;
-  width: min(440px, calc(100vw - 2.5rem));
+  top: 1.5rem;
+  right: 1.5rem;
+  width: min(360px, calc(100vw - 2rem));
   z-index: 1200;
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
 .admin-flash-region .admin-flash {
@@ -17,18 +16,57 @@
   width: 100%;
   pointer-events: auto;
   border-radius: 0.75rem;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
   transition: opacity .25s ease, transform .25s ease;
+  padding: 0.75rem 1rem;
+}
+
+.admin-flash-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.admin-flash-message {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.admin-flash-close {
+  margin-left: 0.25rem;
+  opacity: 0.6;
+  transition: opacity .2s ease;
+}
+
+.admin-flash-close:hover,
+.admin-flash-close:focus {
+  opacity: 1;
 }
 
 .admin-flash-region .admin-flash.is-dismissing {
   opacity: 0;
-  transform: translateY(12px);
+  transform: translateY(-8px);
+}
+
+@media (max-width: 768px) {
+  .admin-flash-region {
+    right: 1rem;
+    width: min(420px, calc(100vw - 2rem));
+  }
 }
 
 @media (max-width: 576px) {
   .admin-flash-region {
-    bottom: 1rem;
-    width: min(480px, calc(100vw - 1.5rem));
+    top: 1rem;
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+  }
+  .admin-flash-region .admin-flash {
+    padding: 0.65rem 0.75rem;
+  }
+  .admin-flash-message {
+    font-size: 0.85rem;
   }
 }

@@ -39,7 +39,7 @@ $buildUrl,$csrf,$currentUser,$currentUrl) {
           'href'  => 'admin.php?r=users&a=edit',
           'label' => 'Nový uživatel',
           'icon'  => 'bi bi-plus-lg',
-          'class' => 'btn btn-success btn-sm order-2',
+          'class' => 'btn btn-primary order-2',
         ],
       ]);
     ?>
