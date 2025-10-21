@@ -1,6 +1,6 @@
 import {
   cmsAdmin,
-  refreshDynamicUI,
+  refreshDynamicUI as baseRefreshDynamicUI,
   loadAdminPage,
   initAjaxForms,
   initAjaxLinks,
@@ -8,8 +8,18 @@ import {
   dispatchNavigated
 } from './admin.js';
 import { ensureDefaultFormHelpers } from './core/form-helpers.js';
+import { configureAjax } from './core/ajax.js';
+import { initConfirmModals } from './ui/confirm-modal.js';
+import { initPostAutosave } from './ui/autosave.js';
+
+function refreshDynamicUI(root) {
+  baseRefreshDynamicUI(root);
+  initConfirmModals(root);
+  initPostAutosave(root, { loadAdminPage });
+}
 
 function exposeAdminAPI() {
+  cmsAdmin.refresh = refreshDynamicUI;
   window.cmsAdmin = cmsAdmin;
 }
 
@@ -27,6 +37,7 @@ function startAdminUI() {
   });
 }
 
+configureAjax({ refreshDynamicUI });
 exposeAdminAPI();
 
 if (document.readyState === 'loading') {
