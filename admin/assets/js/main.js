@@ -7,6 +7,7 @@ import {
   bootHistory,
   dispatchNavigated
 } from './admin.js';
+import { ensureDefaultFormHelpers } from './core/form-helpers.js';
 
 function exposeAdminAPI() {
   window.cmsAdmin = cmsAdmin;
@@ -14,6 +15,7 @@ function exposeAdminAPI() {
 
 function startAdminUI() {
   const initialRoot = document.querySelector('.admin-wrapper') || document;
+  ensureDefaultFormHelpers();
   refreshDynamicUI(initialRoot);
   initAjaxForms();
   initAjaxLinks();
