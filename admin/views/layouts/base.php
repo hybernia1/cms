@@ -147,16 +147,24 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <?php foreach ($jsAssets as $js): ?>
   <?php
     $src = '';
-    $deferAttr = ' defer';
+    $attributes = [];
     if (is_array($js)) {
       $src = (string)($js['src'] ?? '');
-      $deferAttr = !empty($js['defer']) ? ' defer' : '';
+      $type = isset($js['type']) ? (string)$js['type'] : '';
+      if ($type !== '') {
+        $attributes[] = 'type="' . $h($type) . '"';
+      }
+      if (!empty($js['defer']) && $type !== 'module') {
+        $attributes[] = 'defer';
+      }
     } else {
       $src = (string)$js;
+      $attributes[] = 'defer';
     }
     if ($src === '') { continue; }
+    $attributeString = $attributes ? ' ' . implode(' ', $attributes) : '';
   ?>
-  <script src="<?= $h($src) ?>"<?= $deferAttr ?>></script>
+  <script src="<?= $h($src) ?>"<?= $attributeString ?>></script>
 <?php endforeach; ?>
 </body>
 </html>
