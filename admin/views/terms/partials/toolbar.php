@@ -25,7 +25,7 @@ $queryValue = (string)($filters['q'] ?? '');
       'href'  => 'admin.php?' . http_build_query(['r' => 'terms', 'a' => 'create', 'type' => $type]),
       'label' => (string)($typeConfig['create'] ?? 'Nový term'),
       'icon'  => 'bi bi-plus-lg',
-      'class' => 'btn btn-primary order-2 order-md-2 ms-md-auto',
+      'class' => 'btn btn-success btn-sm order-2 order-md-2 ms-md-auto',
     ],
   ]); ?>
 </div>

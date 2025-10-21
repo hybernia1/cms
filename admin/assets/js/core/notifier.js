@@ -91,15 +91,7 @@ function bindFlashContainerInteractions(container) {
   }
   container.dataset.flashBound = '1';
   container.addEventListener('click', function (event) {
-    const target = event.target;
-    const dismissTrigger = target && typeof target.closest === 'function'
-      ? target.closest('[data-flash-dismiss]')
-      : null;
-    if (!dismissTrigger) {
-      return;
-    }
-    event.preventDefault();
-    const alert = dismissTrigger.closest('.admin-flash');
+    const alert = event.target && event.target.closest ? event.target.closest('.admin-flash') : null;
     if (alert) {
       hideFlashMessage(alert);
     }
@@ -144,19 +136,7 @@ function showFlashMessage(type, message, form) {
   const alert = document.createElement('div');
   alert.className = 'alert alert-' + normalized + ' admin-flash';
   alert.setAttribute('role', 'alert');
-  const body = document.createElement('div');
-  body.className = 'admin-flash-body';
-  const text = document.createElement('span');
-  text.className = 'admin-flash-message';
-  text.textContent = message;
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'btn-close admin-flash-close';
-  close.setAttribute('aria-label', 'Zavřít upozornění');
-  close.setAttribute('data-flash-dismiss', '');
-  body.appendChild(text);
-  body.appendChild(close);
-  alert.appendChild(body);
+  alert.textContent = message;
   if (container.firstChild) {
     container.insertBefore(alert, container.firstChild);
   } else {
