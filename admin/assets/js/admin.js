@@ -40,6 +40,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
 
   var adminMenuMediaQuery = null;
   var bulkFormStateUpdaters = new WeakMap();
+  var topbarActionContexts = [];
   function isAjaxForm(el) {
     return el && el.hasAttribute && el.hasAttribute('data-ajax');
   }
@@ -151,6 +152,131 @@ import { cssEscapeValue } from './utils/css-escape.js';
     setSidebarOpen(document.body.classList.contains('admin-sidebar-open'));
   }
 
+  function closeAllTopbarActions(exceptToggle) {
+    topbarActionContexts.forEach(function (ctx) {
+      if (!ctx || ctx.toggle === exceptToggle) {
+        return;
+      }
+      ctx.close();
+    });
+  }
+
+  function initTopbarActions(root) {
+    var scope = root || document;
+    var toggles = [].slice.call(scope.querySelectorAll('[data-admin-topbar-actions-toggle]'));
+    toggles.forEach(function (toggle) {
+      if (!toggle || toggle.dataset.adminTopbarActionsToggle === '1') {
+        return;
+      }
+      var targetId = toggle.getAttribute('aria-controls');
+      if (!targetId) {
+        return;
+      }
+      var panel = document.getElementById(targetId);
+      if (!panel) {
+        return;
+      }
+      toggle.dataset.adminTopbarActionsToggle = '1';
+      var isToggleVisible = function () {
+        if (typeof window === 'undefined') {
+          return false;
+        }
+        var style = window.getComputedStyle(toggle);
+        return style && style.display !== 'none';
+      };
+      var outsideHandler = function (event) {
+        if (!panel.classList.contains('is-open')) {
+          return;
+        }
+        var target = event && event.target ? event.target : null;
+        if (target && (panel.contains(target) || toggle.contains(target))) {
+          return;
+        }
+        closePanel();
+      };
+      var escapeHandler = function (event) {
+        if (event && event.key === 'Escape') {
+          closePanel();
+          if (typeof toggle.focus === 'function') {
+            toggle.focus();
+          }
+        }
+      };
+      var closePanel = function () {
+        panel.classList.remove('is-open');
+        panel.removeAttribute('data-admin-topbar-open');
+        toggle.setAttribute('aria-expanded', 'false');
+        if (isToggleVisible()) {
+          panel.setAttribute('aria-hidden', 'true');
+        } else {
+          panel.removeAttribute('aria-hidden');
+        }
+        document.removeEventListener('click', outsideHandler, true);
+        document.removeEventListener('keydown', escapeHandler);
+      };
+      var openPanel = function () {
+        closeAllTopbarActions(toggle);
+        panel.classList.add('is-open');
+        panel.setAttribute('data-admin-topbar-open', '1');
+        toggle.setAttribute('aria-expanded', 'true');
+        panel.setAttribute('aria-hidden', 'false');
+        document.addEventListener('click', outsideHandler, true);
+        document.addEventListener('keydown', escapeHandler);
+      };
+
+      var updatePanelVisibility = function () {
+        if (isToggleVisible()) {
+          if (!panel.classList.contains('is-open')) {
+            panel.setAttribute('aria-hidden', 'true');
+          }
+        } else {
+          panel.classList.remove('is-open');
+          panel.removeAttribute('data-admin-topbar-open');
+          panel.removeAttribute('aria-hidden');
+          toggle.setAttribute('aria-expanded', 'false');
+          document.removeEventListener('click', outsideHandler, true);
+          document.removeEventListener('keydown', escapeHandler);
+        }
+      };
+
+      toggle.addEventListener('click', function (event) {
+        event.preventDefault();
+        if (panel.classList.contains('is-open')) {
+          closePanel();
+        } else {
+          openPanel();
+        }
+      });
+
+      panel.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          closePanel();
+          if (typeof toggle.focus === 'function') {
+            toggle.focus();
+          }
+        }
+      });
+
+      updatePanelVisibility();
+      topbarActionContexts.push({ toggle: toggle, close: closePanel, update: updatePanelVisibility });
+    });
+
+    if (!document.documentElement.dataset.adminTopbarActionsGlobal) {
+      document.documentElement.dataset.adminTopbarActionsGlobal = '1';
+      document.addEventListener('cms:admin:navigated', function () {
+        closeAllTopbarActions();
+      });
+      window.addEventListener('resize', function () {
+        closeAllTopbarActions();
+        topbarActionContexts.forEach(function (ctx) {
+          if (ctx && typeof ctx.update === 'function') {
+            ctx.update();
+          }
+        });
+      });
+    }
+  }
+
   function refreshDynamicUI(root) {
     initFlashMessages(root);
     initFormHelpers(root);
@@ -163,6 +289,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     initMediaLibrary(root);
     initQuickDraftWidget(root);
     initAdminMenuToggle(root);
+    initTopbarActions(root);
     initNavigationUI(root);
     initThemesPage(root);
   }

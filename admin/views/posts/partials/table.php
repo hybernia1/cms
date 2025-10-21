@@ -41,21 +41,28 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
         <tr data-post-row data-post-id="<?= $h((string)$it['id']) ?>" data-post-status="<?= $isPublished ? 'publish' : 'draft' ?>">
           <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku" form="posts-bulk-form"></td>
           <td>
-            <?php if ($frontUrl !== ''): ?>
-              <a class="fw-semibold text-truncate d-inline-flex align-items-center gap-1 text-decoration-none" href="<?= $h($frontUrl) ?>" target="_blank" rel="noopener">
-                <?= $h((string)($it['title'] ?? '—')) ?>
-                <i class="bi bi-box-arrow-up-right text-secondary small"></i>
-              </a>
-            <?php else: ?>
-              <div class="fw-semibold text-truncate"><?= $h((string)($it['title'] ?? '—')) ?></div>
-            <?php endif; ?>
-            <div class="text-secondary small text-truncate">
-              <i class="bi bi-link-45deg me-1"></i><?= $h($slug) ?>
+            <div class="admin-table-stack">
+              <?php if ($frontUrl !== ''): ?>
+                <a class="admin-table-line fw-semibold text-decoration-none" href="<?= $h($frontUrl) ?>" target="_blank" rel="noopener" title="<?= $h((string)($it['title'] ?? '—')) ?>">
+                  <span class="text-truncate"><?= $h((string)($it['title'] ?? '—')) ?></span>
+                  <i class="bi bi-box-arrow-up-right text-secondary small" aria-hidden="true"></i>
+                </a>
+              <?php else: ?>
+                <div class="admin-table-line fw-semibold" title="<?= $h((string)($it['title'] ?? '—')) ?>">
+                  <?= $h((string)($it['title'] ?? '—')) ?>
+                </div>
+              <?php endif; ?>
+              <?php if ($slug !== ''): ?>
+                <div class="admin-table-line admin-table-line--muted" title="<?= $h($slug) ?>">
+                  <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                  <span><?= $h($slug) ?></span>
+                </div>
+              <?php endif; ?>
             </div>
           </td>
 
           <td>
-            <span class="small" title="<?= $h((string)($it['created_at_raw'] ?? '')) ?>">
+            <span class="admin-table-line admin-table-line--muted" title="<?= $h((string)($it['created_at_raw'] ?? '')) ?>">
               <?= $h((string)($it['created_at_display'] ?? ($it['created_at_raw'] ?? ''))) ?>
             </span>
           </td>
