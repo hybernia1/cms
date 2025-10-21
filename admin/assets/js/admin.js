@@ -3117,50 +3117,9 @@
       initNavigationQuickAdd(container);
     }
 
-    function captureFormEntries(formData) {
-      var entries = Object.create(null);
-      if (!formData) {
-        return entries;
-      }
-      formData.forEach(function (value, key) {
-        if (!Object.prototype.hasOwnProperty.call(entries, key)) {
-          entries[key] = [];
-        }
-        entries[key].push(value);
-      });
-      return entries;
-    }
-
-    function preserveFormSubmission(form, entries) {
-      if (!(form instanceof HTMLFormElement)) {
-        return;
-      }
-      var handler = function (event) {
-        if (!event || !event.formData) {
-          return;
-        }
-        Object.keys(entries).forEach(function (key) {
-          var values = entries[key];
-          if (!values || !values.length) {
-            return;
-          }
-          if (typeof event.formData.delete === 'function') {
-            event.formData.delete(key);
-          }
-          values.forEach(function (value) {
-            event.formData.append(key, value);
-          });
-        });
-        form.removeEventListener('formdata', handler);
-      };
-      form.addEventListener('formdata', handler);
-    }
-
     function applyOptimisticUpdate(action, form, submitter) {
       var snapshot = cloneState(state);
       var formData = new FormData(form);
-      var submissionEntries = captureFormEntries(formData);
-      preserveFormSubmission(form, submissionEntries);
 
       function finalize(newState) {
         state = sanitizeNavigationState(newState, snapshot);
@@ -3326,12 +3285,8 @@
           var nextStateItem = cloneState(snapshot);
           nextStateItem.items = snapshot.items.slice();
           nextStateItem.items.push(newItem);
-          var editingItemId = snapshot.editingItem ? snapshot.editingItem.id : null;
-          nextStateItem.editingItem = snapshot.editingItem || null;
-          var originalItems = state.items;
-          state.items = nextStateItem.items;
-          nextStateItem.parentOptions = buildParentOptionsFromItems(editingItemId);
-          state.items = originalItems;
+          nextStateItem.editingItem = newItem;
+          nextStateItem.parentOptions = buildParentOptionsFromItems(newItem.id);
           finalize(nextStateItem);
           pendingSubmissions.set(form, { snapshot: snapshot });
           return;
