@@ -42,8 +42,17 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       <?php endif; ?>
     </td>
     <td>
-      <div class="fw-semibold text-truncate"><?= $h((string)($u['name'] ?? '—')) ?></div>
-      <div class="text-secondary small text-truncate"><i class="bi bi-envelope me-1"></i><?= $h((string)($u['email'] ?? '')) ?></div>
+      <div class="admin-table-stack">
+        <div class="admin-table-line fw-semibold" title="<?= $h((string)($u['name'] ?? '—')) ?>">
+          <?= $h((string)($u['name'] ?? '—')) ?>
+        </div>
+        <?php if (!empty($u['email'])): ?>
+          <div class="admin-table-line admin-table-line--muted" title="<?= $h((string)($u['email'] ?? '')) ?>">
+            <i class="bi bi-envelope" aria-hidden="true"></i>
+            <span><?= $h((string)($u['email'] ?? '')) ?></span>
+          </div>
+        <?php endif; ?>
+      </div>
     </td>
     <td>
       <?php if ($role === 'admin'): ?>
@@ -58,7 +67,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       </span>
     </td>
     <td>
-      <span class="small" title="<?= $h((string)($u['created_at_raw'] ?? '')) ?>">
+      <span class="admin-table-line admin-table-line--muted" title="<?= $h((string)($u['created_at_raw'] ?? '')) ?>">
         <?= $h((string)($u['created_at_display'] ?? ($u['created_at_raw'] ?? ''))) ?>
       </span>
     </td>

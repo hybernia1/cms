@@ -14,7 +14,7 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <head>
   <meta charset="utf-8">
   <title><?= $h(($pageTitle ?? 'Admin').' – CMS') ?></title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <?php foreach ($cssAssets as $css): ?>
     <link rel="stylesheet" href="<?= $h((string)$css) ?>">
   <?php endforeach; ?>
@@ -81,26 +81,40 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         <button class="btn btn-outline-secondary btn-sm admin-menu-toggle d-lg-none" type="button" data-admin-menu-toggle aria-label="Menu" aria-expanded="false">
           <i class="bi bi-list"></i>
         </button>
-        <i class="bi bi-gear-fill"></i>
+        <i class="bi bi-gear-fill" aria-hidden="true"></i>
         <?php if (!empty($pageTitle)): ?>
-          <span class="admin-topbar-current"><?= $h((string)$pageTitle) ?></span>
+          <span class="admin-topbar-current" title="<?= $h((string)$pageTitle) ?>"><?= $h((string)$pageTitle) ?></span>
         <?php else: ?>
           <span class="admin-topbar-current">Administrace</span>
         <?php endif; ?>
       </div>
-      <div class="admin-topbar-right">
-        <?php if (!empty($currentUser)): ?>
-          <span class="admin-user-pill" title="Přihlášený uživatel">
-            <i class="bi bi-person-circle" aria-hidden="true"></i>
-            <span class="admin-user-name"><?= $h((string)($currentUser['name'] ?? '')) ?></span>
-          </span>
-        <?php endif; ?>
-        <a class="admin-icon-btn" href="./" data-no-ajax aria-label="Otevřít web" data-bs-toggle="tooltip" data-bs-title="Otevřít web">
-          <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-        </a>
-        <a class="admin-icon-btn" href="admin.php?r=auth&a=logout" data-no-ajax aria-label="Odhlásit" data-bs-toggle="tooltip" data-bs-title="Odhlásit">
-          <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
-        </a>
+      <div class="admin-topbar-actions">
+        <button
+          class="btn btn-outline-secondary btn-sm admin-topbar-actions-toggle"
+          type="button"
+          data-admin-topbar-actions-toggle
+          aria-label="Další akce"
+          aria-expanded="false"
+          aria-controls="adminTopbarActions"
+        >
+          <i class="bi bi-three-dots"></i>
+        </button>
+        <div class="admin-topbar-actions-list" id="adminTopbarActions" data-admin-topbar-actions>
+          <?php if (!empty($currentUser)): ?>
+            <span class="admin-user-pill" title="Přihlášený uživatel">
+              <i class="bi bi-person-circle" aria-hidden="true"></i>
+              <span class="admin-user-name"><?= $h((string)($currentUser['name'] ?? '')) ?></span>
+            </span>
+          <?php endif; ?>
+          <a class="admin-icon-btn" href="./" data-no-ajax aria-label="Otevřít web" data-bs-toggle="tooltip" data-bs-title="Otevřít web">
+            <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+            <span class="admin-topbar-actions-label">Otevřít web</span>
+          </a>
+          <a class="admin-icon-btn" href="admin.php?r=auth&a=logout" data-no-ajax aria-label="Odhlásit" data-bs-toggle="tooltip" data-bs-title="Odhlásit">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+            <span class="admin-topbar-actions-label">Odhlásit</span>
+          </a>
+        </div>
       </div>
     </header>
     <main class="admin-content">

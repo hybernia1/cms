@@ -107,34 +107,57 @@ $renderDeleteAction = function (array $comment) use ($h, $csrf, $currentBack): s
           $statusLabel = $statusLabels[$statusValue] ?? $statusValue;
           $createdDisplay = (string)($c['created_at_display'] ?? ($c['created_at_raw'] ?? ''));
           $createdIso = (string)($c['created_at_iso'] ?? '');
+          $commentContent = (string)($c['content'] ?? '');
+          $commentPreview = mb_substr($commentContent, 0, 200);
+          if (mb_strlen($commentContent) > 200) {
+            $commentPreview .= '…';
+          }
+          $postTitle = (string)($c['post_title'] ?? '');
         ?>
           <tr data-comment-row data-comment-id="<?= $h((string)($c['id'] ?? '')) ?>" data-comment-status="<?= $h($statusValue) ?>">
             <td>
               <input class="form-check-input comment-row-check" type="checkbox" name="ids[]" value="<?= $h((string)($c['id'] ?? '')) ?>" aria-label="Vybrat komentář" form="comments-bulk-form">
             </td>
             <td>
-              <div class="fw-semibold text-truncate"><?= $h((string)($c['author_name'] ?? '')) ?></div>
-              <div class="small text-secondary text-truncate"><i class="bi bi-envelope me-1"></i><?= $h((string)($c['author_email'] ?? '')) ?></div>
-            </td>
-            <td>
-              <div class="text-truncate" style="max-width:420px;">
-                <?= $h(mb_substr((string)($c['content'] ?? ''), 0, 160)) ?><?= mb_strlen((string)($c['content'] ?? '')) > 160 ? '…' : '' ?>
-              </div>
-              <div class="small text-secondary d-flex align-items-center gap-2 flex-wrap mt-1">
-                <?php if ($createdDisplay !== ''): ?>
-                  <?php if ($createdIso !== ''): ?>
-                    <time datetime="<?= $h($createdIso) ?>"><?= $h($createdDisplay) ?></time>
-                  <?php else: ?>
-                    <span><?= $h($createdDisplay) ?></span>
-                  <?php endif; ?>
+              <div class="admin-table-stack">
+                <div class="admin-table-line fw-semibold" title="<?= $h((string)($c['author_name'] ?? '')) ?>">
+                  <?= $h((string)($c['author_name'] ?? '')) ?>
+                </div>
+                <?php if (!empty($c['author_email'])): ?>
+                  <div class="admin-table-line admin-table-line--muted" title="<?= $h((string)($c['author_email'] ?? '')) ?>">
+                    <i class="bi bi-envelope" aria-hidden="true"></i>
+                    <span><?= $h((string)($c['author_email'] ?? '')) ?></span>
+                  </div>
                 <?php endif; ?>
-                <span class="badge rounded-pill text-bg-<?= $badge($statusValue) ?>" data-comment-status-label><?= $h($statusLabel) ?></span>
               </div>
             </td>
             <td>
-              <a class="small" href="admin.php?r=posts&a=edit&id=<?= (int)($c['post_id'] ?? 0) ?>">#<?= (int)($c['post_id'] ?? 0) ?></a>
-              <div class="small text-secondary text-truncate" style="max-width:180px;">
-                <?= $h((string)($c['post_title'] ?? '')) ?>
+              <div class="admin-table-stack">
+                <div class="admin-table-line admin-table-line--wrap" title="<?= $h($commentContent) ?>">
+                  <?= $h($commentPreview) ?>
+                </div>
+                <div class="admin-table-meta">
+                  <?php if ($createdDisplay !== ''): ?>
+                    <?php if ($createdIso !== ''): ?>
+                      <time datetime="<?= $h($createdIso) ?>"><?= $h($createdDisplay) ?></time>
+                    <?php else: ?>
+                      <span><?= $h($createdDisplay) ?></span>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                  <span class="badge rounded-pill text-bg-<?= $badge($statusValue) ?>" data-comment-status-label><?= $h($statusLabel) ?></span>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="admin-table-stack">
+                <a class="admin-table-line admin-table-line--muted text-decoration-none" href="admin.php?r=posts&a=edit&id=<?= (int)($c['post_id'] ?? 0) ?>">
+                  #<?= (int)($c['post_id'] ?? 0) ?>
+                </a>
+                <?php if ($postTitle !== ''): ?>
+                  <div class="admin-table-line admin-table-line--muted" title="<?= $h($postTitle) ?>">
+                    <?= $h($postTitle) ?>
+                  </div>
+                <?php endif; ?>
               </div>
             </td>
             <td class="text-end">
