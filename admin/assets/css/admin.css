@@ -141,11 +141,10 @@ body.admin-sidebar-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 1rem;
   background: #fff;
   border-bottom: 1px solid #dcdcde;
-  padding: 0.85rem 2rem;
+  padding: 0.75rem 2rem;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -153,59 +152,18 @@ body.admin-sidebar-open {
 .admin-topbar-left {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  flex: 1 1 auto;
-  min-width: 0;
-  color: #1d2327;
-}
-.admin-topbar-location {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.admin-topbar-section-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.75rem;
-  background: #f6f7f7;
-  color: #0d6efd;
-  font-size: 1.15rem;
-  box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.08);
-}
-.admin-topbar-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-}
-.admin-topbar-section {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #6c757d;
+  gap: 0.5rem;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #1d2327;
 }
 .admin-topbar-current {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #1d2327;
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.95rem;
+  color: #50575e;
 }
 .admin-topbar-right {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
+  gap: 0.75rem;
 }
 .admin-user-pill {
   display: inline-flex;
@@ -289,22 +247,10 @@ body.admin-sidebar-open {
 }
 .admin-content {
   flex: 1;
-  padding: 2rem 2rem 2.75rem;
+  padding: 2rem;
 }
 @media (min-width: 992px) {
-  .admin-content {
-    padding: 2.5rem 3rem 3.25rem;
-  }
-}
-@media (max-width: 991.98px) {
-  .admin-content {
-    padding: 1.75rem 1.75rem 2.5rem;
-  }
-}
-@media (max-width: 576px) {
-  .admin-content {
-    padding: 1.25rem 1rem 2.75rem;
-  }
+  .admin-content { padding: 2.5rem 3rem; }
 }
 .admin-page-heading { margin-bottom: 1.5rem; }
 .admin-page-title {
@@ -343,42 +289,6 @@ body.admin-sidebar-open {
   color: #1d2327;
   border-color: #8c8f94;
   background: #f6f7f7;
-}
-.admin-toolbar-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  border-radius: 999px;
-  padding: 0.65rem 1.25rem;
-  box-shadow: 0 8px 22px rgba(13, 110, 253, 0.25);
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-.admin-toolbar-action i {
-  font-size: 1.1rem;
-}
-.admin-toolbar-action:hover,
-.admin-toolbar-action:focus {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 36px rgba(13, 110, 253, 0.32);
-  text-decoration: none;
-}
-.admin-toolbar-action .admin-toolbar-action-label {
-  display: inline-block;
-  white-space: nowrap;
-}
-@media (max-width: 576px) {
-  .admin-toolbar-action {
-    width: 100%;
-    padding: 0.85rem 1.4rem;
-    font-size: 1rem;
-    border-radius: 1rem;
-    box-shadow: 0 18px 38px rgba(13, 110, 253, 0.3);
-  }
-  .admin-toolbar-action i {
-    font-size: 1.2rem;
-  }
 }
 @media (max-width: 992px) {
   .admin-wrapper {
@@ -419,8 +329,11 @@ body.admin-sidebar-open {
   .admin-topbar {
     position: sticky;
     top: 0;
-    padding: 0.75rem 1.5rem;
+    padding: 1rem 1.5rem;
     z-index: 120;
+  }
+  .admin-content {
+    padding: 1.5rem;
   }
   .admin-menu-link {
     padding: 0.75rem 1.25rem;
@@ -433,50 +346,7 @@ body.admin-sidebar-open {
   }
   .admin-topbar-right {
     flex-wrap: wrap;
-    justify-content: flex-start;
-    width: 100%;
-  }
-}
-
-@media (max-width: 768px) {
-  .admin-topbar {
-    gap: 0.75rem;
-  }
-  .admin-topbar-left {
-    gap: 0.75rem;
-  }
-}
-
-@media (max-width: 576px) {
-  .admin-topbar {
-    padding: 0.75rem 1rem;
-    gap: 0.75rem;
-  }
-  .admin-topbar-left {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.75rem;
-  }
-  .admin-topbar-location {
-    width: 100%;
-  }
-  .admin-topbar-section-icon {
-    width: 2.25rem;
-    height: 2.25rem;
-    font-size: 1.05rem;
-  }
-  .admin-topbar-section {
-    font-size: 0.7rem;
-  }
-  .admin-topbar-current {
-    font-size: 0.95rem;
-  }
-  .admin-topbar-right {
-    gap: 0.5rem;
-  }
-  .admin-user-pill {
-    width: 100%;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 }
 

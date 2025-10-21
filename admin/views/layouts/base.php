@@ -8,44 +8,6 @@ $assets = require __DIR__.'/../../assets/manifest.php';
 $cssAssets = isset($assets['css']) && is_array($assets['css']) ? $assets['css'] : [];
 $jsAssets = isset($assets['js']) && is_array($assets['js']) ? $assets['js'] : [];
 $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-
-$navItems = is_array($nav ?? null) ? $nav : [];
-$activeSectionLabel = 'Administrace';
-$activeSectionIcon = 'bi bi-speedometer2';
-foreach ($navItems as $item) {
-    if (!is_array($item)) {
-        continue;
-    }
-    $itemLabel = (string)($item['label'] ?? '');
-    $itemIcon = (string)($item['icon'] ?? '');
-    $children = is_array($item['children'] ?? null) ? $item['children'] : [];
-    $isCurrent = !empty($item['active']);
-    if (!$isCurrent && $children !== []) {
-        foreach ($children as $child) {
-            if (!is_array($child)) {
-                continue;
-            }
-            if (!empty($child['active'])) {
-                $isCurrent = true;
-                if ($itemIcon === '') {
-                    $itemIcon = (string)($child['icon'] ?? '');
-                }
-                break;
-            }
-        }
-    }
-    if ($isCurrent) {
-        if ($itemLabel !== '') {
-            $activeSectionLabel = $itemLabel;
-        }
-        if ($itemIcon !== '') {
-            $activeSectionIcon = $itemIcon;
-        }
-        break;
-    }
-}
-
-$currentPageLabel = isset($pageTitle) && $pageTitle !== '' ? (string)$pageTitle : 'Administrace';
 ?>
 <!doctype html>
 <html lang="cs" data-bs-theme="light">
@@ -119,15 +81,12 @@ $currentPageLabel = isset($pageTitle) && $pageTitle !== '' ? (string)$pageTitle 
         <button class="btn btn-outline-secondary btn-sm admin-menu-toggle d-lg-none" type="button" data-admin-menu-toggle aria-label="Menu" aria-expanded="false">
           <i class="bi bi-list"></i>
         </button>
-        <div class="admin-topbar-location">
-          <span class="admin-topbar-section-icon" aria-hidden="true">
-            <i class="<?= $h($activeSectionIcon) ?>"></i>
-          </span>
-          <div class="admin-topbar-text">
-            <span class="admin-topbar-section"><?= $h($activeSectionLabel) ?></span>
-            <span class="admin-topbar-current"><?= $h($currentPageLabel) ?></span>
-          </div>
-        </div>
+        <i class="bi bi-gear-fill"></i>
+        <?php if (!empty($pageTitle)): ?>
+          <span class="admin-topbar-current"><?= $h((string)$pageTitle) ?></span>
+        <?php else: ?>
+          <span class="admin-topbar-current">Administrace</span>
+        <?php endif; ?>
       </div>
       <div class="admin-topbar-right">
         <?php if (!empty($currentUser)): ?>
@@ -164,10 +123,7 @@ $currentPageLabel = isset($pageTitle) && $pageTitle !== '' ? (string)$pageTitle 
       }
     ?>
     <div class="alert alert-<?= $flashType ?> admin-flash" role="alert">
-      <div class="admin-flash-body">
-        <span class="admin-flash-message"><?= $h((string)($flash['msg'] ?? '')) ?></span>
-        <button type="button" class="btn-close admin-flash-close" data-flash-dismiss aria-label="Zavřít upozornění"></button>
-      </div>
+      <?= $h((string)($flash['msg'] ?? '')) ?>
     </div>
   <?php endif; ?>
 </div>

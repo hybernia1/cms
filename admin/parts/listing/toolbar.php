@@ -77,26 +77,14 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
     <?php
       $buttonHref  = (string)($button['href'] ?? '#');
       $buttonLabel = (string)($button['label'] ?? '');
-      $buttonClass = trim((string)($button['class'] ?? 'btn btn-primary'));
+      $buttonClass = (string)($button['class'] ?? 'btn btn-success');
       $buttonIcon  = (string)($button['icon'] ?? '');
-      $buttonAttributes = is_array($button['attributes'] ?? null) ? $button['attributes'] : [];
-      if ($buttonClass === '') {
-          $buttonClass = 'btn btn-primary';
-      }
-      if (strpos($buttonClass, 'admin-toolbar-action') === false) {
-          $buttonClass .= ' admin-toolbar-action';
-      }
-      if ($buttonLabel !== '' && !array_key_exists('aria-label', $buttonAttributes)) {
-          $buttonAttributes['aria-label'] = $buttonLabel;
-      }
     ?>
-    <a class="<?= $h($buttonClass) ?>" href="<?= $h($buttonHref) ?>"<?php foreach ($buttonAttributes as $attr => $value): if (!is_string($attr) || $attr === '' || $value === null || $value === false) { continue; } ?> <?= $h($attr) ?><?php if ($value !== true): ?>="<?= $h((string)$value) ?>"<?php endif; ?><?php endforeach; ?>>
+    <a class="<?= $h($buttonClass) ?>" href="<?= $h($buttonHref) ?>">
       <?php if ($buttonIcon !== ''): ?>
-        <i class="<?= $h($buttonIcon) ?>" aria-hidden="true"></i>
+        <i class="<?= $h($buttonIcon) ?> me-1"></i>
       <?php endif; ?>
-      <?php if ($buttonLabel !== ''): ?>
-        <span class="admin-toolbar-action-label"><?= $h($buttonLabel) ?></span>
-      <?php endif; ?>
+      <?= $h($buttonLabel) ?>
     </a>
   <?php endif; ?>
 </div>
