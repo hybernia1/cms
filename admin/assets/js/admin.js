@@ -1,4 +1,3 @@
-(function () {
   var HISTORY_STATE_KEY = 'cmsAdminAjax';
   var AUTOSAVE_INTERVAL = 30000;
   var activeNavigation = null;
@@ -5884,7 +5883,7 @@
         var controller = typeof AbortController === 'function' ? new AbortController() : null;
         state.pending = controller ? { controller: controller } : { controller: null };
         setLoading(true);
-        return window.cmsAdmin.ajax.get(url, {
+        return adminAjax.get(url, {
           headers: { 'Accept': 'application/json' },
           context: container,
           signal: controller ? controller.signal : undefined
@@ -5998,9 +5997,7 @@
           return;
         }
 
-        if (window.cmsAdmin && window.cmsAdmin.forms && typeof window.cmsAdmin.forms.clearValidation === 'function') {
-          window.cmsAdmin.forms.clearValidation(form);
-        }
+        clearFormValidation(form);
 
         form.reset();
 
@@ -6153,16 +6150,7 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    var initialRoot = document.querySelector('.admin-wrapper') || document;
-    refreshDynamicUI(initialRoot);
-    initAjaxForms();
-    initAjaxLinks();
-    bootHistory();
-    dispatchNavigated(window.location.href, { initial: true, source: 'initial', root: initialRoot });
-  });
-
-  window.cmsAdmin = {
+  export const cmsAdmin = {
     load: loadAdminPage,
     refresh: refreshDynamicUI,
     ajax: adminAjax,
@@ -6175,4 +6163,19 @@
       applyValidation: applyFormValidationErrors
     }
   };
-})();
+
+  export {
+    refreshDynamicUI,
+    loadAdminPage,
+    initAjaxForms,
+    initAjaxLinks,
+    bootHistory,
+    dispatchNavigated,
+    adminAjax,
+    notifier,
+    registerFormHelper,
+    unregisterFormHelper,
+    initFormHelpers,
+    clearFormValidation,
+    applyFormValidationErrors
+  };

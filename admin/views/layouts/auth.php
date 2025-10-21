@@ -37,6 +37,6 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     <?php endif; ?>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="admin/assets/js/admin.js" defer></script>
+  <script type="module" src="admin/assets/js/main.js"></script>
 </body>
 </html>
