@@ -60,7 +60,20 @@ final class AdminNavigation
                 'label'     => 'Newsletter',
                 'href'      => 'admin.php?r=newsletter',
                 'icon'      => 'bi-envelope-paper',
-                'children'  => [],
+                'children'  => [
+                    [
+                        'key'   => 'newsletter:subscribers',
+                        'label' => 'Odběratelé',
+                        'href'  => 'admin.php?r=newsletter',
+                        'icon'  => 'bi-people',
+                    ],
+                    [
+                        'key'   => 'newsletter:campaigns',
+                        'label' => 'Kampaně',
+                        'href'  => 'admin.php?r=newsletter-campaigns',
+                        'icon'  => 'bi-send',
+                    ],
+                ],
             ],
             [
                 'key'       => 'appearance',
