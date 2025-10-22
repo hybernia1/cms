@@ -37,6 +37,7 @@ import {
   handlePostsActionResponse
 } from './ui/listings/posts.js';
 import { initPostEditor } from './ui/post-editor.js';
+import { initMediaPickerModals } from './ui/media-picker.js';
 import { cssEscapeValue } from './utils/css-escape.js';
 
   var adminMenuMediaQuery = null;
@@ -288,6 +289,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     initTermsForm(root);
     initPostsListing(root);
     initMediaUploadModals(root);
+    initMediaPickerModals(root);
     initMediaLibrary(root);
     initQuickDraftWidget(root);
     initPostEditor(root);
@@ -1549,6 +1551,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     initAjaxForms,
     initAjaxLinks,
     initMediaUploadModals,
+    initMediaPickerModals,
     bootHistory,
     dispatchNavigated,
     adminAjax,
