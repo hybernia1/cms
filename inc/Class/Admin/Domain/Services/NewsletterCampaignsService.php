@@ -3,13 +3,14 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Domain\Services;
 
-use Cms\Admin\Domain\Repositories\NewsletterSendsRepository;
+use Cms\Admin\Domain\Entities\NewsletterCampaign;
+use Cms\Admin\Domain\Repositories\NewsletterCampaignRepository;
 use Cms\Admin\Utils\DateTimeFactory;
 
 final class NewsletterCampaignsService
 {
     public function __construct(
-        private readonly NewsletterSendsRepository $repository = new NewsletterSendsRepository(),
+        private readonly NewsletterCampaignRepository $repository = new NewsletterCampaignRepository(),
     ) {
     }
 
@@ -20,7 +21,8 @@ final class NewsletterCampaignsService
 
     public function find(int $id): ?array
     {
-        return $this->repository->find($id);
+        $campaign = $this->repository->find($id);
+        return $campaign?->toArray() ?? null;
     }
 
     public function update(int $id, string $subject, string $body): array
@@ -36,17 +38,30 @@ final class NewsletterCampaignsService
             throw new \InvalidArgumentException('Vyplňte obsah kampaně.');
         }
 
-        $this->repository->update($id, [
-            'subject' => $subject,
-            'body'    => $body,
-        ]);
-
         $campaign = $this->repository->find($id);
         if (!$campaign) {
             throw new \RuntimeException('Kampaň nebyla nalezena po aktualizaci.');
         }
 
-        return $campaign;
+        $now = DateTimeFactory::nowString();
+
+        $updated = new NewsletterCampaign(
+            $campaign->id(),
+            $subject,
+            $body,
+            $campaign->status(),
+            $campaign->recipientsCount(),
+            $campaign->sentCount(),
+            $campaign->failedCount(),
+            $campaign->createdBy(),
+            $campaign->createdAt(),
+            $now,
+            $campaign->sentAt(),
+        );
+
+        $campaign = $this->repository->update($updated);
+
+        return $campaign->toArray();
     }
 
     public function duplicate(int $id, ?int $userId = null): array
@@ -56,22 +71,9 @@ final class NewsletterCampaignsService
             throw new \RuntimeException('Kampaň nebyla nalezena.');
         }
 
-        $newId = $this->repository->duplicate([
-            'subject'          => (string) ($source['subject'] ?? ''),
-            'body'             => (string) ($source['body'] ?? ''),
-            'recipients_count' => 0,
-            'sent_count'       => 0,
-            'failed_count'     => 0,
-            'created_by'       => $userId,
-            'created_at'       => DateTimeFactory::nowString(),
-        ]);
+        $duplicate = $this->repository->duplicate($source, $userId);
 
-        $campaign = $this->repository->find($newId);
-        if (!$campaign) {
-            throw new \RuntimeException('Nová kampaň nebyla nalezena.');
-        }
-
-        return $campaign;
+        return $duplicate->toArray();
     }
 
     public function delete(int $id): void

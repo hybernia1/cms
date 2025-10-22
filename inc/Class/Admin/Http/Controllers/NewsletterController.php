@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Http\Controllers;
 
-use Cms\Admin\Domain\Repositories\NewsletterSendsRepository;
+use Cms\Admin\Domain\Repositories\NewsletterCampaignRepository;
 use Cms\Admin\Domain\Services\NewsletterService;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Mail\MailService;
@@ -34,7 +34,7 @@ final class NewsletterController extends BaseAdminController
     private NewsletterService $service;
     private CmsSettings $settings;
     private MailService $mailService;
-    private NewsletterSendsRepository $sendsRepository;
+    private NewsletterCampaignRepository $campaignRepository;
 
     public function __construct(string $baseViewsPath)
     {
@@ -42,7 +42,7 @@ final class NewsletterController extends BaseAdminController
         $this->service = new NewsletterService();
         $this->settings = new CmsSettings();
         $this->mailService = new MailService($this->settings);
-        $this->sendsRepository = new NewsletterSendsRepository();
+        $this->campaignRepository = new NewsletterCampaignRepository();
     }
 
     public function handle(string $action): void
@@ -102,17 +102,17 @@ final class NewsletterController extends BaseAdminController
         ];
 
         $confirmedCount = $this->service->confirmedCount();
-        $lastSendRow = $this->sendsRepository->latest();
+        $lastCampaign = $this->campaignRepository->latest();
         $lastSend = null;
 
-        if (is_array($lastSendRow)) {
+        if ($lastCampaign !== null) {
+            $createdAt = $this->formatDateTime($lastCampaign->createdAt()) ?? $lastCampaign->createdAt();
             $lastSend = [
-                'subject'    => (string)($lastSendRow['subject'] ?? ''),
-                'created_at' => $this->formatDateTime($lastSendRow['created_at'] ?? null)
-                    ?? (string)($lastSendRow['created_at'] ?? ''),
-                'sent'       => (int)($lastSendRow['sent_count'] ?? 0),
-                'failed'     => (int)($lastSendRow['failed_count'] ?? 0),
-                'recipients' => (int)($lastSendRow['recipients_count'] ?? 0),
+                'subject'    => $lastCampaign->subject(),
+                'created_at' => $createdAt,
+                'sent'       => $lastCampaign->sentCount(),
+                'failed'     => $lastCampaign->failedCount(),
+                'recipients' => $lastCampaign->recipientsCount(),
             ];
         }
 
@@ -162,31 +162,33 @@ final class NewsletterController extends BaseAdminController
         $sent = 0;
         $failed = 0;
 
+        $user = $this->auth->user();
+        $userId = $user ? (int)($user['id'] ?? 0) : null;
+
+        $context = $this->service->beginCampaignSend($subject, $body, $totalConfirmed, $userId);
+        /** @var \Cms\Admin\Domain\Entities\NewsletterCampaign $campaign */
+        $campaign = $context['campaign'];
+        /** @var \Cms\Admin\Domain\Entities\NewsletterCampaignSchedule $schedule */
+        $schedule = $context['schedule'];
+
         foreach ($recipients as $recipient) {
             $email = (string)($recipient['email'] ?? '');
-            if ($email === '') {
+            $subscriberId = isset($recipient['id']) ? (int)$recipient['id'] : 0;
+            if ($email === '' || $subscriberId <= 0) {
                 continue;
             }
 
             $ok = $this->mailService->send($email, $subject, $body, null, strip_tags($body));
             if ($ok) {
                 $sent++;
+                $this->service->logCampaignAttempt($campaign, $subscriberId, true, 'OK', null);
             } else {
                 $failed++;
+                $this->service->logCampaignAttempt($campaign, $subscriberId, false, null, 'Mailer did not confirm delivery.');
             }
         }
 
-        $user = $this->auth->user();
-
-        $this->sendsRepository->create([
-            'subject'          => $subject,
-            'body'             => $body,
-            'recipients_count' => $totalConfirmed,
-            'sent_count'       => $sent,
-            'failed_count'     => $failed,
-            'created_by'       => $user ? (int)($user['id'] ?? 0) : null,
-            'created_at'       => DateTimeFactory::nowString(),
-        ]);
+        $this->service->finalizeCampaignSend($campaign, $schedule, $sent, $failed);
 
         if ($failed > 0) {
             $this->redirect(

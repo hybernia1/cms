@@ -146,6 +146,60 @@ CREATE TABLE IF NOT EXISTS newsletter_sends (
 SQL
 ,
 
+/** NEWSLETTER CAMPAIGNS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS newsletter_campaigns (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  subject VARCHAR(255) NOT NULL,
+  body MEDIUMTEXT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'draft',
+  recipients_count INT UNSIGNED NOT NULL DEFAULT 0,
+  sent_count INT UNSIGNED NOT NULL DEFAULT 0,
+  failed_count INT UNSIGNED NOT NULL DEFAULT 0,
+  created_by BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NULL,
+  sent_at DATETIME NULL,
+  INDEX ix_newsletter_campaigns_created (created_at),
+  INDEX ix_newsletter_campaigns_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** NEWSLETTER CAMPAIGN SCHEDULES */
+<<<SQL
+CREATE TABLE IF NOT EXISTS newsletter_campaign_schedules (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  campaign_id INT UNSIGNED NOT NULL,
+  scheduled_for DATETIME NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  created_at DATETIME NOT NULL,
+  processed_at DATETIME NULL,
+  INDEX ix_newsletter_campaign_schedules_campaign (campaign_id),
+  INDEX ix_newsletter_campaign_schedules_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** NEWSLETTER CAMPAIGN LOGS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS newsletter_campaign_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  campaign_id INT UNSIGNED NOT NULL,
+  subscriber_id INT UNSIGNED NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  response TEXT NULL,
+  error TEXT NULL,
+  sent_at DATETIME NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NULL,
+  INDEX ix_newsletter_campaign_logs_campaign (campaign_id),
+  INDEX ix_newsletter_campaign_logs_subscriber (subscriber_id),
+  INDEX ix_newsletter_campaign_logs_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
 /** NAVIGATION MENUS */
 <<<SQL
 CREATE TABLE IF NOT EXISTS navigation_menus (

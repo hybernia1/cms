@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Domain\Services;
 
+use Cms\Admin\Domain\Entities\NewsletterCampaign;
+use Cms\Admin\Domain\Entities\NewsletterCampaignLog;
+use Cms\Admin\Domain\Entities\NewsletterCampaignSchedule;
+use Cms\Admin\Domain\Repositories\NewsletterCampaignLogRepository;
+use Cms\Admin\Domain\Repositories\NewsletterCampaignRepository;
+use Cms\Admin\Domain\Repositories\NewsletterCampaignScheduleRepository;
 use Cms\Admin\Domain\Repositories\NewsletterSubscribersRepository;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Validation\Validator;
@@ -20,8 +26,109 @@ final class NewsletterService
         self::STATUS_UNSUBSCRIBED,
     ];
 
-    public function __construct(private readonly NewsletterSubscribersRepository $repo = new NewsletterSubscribersRepository())
+    public function __construct(
+        private readonly NewsletterSubscribersRepository $repo = new NewsletterSubscribersRepository(),
+        private readonly NewsletterCampaignRepository $campaignRepository = new NewsletterCampaignRepository(),
+        private readonly NewsletterCampaignScheduleRepository $campaignScheduleRepository = new NewsletterCampaignScheduleRepository(),
+        private readonly NewsletterCampaignLogRepository $campaignLogRepository = new NewsletterCampaignLogRepository(),
+    ) {
+    }
+
+    /**
+     * @return array{campaign: NewsletterCampaign, schedule: NewsletterCampaignSchedule}
+     */
+    public function beginCampaignSend(string $subject, string $body, int $recipientsCount, ?int $userId = null): array
     {
+        $now = DateTimeFactory::nowString();
+
+        $campaign = new NewsletterCampaign(
+            null,
+            $subject,
+            $body,
+            NewsletterCampaign::STATUS_SENDING,
+            $recipientsCount,
+            0,
+            0,
+            $userId,
+            $now,
+            $now,
+            null,
+        );
+
+        $campaign = $this->campaignRepository->create($campaign);
+
+        $schedule = new NewsletterCampaignSchedule(
+            null,
+            $campaign->id() ?? 0,
+            $now,
+            NewsletterCampaignSchedule::STATUS_PROCESSING,
+            $now,
+            null,
+        );
+
+        $schedule = $this->campaignScheduleRepository->create($schedule);
+
+        return ['campaign' => $campaign, 'schedule' => $schedule];
+    }
+
+    public function logCampaignAttempt(NewsletterCampaign $campaign, int $subscriberId, bool $success, ?string $response = null, ?string $error = null): void
+    {
+        if ($campaign->id() === null || $subscriberId <= 0) {
+            return;
+        }
+
+        $now = DateTimeFactory::nowString();
+        $status = $success ? NewsletterCampaignLog::STATUS_SENT : NewsletterCampaignLog::STATUS_FAILED;
+
+        $log = new NewsletterCampaignLog(
+            null,
+            $campaign->id(),
+            $subscriberId,
+            $status,
+            $response,
+            $error,
+            $success ? $now : null,
+            $now,
+            $now,
+        );
+
+        $this->campaignLogRepository->create($log);
+    }
+
+    public function finalizeCampaignSend(NewsletterCampaign $campaign, NewsletterCampaignSchedule $schedule, int $sent, int $failed): void
+    {
+        if ($campaign->id() === null) {
+            return;
+        }
+
+        $now = DateTimeFactory::nowString();
+        $status = $failed > 0 && $sent === 0
+            ? NewsletterCampaign::STATUS_FAILED
+            : NewsletterCampaign::STATUS_COMPLETED;
+
+        $updatedCampaign = new NewsletterCampaign(
+            $campaign->id(),
+            $campaign->subject(),
+            $campaign->body(),
+            $status,
+            $campaign->recipientsCount(),
+            $sent,
+            $failed,
+            $campaign->createdBy(),
+            $campaign->createdAt(),
+            $now,
+            $now,
+        );
+
+        $this->campaignRepository->update($updatedCampaign);
+
+        $scheduleStatus = $failed > 0 && $sent === 0
+            ? NewsletterCampaignSchedule::STATUS_FAILED
+            : NewsletterCampaignSchedule::STATUS_COMPLETED;
+
+        if ($schedule->id() !== null) {
+            $this->campaignScheduleRepository->markProcessed($schedule->id(), $scheduleStatus, $now);
+        }
     }
 
     public function find(int $id): ?array
