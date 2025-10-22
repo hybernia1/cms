@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Core\Files;
 
+use Core\Text\Slug;
+
 /**
  * Řeší fyzické cesty a veřejné URL.
  * Umožní strukturu uploads/YYYY/MM, slugování názvů, prevenci kolizí.
@@ -46,7 +48,7 @@ final class PathResolver
     public function uniqueFilename(string $originalName, string $dirAbs): string
     {
         [$name, $ext] = $this->splitNameAndExt($originalName);
-        $slug = $this->slugify($name);
+        $slug = Slug::from($name, 'file');
         $ext  = $this->normalizeExt($ext);
 
         do {
@@ -96,13 +98,4 @@ final class PathResolver
         return $ext;
     }
 
-    private function slugify(string $name): string
-    {
-        $name = mb_strtolower($name, 'UTF-8');
-        $name = preg_replace('~[^\pL\d]+~u', '-', $name) ?? '';
-        $name = trim($name, '-');
-        $name = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: $name;
-        $name = preg_replace('~[^-\w]+~', '', $name) ?? '';
-        return $name !== '' ? $name : 'file';
-    }
 }
