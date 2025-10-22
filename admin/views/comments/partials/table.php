@@ -56,7 +56,7 @@ $renderStatusAction = function (string $key, array $comment) use ($actionDefinit
 
 $renderDeleteAction = function (array $comment) use ($h, $csrf, $currentBack): string {
     ob_start();
-    $view->render('parts/forms/confirm-action', [
+    $this->render('parts/forms/confirm-action', [
         'action'         => 'admin.php?r=comments&a=delete',
         'csrf'           => $csrf,
         'hidden'         => [
