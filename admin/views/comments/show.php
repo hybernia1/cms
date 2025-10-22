@@ -19,12 +19,6 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
     };
   };
   $back = 'admin.php?r=comments';
-  $postId = (int)($comment['post_id'] ?? 0);
-  $postType = (string)($comment['post_type'] ?? '');
-  $postUrl = 'admin.php?r=posts&a=edit&id=' . $postId;
-  if ($postType !== '') {
-    $postUrl .= '&type=' . rawurlencode($postType);
-  }
 ?>
   <div class="d-flex justify-content-between align-items-center mb-2">
     <h2 class="h5 m-0">Komentář #<?= (int)$comment['id'] ?></h2>
@@ -42,7 +36,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
           <span class="badge text-bg-<?= $badge((string)$comment['status']) ?>" data-comment-status-badge><?= $h((string)$comment['status']) ?></span>
         </div>
       </div>
-      <div class="small text-secondary mt-1"><?= $h((string)$comment['created_at']) ?> • k postu: <a href="<?= $h($postUrl) ?>">#<?= $postId ?></a></div>
+      <div class="small text-secondary mt-1"><?= $h((string)$comment['created_at']) ?> • k postu: <a href="admin.php?r=posts&a=edit&id=<?= (int)$comment['post_id'] ?>">#<?= (int)$comment['post_id'] ?></a></div>
       <hr>
       <div style="white-space:pre-wrap"><?= nl2br($h((string)$comment['content'])) ?></div>
     </div>
