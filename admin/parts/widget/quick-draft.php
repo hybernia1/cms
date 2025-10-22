@@ -17,11 +17,6 @@ $contentValue = $values['content'] ?? '';
         <input class="form-control form-control-sm" id="quick-draft-title" name="title" placeholder="Název konceptu" value="<?= $h($titleValue) ?>">
       </div>
       <div class="mb-3">
-        <label class="form-label">Typ obsahu</label>
-        <div class="form-control-plaintext form-control-sm text-secondary">Příspěvek</div>
-        <input type="hidden" name="type" value="post">
-      </div>
-      <div class="mb-3">
         <label class="form-label" for="quick-draft-content">Obsah</label>
         <textarea class="form-control form-control-sm" id="quick-draft-content" name="content" rows="5" placeholder="Poznámky nebo úvod…"><?= $h($contentValue) ?></textarea>
       </div>
