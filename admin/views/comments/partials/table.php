@@ -28,6 +28,7 @@ $actionDefinitions = [
     'draft'   => ['route' => 'draft',   'icon' => 'bi-file-earmark', 'title' => 'Uložit jako koncept'],
     'spam'    => ['route' => 'spam',    'icon' => 'bi-slash-circle', 'title' => 'Označit jako spam'],
 ];
+$view = $this;
 $currentBack = $backUrl !== null && $backUrl !== '' ? $backUrl : ((string)($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments'));
 
 $renderStatusAction = function (string $key, array $comment) use ($actionDefinitions, $h, $csrf, $currentBack): string {
@@ -55,24 +56,29 @@ $renderStatusAction = function (string $key, array $comment) use ($actionDefinit
 
 $renderDeleteAction = function (array $comment) use ($h, $csrf, $currentBack): string {
     ob_start();
-    ?>
-    <form method="post"
-          action="admin.php?r=comments&a=delete"
-          class="d-inline"
-          data-ajax
-          data-comments-action="delete"
-          data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
-          data-confirm-modal-title="Potvrzení smazání"
-          data-confirm-modal-confirm-label="Smazat"
-          data-confirm-modal-cancel-label="Zrušit">
-      <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-      <input type="hidden" name="id" value="<?= (int)($comment['id'] ?? 0) ?>">
-      <input type="hidden" name="_back" value="<?= $h($currentBack) ?>">
-      <button class="btn btn-light btn-sm border px-2 text-danger" type="submit" aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">
-        <i class="bi bi-trash"></i>
-      </button>
-    </form>
-    <?php
+    $view->render('parts/forms/confirm-action', [
+        'action'         => 'admin.php?r=comments&a=delete',
+        'csrf'           => $csrf,
+        'hidden'         => [
+            'id'    => (int)($comment['id'] ?? 0),
+            '_back' => $currentBack,
+        ],
+        'dataAttributes' => [
+            'data-comments-action' => 'delete',
+        ],
+        'button'         => [
+            'class'     => 'px-2 text-danger',
+            'tooltip'   => 'Smazat',
+            'ariaLabel' => 'Smazat',
+            'icon'      => 'bi bi-trash',
+        ],
+        'confirm'        => [
+            'message' => 'Opravdu smazat? Smaže i odpovědi.',
+            'title'   => 'Potvrzení smazání',
+            'confirm' => 'Smazat',
+            'cancel'  => 'Zrušit',
+        ],
+    ]);
     return trim((string)ob_get_clean());
 };
 ?>
