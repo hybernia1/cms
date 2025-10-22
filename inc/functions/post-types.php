@@ -15,7 +15,7 @@ if (!function_exists('register_post_type')) {
 
 if (!function_exists('registered_post_types')) {
     /**
-     * @return array<string,array{nav:string,list:string,create:string,edit:string,label:string,supports:array<int,string>}>
+     * @return array<string,array{nav:string,list:string,create:string,edit:string,label:string,icon:string,supports:array<int,string>}>
      */
     function registered_post_types(): array
     {
@@ -29,6 +29,7 @@ register_post_type('post', [
     'create'   => 'Nový příspěvek',
     'edit'     => 'Upravit příspěvek',
     'label'    => 'Příspěvek',
+    'icon'     => 'bi-file-earmark-text',
     'supports' => ['thumbnail', 'comments', 'terms:category', 'terms:tag'],
 ]);
 
@@ -38,5 +39,6 @@ register_post_type('page', [
     'create'   => 'Nová stránka',
     'edit'     => 'Upravit stránku',
     'label'    => 'Stránka',
+    'icon'     => 'bi-file-earmark-richtext',
     'supports' => ['thumbnail', 'comments'],
 ]);
