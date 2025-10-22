@@ -1,6 +1,12 @@
 import { adminAjax } from '../../core/ajax.js';
 import { dispatchFormEvent } from '../../core/form-events.js';
 import { buildHistoryState, loadAdminPage } from '../../core/navigation.js';
+import {
+  buildListingJsonUrl,
+  cleanListingUrl,
+  pushListingHistory,
+  setListingLoadingState
+} from './listing-utils.js';
 
 var commentsListingControllers = new WeakMap();
 
@@ -30,49 +36,21 @@ function createCommentsListingController(container) {
   };
 
   function setLoading(isLoading) {
-    if (isLoading) {
-      container.classList.add('is-loading');
-      container.setAttribute('aria-busy', 'true');
-    } else {
-      container.classList.remove('is-loading');
-      container.removeAttribute('aria-busy');
-    }
+    setListingLoadingState(container, isLoading);
   }
 
   function cleanUrl(url) {
-    if (!url) {
-      return url;
-    }
-    try {
-      var parsed = new URL(url, window.location.href);
-      parsed.searchParams.delete('format');
-      return parsed.toString();
-    } catch (err) {
-      return url;
-    }
+    return cleanListingUrl(url);
   }
 
   function buildJsonUrl(url) {
-    try {
-      var parsed = new URL(url, window.location.href);
-      parsed.searchParams.set('format', 'json');
-      return parsed.toString();
-    } catch (err) {
-      return url;
-    }
+    return buildListingJsonUrl(url);
   }
 
   function updateHistory(url) {
-    if (!url || !window.history || typeof window.history.pushState !== 'function') {
-      return;
-    }
-    try {
-      var parsed = new URL(url, window.location.href);
-      parsed.searchParams.delete('format');
-      window.history.pushState(buildHistoryState(window.history.state), '', parsed.toString());
-    } catch (err) {
-      /* ignore history errors */
-    }
+    pushListingHistory(url, function (state) {
+      return buildHistoryState(state);
+    });
   }
 
   function updateDataset(data, sourceUrl) {

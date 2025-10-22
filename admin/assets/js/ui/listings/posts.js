@@ -2,6 +2,12 @@ import { adminAjax } from '../../core/ajax.js';
 import { HISTORY_STATE_KEY } from '../../core/navigation.js';
 import { initTooltips } from '../tooltips.js';
 import { cssEscapeValue } from '../../utils/css-escape.js';
+import {
+  buildListingJsonUrl,
+  cleanListingUrl,
+  pushListingHistory,
+  setListingLoadingState
+} from './listing-utils.js';
 
 var dependencies = {
   refreshDynamicUI: function () {},
@@ -202,57 +208,30 @@ export function initPostsListing(root) {
     var pending = null;
 
     function setLoading(state) {
-      if (state) {
-        container.classList.add('is-loading');
-        container.setAttribute('aria-busy', 'true');
-      } else {
-        container.classList.remove('is-loading');
-        container.removeAttribute('aria-busy');
-      }
+      setListingLoadingState(container, state);
     }
 
     function cleanUrl(url) {
-      try {
-        var parsed = new URL(url, window.location.href);
-        parsed.searchParams.delete('format');
-        return parsed.toString();
-      } catch (err) {
-        return url;
-      }
+      return cleanListingUrl(url);
     }
 
     function buildJsonUrl(url) {
-      try {
-        var parsed = new URL(url, window.location.href);
-        var type = container.getAttribute('data-posts-type') || '';
-        if (type && !parsed.searchParams.get('type')) {
-          parsed.searchParams.set('type', type);
-        }
-        parsed.searchParams.set('format', 'json');
-        return parsed.toString();
-      } catch (err) {
-        return url;
+      var type = container.getAttribute('data-posts-type') || '';
+      var params = {};
+      if (type) {
+        params.type = type;
       }
+      return buildListingJsonUrl(url, params, { skipExisting: ['type'] });
     }
 
     function updateHistory(url) {
-      if (!window.history || typeof window.history.pushState !== 'function') {
-        return;
-      }
-      try {
-        var parsed = new URL(url, window.location.href);
-        parsed.searchParams.delete('format');
-        var state = {};
-        if (window.history.state && typeof window.history.state === 'object') {
-          Object.keys(window.history.state).forEach(function (key) {
-            state[key] = window.history.state[key];
-          });
-        }
+      pushListingHistory(url, function (currentState) {
+        var state = currentState && typeof currentState === 'object'
+          ? Object.assign({}, currentState)
+          : {};
         state[HISTORY_STATE_KEY] = true;
-        window.history.pushState(state, '', parsed.toString());
-      } catch (err) {
-        /* ignore history errors */
-      }
+        return state;
+      });
     }
 
     function applyPartials(partials) {
