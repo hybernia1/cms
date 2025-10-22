@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Cms\Front\Http;
 
+use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Passwords;
@@ -142,8 +143,11 @@ final class Router
         }
 
         $slug = isset($post['slug']) ? (string)$post['slug'] : '';
+        $type = isset($post['type']) ? (string)$post['type'] : 'post';
         if ($slug !== '') {
-            return $this->links->post($slug);
+            return $type === 'page'
+                ? $this->links->page($slug)
+                : $this->links->postOfType($type, $slug);
         }
 
         return $this->links->home();
@@ -157,7 +161,10 @@ final class Router
 
         return match ($name) {
             'home' => $this->handleHome(),
-            'post' => $this->handlePost((string)($params['slug'] ?? '')),
+            'post' => $this->handlePost(
+                (string)($params['slug'] ?? ''),
+                (string)($params['type'] ?? 'post')
+            ),
             'page' => $this->handlePage((string)($params['slug'] ?? '')),
             'type' => $this->handleType((string)($params['type'] ?? 'post')),
             'category' => $this->handleTerm((string)($params['slug'] ?? ''), 'category'),
@@ -179,6 +186,11 @@ final class Router
         if ($route !== null && $route !== '') {
             $params = $_GET;
             unset($params['r']);
+            $mapped = $this->mapPostRouteFromSlug($route, $params);
+            if ($mapped !== null) {
+                return $mapped;
+            }
+
             return ['name' => $route, 'params' => $params];
         }
 
@@ -218,7 +230,7 @@ final class Router
             $second = $segments[1] ?? '';
 
             if ($bases['post_base'] !== '' && $first === trim($bases['post_base'], '/')) {
-                return ['name' => 'post', 'params' => ['slug' => $second]];
+                return ['name' => 'post', 'params' => ['slug' => $second, 'type' => 'post']];
             }
             if ($bases['page_base'] !== '' && $first === trim($bases['page_base'], '/')) {
                 return ['name' => 'page', 'params' => ['slug' => $second]];
@@ -228,6 +240,10 @@ final class Router
             }
             if ($bases['tag_base'] !== '' && $first === trim($bases['tag_base'], '/')) {
                 return ['name' => 'tag', 'params' => ['slug' => $second]];
+            }
+            $customPost = $this->mapPrettyPostRoute($first, $second);
+            if ($customPost !== null) {
+                return $customPost;
             }
             if (in_array($first, ['type', 'archive', 'archiv'], true)) {
                 return ['name' => 'type', 'params' => ['type' => $second]];
@@ -275,11 +291,62 @@ final class Router
             $slug = $segments[0];
             $post = $this->posts->findPublished($slug, 'post');
             if ($post) {
-                return ['name' => 'post', 'params' => ['slug' => $slug]];
+                return ['name' => 'post', 'params' => ['slug' => $slug, 'type' => 'post']];
             }
         }
 
         return ['name' => 'page', 'params' => ['slug' => $segments[0] ?? '']];
+    }
+
+    /**
+     * @param array<string,mixed> $params
+     * @return array{name:string,params:array<string,mixed>}|null
+     */
+    private function mapPostRouteFromSlug(string $slug, array $params): ?array
+    {
+        $type = PostTypeRegistry::typeForSlug($slug);
+        if ($type === null) {
+            return null;
+        }
+
+        if ($type === 'page') {
+            unset($params['type']);
+
+            return ['name' => 'page', 'params' => $params];
+        }
+
+        $params['type'] = $type;
+
+        return ['name' => 'post', 'params' => $params];
+    }
+
+    /**
+     * @return array{name:string,params:array<string,mixed>}|null
+     */
+    private function mapPrettyPostRoute(string $base, string $slug): ?array
+    {
+        if ($slug === '') {
+            return null;
+        }
+
+        $type = PostTypeRegistry::typeForSlug($base);
+        if ($type === null) {
+            return null;
+        }
+
+        if ($type === 'page') {
+            return ['name' => 'page', 'params' => ['slug' => $slug]];
+        }
+
+        $baseInfo = $this->links->postTypeBase($type);
+        $expected = trim($baseInfo['pretty'], '/');
+        $normalizedExpected = strtolower($expected);
+        $normalizedBase = strtolower(trim($base, '/'));
+        if ($normalizedExpected === '' || $normalizedExpected !== $normalizedBase) {
+            return null;
+        }
+
+        return ['name' => 'post', 'params' => ['slug' => $slug, 'type' => $type]];
     }
 
     private function trimBase(string $path): string
@@ -306,13 +373,14 @@ final class Router
         ]);
     }
 
-    private function handlePost(string $slug): RouteResult
+    private function handlePost(string $slug, string $type = 'post'): RouteResult
     {
         if ($slug === '') {
             return $this->notFound();
         }
 
-        $post = $this->posts->findPublished($slug, 'post');
+        $normalizedType = trim($type) !== '' ? $type : 'post';
+        $post = $this->posts->findPublished($slug, $normalizedType);
         if (!$post) {
             return $this->notFound();
         }

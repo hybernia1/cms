@@ -548,7 +548,7 @@ final class NavigationController extends BaseAdminController
 
             $url = $type === 'page'
                 ? $links->page($slug)
-                : $links->post($slug);
+                : $links->postOfType($type, $slug);
 
             $items[] = [
                 'id' => $id,

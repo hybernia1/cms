@@ -35,7 +35,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
           if ($slug !== '') {
             $frontUrl = $itemType === 'page'
               ? $urls->page($slug)
-              : $urls->post($slug);
+              : $urls->postOfType($itemType, $slug);
           }
         ?>
         <tr data-post-row data-post-id="<?= $h((string)$it['id']) ?>" data-post-status="<?= $isPublished ? 'publish' : 'draft' ?>">
