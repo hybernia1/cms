@@ -36,6 +36,11 @@ import {
   configurePostsListing,
   handlePostsActionResponse
 } from './ui/listings/posts.js';
+import {
+  initNewsletterCampaignsListing,
+  configureNewsletterCampaignsListing,
+  handleNewsletterCampaignsFormSuccess
+} from './ui/listings/newsletter-campaigns.js';
 import { initPostEditor } from './ui/post-editor.js';
 import { initMediaPickerModals } from './ui/media-picker.js';
 import { cssEscapeValue } from './utils/css-escape.js';
@@ -288,6 +293,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     initTermsListing(root);
     initTermsForm(root);
     initPostsListing(root);
+    initNewsletterCampaignsListing(root);
     initMediaUploadModals(root);
     initMediaPickerModals(root);
     initMediaLibrary(root);
@@ -321,6 +327,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     refreshDynamicUI: refreshDynamicUI,
     triggerBulkFormUpdate: triggerBulkFormUpdate
   });
+  configureNewsletterCampaignsListing({ refreshDynamicUI: refreshDynamicUI });
 
   function updateUsersListingState(container, listing) {
     if (!container || !listing || typeof listing !== 'object') {
@@ -397,6 +404,10 @@ import { cssEscapeValue } from './utils/css-escape.js';
 
   document.addEventListener('cms:admin:form:success', function (event) {
     handleTermsFormSuccess(event);
+  });
+
+  document.addEventListener('cms:admin:form:success', function (event) {
+    handleNewsletterCampaignsFormSuccess(event);
   });
 
   document.addEventListener('cms:admin:form:success', function (event) {

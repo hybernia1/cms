@@ -118,7 +118,7 @@ final class NewsletterController extends BaseAdminController
 
         $this->renderAdmin('newsletter/index', [
             'pageTitle'   => 'Newsletter',
-            'nav'         => AdminNavigation::build('newsletter'),
+            'nav'         => AdminNavigation::build('newsletter:subscribers'),
             'items'       => $items,
             'filters'     => $filters,
             'statusMeta'  => self::STATUS_META,
@@ -220,7 +220,7 @@ final class NewsletterController extends BaseAdminController
 
         $this->renderAdmin('newsletter/detail', [
             'pageTitle'  => 'Odběratel newsletteru',
-            'nav'        => AdminNavigation::build('newsletter'),
+            'nav'        => AdminNavigation::build('newsletter:subscribers'),
             'subscriber' => $this->transformSubscriber($subscriber),
             'statusMeta' => self::STATUS_META,
             'backUrl'    => $redirect,
@@ -326,7 +326,7 @@ final class NewsletterController extends BaseAdminController
 
         $this->renderAdmin('newsletter/export', [
             'pageTitle'      => 'Export newsletteru',
-            'nav'            => AdminNavigation::build('newsletter'),
+            'nav'            => AdminNavigation::build('newsletter:subscribers'),
             'confirmedCount' => $confirmedCount,
         ]);
     }
