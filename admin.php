@@ -7,10 +7,14 @@ use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Authorization;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\View\ViewEngine;
+use Core\Database\SchemaChecker;
 
 require_once __DIR__ . '/load.php';
 
 cms_bootstrap_config_or_redirect();
+
+$schemaChecker = new SchemaChecker();
+$schemaChecker->preload();
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -58,5 +62,8 @@ if (!Authorization::isAdmin($user)) {
     exit;
 }
 
-$controller = new AdminController(baseViewsPath: __DIR__ . '/admin/views');
+$controller = new AdminController(
+    baseViewsPath: __DIR__ . '/admin/views',
+    schemaChecker: $schemaChecker
+);
 $controller->handle($route, $action);

@@ -19,12 +19,14 @@ use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\View\ViewEngine;
+use Core\Database\SchemaChecker;
 
 final class AdminController
 {
     private ViewEngine $view;
     private string $baseViewsPath;
     private AuthService $auth;
+    private SchemaChecker $schemaChecker;
 
     /** @var array<string,class-string> */
     private const ROUTE_MAP = [
@@ -39,7 +41,7 @@ final class AdminController
         'users'      => UsersController::class,
     ];
 
-    public function __construct(string $baseViewsPath)
+    public function __construct(string $baseViewsPath, ?SchemaChecker $schemaChecker = null)
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
@@ -48,6 +50,7 @@ final class AdminController
         $this->view = new ViewEngine($baseViewsPath);
         $this->view->setBasePaths($this->resolveViewPaths($baseViewsPath));
         $this->auth = new AuthService();
+        $this->schemaChecker = $schemaChecker ?? new SchemaChecker();
     }
 
     /**
@@ -74,7 +77,11 @@ final class AdminController
     {
         if (isset(self::ROUTE_MAP[$route])) {
             $class = self::ROUTE_MAP[$route];
-            $controller = new $class($this->baseViewsPath);
+            if ($class === NavigationController::class) {
+                $controller = new $class($this->baseViewsPath, $this->schemaChecker);
+            } else {
+                $controller = new $class($this->baseViewsPath);
+            }
             $controller->handle($action);
             return;
         }
