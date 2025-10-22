@@ -9,6 +9,7 @@ use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
+use Cms\Admin\Utils\RelativeDateFormatter;
 use Cms\Admin\Utils\PermalinkSettings;
 use Cms\Admin\Utils\SettingsPresets;
 
@@ -69,8 +70,11 @@ final class SettingsController extends BaseAdminController
 
         $data = $this->decodeSettingsData($row['data'] ?? null);
         $media = is_array($data['media'] ?? null) ? $data['media'] : [];
+        $dateSettings = is_array($data['date'] ?? null) ? $data['date'] : [];
         $row['webp_enabled'] = !empty($media['webp_enabled']) ? 1 : 0;
         $row['webp_compression'] = $this->normalizeWebpCompression((string)($media['webp_compression'] ?? ''));
+        $display = isset($dateSettings['display']) ? (string)$dateSettings['display'] : 'format';
+        $row['datetime_display'] = in_array($display, ['relative','format'], true) ? $display : 'format';
 
         [$normalizedTz, $tzAdjusted] = $this->sanitizeTimezone($storedTimezone);
         $row['timezone'] = $normalizedTz;
@@ -208,6 +212,8 @@ final class SettingsController extends BaseAdminController
         $now = (new \DateTimeImmutable('now', $tz));
         $dateFmt = (string)($settings['date_format'] ?? 'Y-m-d');
         $timeFmt = (string)($settings['time_format'] ?? 'H:i');
+        $displayMode = (string)($settings['datetime_display'] ?? 'format');
+        $displayMode = in_array($displayMode, ['relative','format'], true) ? $displayMode : 'format';
 
         $this->renderAdmin('settings/index', [
             'pageTitle'     => 'Nastavení',
@@ -215,6 +221,8 @@ final class SettingsController extends BaseAdminController
             'settings'      => $settings,
             'timezones'     => $this->timezones(),
             'previewNow'    => $now->format($dateFmt.' '.$timeFmt),
+            'previewRelative' => RelativeDateFormatter::format($now, $now),
+            'dateDisplayMode' => $displayMode,
             'formatPresets' => $this->formatPresets(),
         ]);
     }
@@ -337,6 +345,9 @@ final class SettingsController extends BaseAdminController
         $dateOptions = is_array($formatPresets['date'] ?? null) ? $formatPresets['date'] : [];
         $timeOptions = is_array($formatPresets['time'] ?? null) ? $formatPresets['time'] : [];
 
+        $displayInput = (string)($_POST['datetime_display'] ?? (string)($currentSettings['datetime_display'] ?? 'format'));
+        $dateDisplay = in_array($displayInput, ['relative','format'], true) ? $displayInput : 'format';
+
         $dateFormat = $this->pickPresetValue($dateOptions, (string)($_POST['date_format'] ?? ''), 'Y-m-d');
         $timeFormat = $this->pickPresetValue($timeOptions, (string)($_POST['time_format'] ?? ''), 'H:i');
 
@@ -385,6 +396,10 @@ final class SettingsController extends BaseAdminController
         }
         $data['media']['webp_enabled'] = $webpEnabled;
         $data['media']['webp_compression'] = $webpCompression;
+        if (!isset($data['date']) || !is_array($data['date'])) {
+            $data['date'] = [];
+        }
+        $data['date']['display'] = $dateDisplay;
 
         $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         if ($dataJson === false) {

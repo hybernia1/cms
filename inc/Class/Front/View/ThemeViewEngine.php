@@ -5,6 +5,7 @@ namespace Cms\Front\View;
 
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
+use Cms\Admin\Utils\RelativeDateFormatter;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\View\ViewEngine;
 
@@ -25,6 +26,8 @@ final class ThemeViewEngine
     private string $dateFormat;
     private string $timeFormat;
     private string $dateTimeFormat;
+    private bool $useRelativeDates;
+    private ?\DateTimeImmutable $relativeReference = null;
 
     public function __construct(?CmsSettings $settings = null, ?LinkGenerator $links = null, string $fallbackSlug = 'classic')
     {
@@ -39,6 +42,7 @@ final class ThemeViewEngine
         if ($this->dateTimeFormat === '') {
             $this->dateTimeFormat = 'Y-m-d H:i';
         }
+        $this->useRelativeDates = $this->settings->useRelativeDates();
 
         $this->engine = new ViewEngine($this->baseDir . '/themes');
         $this->setTheme($this->settings->themeSlug());
@@ -157,6 +161,7 @@ final class ThemeViewEngine
                 'date_format' => $this->dateFormat,
                 'time_format' => $this->timeFormat,
                 'datetime_format' => $this->dateTimeFormat,
+                'date_display' => $this->useRelativeDates ? 'relative' : 'format',
             ],
             'links' => $this->links,
             'navigation' => [],
@@ -246,6 +251,13 @@ final class ThemeViewEngine
         if ($dateTime === null) {
             return null;
         }
+        if ($this->useRelativeDates) {
+            if ($this->relativeReference === null) {
+                $this->relativeReference = DateTimeFactory::now();
+            }
+            return RelativeDateFormatter::format($dateTime, $this->relativeReference);
+        }
+
         return $dateTime->format($useFormat);
     }
 

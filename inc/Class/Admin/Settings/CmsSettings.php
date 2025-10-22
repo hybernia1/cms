@@ -78,6 +78,16 @@ final class CmsSettings
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    private static function dateSettings(): array
+    {
+        $data = self::data();
+        $date = $data['date'] ?? [];
+        return is_array($date) ? $date : [];
+    }
+
+    /**
      * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string}
      */
     private static function permalinkSettings(): array
@@ -149,6 +159,18 @@ final class CmsSettings
     public function dateFormat(): string  { return (string)(self::row()['date_format'] ?? 'Y-m-d'); }
     public function timeFormat(): string  { return (string)(self::row()['time_format'] ?? 'H:i'); }
     public function timezone(): string    { return SettingsPresets::normalizeTimezone((string)(self::row()['timezone'] ?? 'UTC+01:00')); }
+
+    public function dateDisplayMode(): string
+    {
+        $settings = self::dateSettings();
+        $mode = isset($settings['display']) ? (string)$settings['display'] : 'format';
+        return in_array($mode, ['relative', 'format'], true) ? $mode : 'format';
+    }
+
+    public function useRelativeDates(): bool
+    {
+        return $this->dateDisplayMode() === 'relative';
+    }
 
     public function webpEnabled(): bool
     {
