@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Domain\Services;
 
+use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Domain\Repositories\PostsRepository;
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Domain\Repositories\MediaRepository;
@@ -27,13 +28,8 @@ final class PostsService
      */
     public function create(array $data): int
     {
-        $data['type']   = $data['type']   ?? 'post';
+        $data['type']   = $this->resolveType((string)($data['type'] ?? 'post'));
         $data['status'] = $data['status'] ?? 'draft';
-
-        $allowedTypes = ['post', 'page'];
-        if (!in_array((string)$data['type'], $allowedTypes, true)) {
-            $data['type'] = 'post';
-        }
 
         $v = (new Validator())
             ->require($data, 'title')
@@ -44,13 +40,24 @@ final class PostsService
             throw new \InvalidArgumentException(json_encode($v->errors(), JSON_UNESCAPED_UNICODE));
         }
 
-        $slug = Slugger::uniqueInPosts($data['title'], (string)$data['type']);
-
-        $now = DateTimeFactory::now();
-
-        $now = DateTimeFactory::now();
-
         $type = (string)$data['type'];
+        $slug = Slugger::uniqueInPosts($data['title'], $type);
+
+        $now = DateTimeFactory::now();
+
+        $thumbnailSupported = $this->supportsFeature($type, 'thumbnail');
+        $commentsSupported = $this->supportsFeature($type, 'comments');
+        $termsSupported = $this->supportsAnyTerms($type);
+
+        $commentsAllowed = $commentsSupported
+            ? (array_key_exists('comments_allowed', $data) ? (int)$data['comments_allowed'] : 1)
+            : 0;
+
+        $thumbnailId = null;
+        if ($thumbnailSupported && array_key_exists('thumbnail_id', $data)) {
+            $thumbnailId = $data['thumbnail_id'] !== null ? (int)$data['thumbnail_id'] : null;
+        }
+
         $id = $this->posts->create([
             'title'           => (string)$data['title'],
             'slug'            => $slug,
@@ -58,15 +65,14 @@ final class PostsService
             'status'          => (string)$data['status'],
             'content'         => (string)($data['content'] ?? ''),
             'author_id'       => (int)$data['author_id'],
-            'thumbnail_id'    => isset($data['thumbnail_id']) ? (int)$data['thumbnail_id'] : null,
-            'comments_allowed'=> $type === 'post' ? 1 : 0,
+            'thumbnail_id'    => $thumbnailSupported ? $thumbnailId : null,
+            'comments_allowed'=> $commentsAllowed,
             'published_at'    => $data['status']==='publish' ? DateTimeFactory::formatForStorage($now) : null,
             'created_at'      => DateTimeFactory::formatForStorage($now),
             'updated_at'      => null,
         ]);
 
-        // napojení termů
-        if (!empty($data['terms']) && is_array($data['terms'])) {
+        if ($termsSupported && !empty($data['terms']) && is_array($data['terms'])) {
             foreach ($data['terms'] as $termId) {
                 $this->terms->attachToPost($id, (int)$termId);
             }
@@ -81,9 +87,9 @@ final class PostsService
         if (!$row) throw new \RuntimeException('Post neexistuje');
 
         $upd = [];
-        $typeForSlug = in_array((string)($row['type'] ?? ''), ['post', 'page'], true)
-            ? (string)$row['type']
-            : 'post';
+        $typeForSlug = $this->resolveType((string)($row['type'] ?? 'post'));
+        $thumbnailSupported = $this->supportsFeature($typeForSlug, 'thumbnail');
+        $commentsSupported = $this->supportsFeature($typeForSlug, 'comments');
 
         if (isset($data['title']) && trim((string)$data['title']) !== '') {
             $upd['title'] = (string)$data['title'];
@@ -105,11 +111,19 @@ final class PostsService
                 $upd['published_at'] = DateTimeFactory::nowString();
             }
         }
-        if (array_key_exists('content',$data)) $upd['content'] = (string)$data['content'];
-        if (array_key_exists('thumbnail_id',$data)) $upd['thumbnail_id'] = $data['thumbnail_id'] !== null ? (int)$data['thumbnail_id'] : null;
-        if (array_key_exists('comments_allowed',$data)) {
-            $commentsAllowed = (int)$data['comments_allowed'];
-            $upd['comments_allowed'] = $typeForSlug === 'post' ? $commentsAllowed : 0;
+        if (array_key_exists('content',$data)) {
+            $upd['content'] = (string)$data['content'];
+        }
+        if (array_key_exists('thumbnail_id',$data)) {
+            $upd['thumbnail_id'] = $thumbnailSupported && $data['thumbnail_id'] !== null
+                ? (int)$data['thumbnail_id']
+                : null;
+        } elseif (!$thumbnailSupported && !empty($row['thumbnail_id'])) {
+            $upd['thumbnail_id'] = null;
+        }
+        if (array_key_exists('comments_allowed',$data) || !$commentsSupported) {
+            $commentsAllowed = (int)($data['comments_allowed'] ?? 0);
+            $upd['comments_allowed'] = $commentsSupported ? $commentsAllowed : 0;
         }
 
         if ($upd === []) return 0;
@@ -129,5 +143,49 @@ final class PostsService
         }
 
         return $this->posts->latestDrafts($type, max(1, $limit));
+    }
+
+    private function resolveType(string $type): string
+    {
+        $registered = PostTypeRegistry::all();
+        if ($registered !== []) {
+            if (array_key_exists($type, $registered)) {
+                return $type;
+            }
+
+            $fallback = array_key_first($registered);
+            if (is_string($fallback) && $fallback !== '') {
+                return $fallback;
+            }
+        }
+
+        $allowed = ['post', 'page'];
+        return in_array($type, $allowed, true) ? $type : 'post';
+    }
+
+    private function supportsFeature(string $type, string $feature): bool
+    {
+        $config = PostTypeRegistry::get($type);
+        if (!$config) {
+            return false;
+        }
+
+        return in_array($feature, $config['supports'] ?? [], true);
+    }
+
+    private function supportsAnyTerms(string $type): bool
+    {
+        $config = PostTypeRegistry::get($type);
+        if (!$config) {
+            return false;
+        }
+
+        foreach ($config['supports'] ?? [] as $feature) {
+            if ($feature === 'terms' || str_starts_with($feature, 'terms:')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

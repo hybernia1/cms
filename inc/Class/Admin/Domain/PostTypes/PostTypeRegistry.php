@@ -128,16 +128,19 @@ final class PostTypeRegistry
         if (str_starts_with($feature, 'terms:')) {
             $taxonomy = substr($feature, strlen('terms:'));
             if ($taxonomy === '') {
+                error_log('Terms feature must specify a taxonomy, e.g. "terms:category".');
                 throw new InvalidArgumentException('Terms feature must specify a taxonomy, e.g. "terms:category".');
             }
 
             if (!preg_match('/^[a-z0-9_-]+$/', $taxonomy)) {
+                error_log(sprintf('Invalid taxonomy identifier "%s".', $taxonomy));
                 throw new InvalidArgumentException(sprintf('Invalid taxonomy identifier "%s".', $taxonomy));
             }
 
             return;
         }
 
+        error_log(sprintf('Unsupported post type feature "%s".', $feature));
         throw new InvalidArgumentException(sprintf('Unsupported post type feature "%s".', $feature));
     }
 

@@ -105,38 +105,128 @@ final class PostsController extends BaseAdminController
         return $types[$type];
     }
 
+    /**
+     * @param array{supports:array<int,string>} $typeConfig
+     */
+    private function typeConfigSupports(array $typeConfig, string $feature): bool
+    {
+        return in_array($feature, $typeConfig['supports'] ?? [], true);
+    }
+
+    private function typeSupports(string $type, string $feature): bool
+    {
+        $config = $this->currentTypeConfig($type);
+
+        return $this->typeConfigSupports($config, $feature);
+    }
+
+    /**
+     * @param array{supports:array<int,string>} $typeConfig
+     */
+    private function taxonomySupported(array $typeConfig, string $taxonomy): bool
+    {
+        if ($this->typeConfigSupports($typeConfig, 'terms')) {
+            return true;
+        }
+
+        return $this->typeConfigSupports($typeConfig, 'terms:' . $taxonomy);
+    }
+
+    /**
+     * @return array<int,string>|null
+     */
+    private function supportedTaxonomies(array $typeConfig): ?array
+    {
+        if ($this->typeConfigSupports($typeConfig, 'terms')) {
+            return null; // all taxonomies are allowed
+        }
+
+        $taxonomies = [];
+        foreach ($typeConfig['supports'] ?? [] as $feature) {
+            if (str_starts_with($feature, 'terms:')) {
+                $slug = substr($feature, strlen('terms:'));
+                if ($slug !== '') {
+                    $taxonomies[$slug] = $slug;
+                }
+            }
+        }
+
+        return array_values($taxonomies);
+    }
+
     /** Načte seznam termů rozdělený podle typu + aktuálně vybrané pro daný post. */
     private function termsData(?int $postId, string $type): array
     {
-        $byType = ['category'=>[], 'tag'=>[]];
-        $selected = ['category'=>[], 'tag'=>[]];
+        $typeConfig = $this->currentTypeConfig($type);
+        $allowedTaxonomies = $this->supportedTaxonomies($typeConfig);
 
-        if ($type !== 'post') {
-            return ['byType'=>$byType, 'selected'=>$selected];
+        $byType = ['category' => [], 'tag' => []];
+        $selected = ['category' => [], 'tag' => []];
+
+        if ($allowedTaxonomies === []) {
+            return ['byType' => $byType, 'selected' => $selected];
         }
 
-        // všecky termy
-        $all = DB::query()->table('terms','t')
-            ->select(['t.id','t.name','t.slug','t.type'])
-            ->orderBy('t.type','ASC')->orderBy('t.name','ASC')->get();
+        $termQuery = DB::query()->table('terms', 't')
+            ->select(['t.id', 't.name', 't.slug', 't.type'])
+            ->orderBy('t.type', 'ASC')
+            ->orderBy('t.name', 'ASC');
+        if ($allowedTaxonomies !== null) {
+            $termQuery->whereIn('t.type', $allowedTaxonomies);
+            foreach ($allowedTaxonomies as $taxonomy) {
+                if (!array_key_exists($taxonomy, $byType)) {
+                    $byType[$taxonomy] = [];
+                }
+                if (!array_key_exists($taxonomy, $selected)) {
+                    $selected[$taxonomy] = [];
+                }
+            }
+        }
 
+        $all = $termQuery->get();
         foreach ($all as $t) {
-            $termType = (string)$t['type'];
+            $termType = (string)($t['type'] ?? '');
+            if ($termType === '') {
+                continue;
+            }
+            if ($allowedTaxonomies !== null && !in_array($termType, $allowedTaxonomies, true)) {
+                continue;
+            }
+            if (!array_key_exists($termType, $byType)) {
+                $byType[$termType] = [];
+            }
             $byType[$termType][] = $t;
         }
 
-        // předvybrané
         if ($postId) {
-            $rows = DB::query()->table('post_terms','pt')
-                ->select(['pt.term_id','t.type'])
-                ->join('terms t','pt.term_id','=','t.id')
-                ->where('pt.post_id','=', $postId)
-                ->get();
+            $selectedQuery = DB::query()->table('post_terms', 'pt')
+                ->select(['pt.term_id', 't.type'])
+                ->join('terms t', 'pt.term_id', '=', 't.id')
+                ->where('pt.post_id', '=', $postId);
+            if ($allowedTaxonomies !== null) {
+                $selectedQuery->whereIn('t.type', $allowedTaxonomies);
+            }
+            $rows = $selectedQuery->get();
             foreach ($rows as $r) {
-                $selected[(string)$r['type']][] = (int)$r['term_id'];
+                $termType = (string)($r['type'] ?? '');
+                if ($termType === '') {
+                    continue;
+                }
+                if ($allowedTaxonomies !== null && !in_array($termType, $allowedTaxonomies, true)) {
+                    continue;
+                }
+                if (!array_key_exists($termType, $selected)) {
+                    $selected[$termType] = [];
+                }
+                $selected[$termType][] = (int)($r['term_id'] ?? 0);
             }
         }
-        return ['byType'=>$byType, 'selected'=>$selected];
+
+        foreach ($selected as $taxonomy => $ids) {
+            $selected[$taxonomy] = array_values(array_unique(array_filter($ids, static fn (int $id): bool => $id > 0)));
+        }
+
+        return ['byType' => $byType, 'selected' => $selected];
     }
 
     /**
@@ -163,23 +253,39 @@ final class PostsController extends BaseAdminController
         return array_values(array_filter($ids, static fn (int $id): bool => $id > 0));
     }
 
-    /** Uloží vazby post↔terms (přepíše existující). */
-    private function syncTerms(int $postId, array $categoryIds, array $tagIds): void
+    /**
+     * @param array<string,array<int,mixed>> $termsByTaxonomy
+     */
+    private function syncTerms(string $type, int $postId, array $termsByTaxonomy): void
     {
-        // očisti na int a unikáty
-        $cat = array_values(array_unique(array_map('intval', $categoryIds)));
-        $tag = array_values(array_unique(array_map('intval', $tagIds)));
+        $typeConfig = $this->currentTypeConfig($type);
+        $allowedTaxonomies = $this->supportedTaxonomies($typeConfig);
+        $allowAll = $allowedTaxonomies === null;
 
-        DB::query()->table('post_terms')->delete()->where('post_id','=', $postId)->execute();
+        DB::query()->table('post_terms')->delete()->where('post_id', '=', $postId)->execute();
 
-        $ins = DB::query()->table('post_terms')->insert(['post_id','term_id']);
+        if (!$allowAll && $allowedTaxonomies === []) {
+            return;
+        }
+
+        $ins = DB::query()->table('post_terms')->insert(['post_id', 'term_id']);
         $hasRows = false;
-        foreach (array_merge($cat, $tag) as $tid) {
-            if ($tid > 0) {
-                $ins->values([$postId, $tid]);
-                $hasRows = true;
+        foreach ($termsByTaxonomy as $taxonomy => $ids) {
+            if (!$allowAll && !in_array($taxonomy, $allowedTaxonomies, true)) {
+                continue;
+            }
+            if (!is_array($ids)) {
+                continue;
+            }
+            foreach ($ids as $id) {
+                $tid = (int)$id;
+                if ($tid > 0) {
+                    $ins->values([$postId, $tid]);
+                    $hasRows = true;
+                }
             }
         }
+
         if ($hasRows) {
             $ins->execute();
         }
@@ -452,6 +558,11 @@ final class PostsController extends BaseAdminController
         $this->assertCsrf();
 
         $type = $this->requestedType();
+        $typeConfig = $this->currentTypeConfig($type);
+        $supportsComments = $this->typeConfigSupports($typeConfig, 'comments');
+        $supportsThumbnail = $this->typeConfigSupports($typeConfig, 'thumbnail');
+        $supportsCategory = $this->taxonomySupported($typeConfig, 'category');
+        $supportsTag = $this->taxonomySupported($typeConfig, 'tag');
         $user = $this->auth->user();
         if (!$user) {
             $this->respondPostFormResult(
@@ -468,10 +579,7 @@ final class PostsController extends BaseAdminController
         $title   = trim((string)($_POST['title'] ?? ''));
         $status  = (string)($_POST['status'] ?? 'draft');
         $content = (string)($_POST['content'] ?? '');
-        $commentsAllowed = isset($_POST['comments_allowed']) ? 1 : 0;
-        if ($type !== 'post') {
-            $commentsAllowed = 0;
-        }
+        $commentsAllowed = $supportsComments && isset($_POST['comments_allowed']) ? 1 : 0;
 
         $validationErrors = [];
         if ($title === '') {
@@ -496,25 +604,25 @@ final class PostsController extends BaseAdminController
         // terms z formuláře
         $catIds = [];
         $tagIds = [];
-        if ($type === 'post') {
+        if ($supportsCategory) {
             $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-            $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
-
             $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
-            $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
-
             if ($newCatNames !== []) {
                 $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
             }
+        }
+        if ($supportsTag) {
+            $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+            $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
             if ($newTagNames !== []) {
                 $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
             }
         }
 
-        $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
-        $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+        $selectedThumbId = $supportsThumbnail ? (int)($_POST['selected_thumbnail_id'] ?? 0) : 0;
+        $removeThumb = $supportsThumbnail && isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
         $thumbId = null;
-        if (!$removeThumb) {
+        if ($supportsThumbnail && !$removeThumb) {
             if (!empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $mediaSvc = new MediaService();
                 $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
@@ -528,24 +636,32 @@ final class PostsController extends BaseAdminController
 
         try {
             $svc = new PostsService();
-            $postId = $svc->create([
+            $payload = [
                 'title'        => $title,
                 'type'         => $type,
                 'status'       => $status,
                 'content'      => $content,
                 'author_id'    => (int)$user['id'],
-                'thumbnail_id' => $thumbId,
-            ]);
-
-            if ($commentsAllowed === 0) {
-                $svc->update($postId, ['comments_allowed' => 0]);
+            ];
+            if ($supportsThumbnail) {
+                $payload['thumbnail_id'] = $thumbId;
+            }
+            if ($supportsComments) {
+                $payload['comments_allowed'] = $commentsAllowed;
             }
 
-            $this->syncPostMedia($postId, $attachedMedia);
+            $postId = $svc->create($payload);
 
-            if ($type === 'post') {
-                $this->syncTerms($postId, $catIds, $tagIds);
+            $this->syncPostMedia($type, $postId, $attachedMedia);
+
+            $termsToSync = [];
+            if ($supportsCategory) {
+                $termsToSync['category'] = $catIds;
             }
+            if ($supportsTag) {
+                $termsToSync['tag'] = $tagIds;
+            }
+            $this->syncTerms($type, $postId, $termsToSync);
 
             $repo = new PostsRepository();
             $row = $repo->find($postId) ?: [];
@@ -622,6 +738,11 @@ final class PostsController extends BaseAdminController
         if (array_key_exists($rowType, $this->typeConfig())) {
             $type = $rowType;
         }
+        $typeConfig = $this->currentTypeConfig($type);
+        $supportsComments = $this->typeConfigSupports($typeConfig, 'comments');
+        $supportsThumbnail = $this->typeConfigSupports($typeConfig, 'thumbnail');
+        $supportsCategory = $this->taxonomySupported($typeConfig, 'category');
+        $supportsTag = $this->taxonomySupported($typeConfig, 'tag');
 
         try {
             $user = $this->auth->user();
@@ -631,7 +752,7 @@ final class PostsController extends BaseAdminController
             $status = (string)($_POST['status'] ?? 'draft');
             $content = (string)($_POST['content'] ?? '');
             $slugInput = isset($_POST['slug']) ? trim((string)$_POST['slug']) : '';
-            $commentsAllowed = $type === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0;
+            $commentsAllowed = $supportsComments && isset($_POST['comments_allowed']) ? 1 : 0;
 
             $validationErrors = [];
             if ($title === '') {
@@ -654,11 +775,13 @@ final class PostsController extends BaseAdminController
             }
 
             $upd = [
-                'title'            => $title,
-                'status'           => $status,
-                'content'          => $content,
-                'comments_allowed' => $commentsAllowed,
+                'title'   => $title,
+                'status'  => $status,
+                'content' => $content,
             ];
+            if ($supportsComments || array_key_exists('comments_allowed', $post)) {
+                $upd['comments_allowed'] = $supportsComments ? $commentsAllowed : 0;
+            }
             if ($slugInput !== '') {
                 $upd['slug'] = $slugInput;
             }
@@ -666,48 +789,55 @@ final class PostsController extends BaseAdminController
             // terms z formuláře
             $catIds = [];
             $tagIds = [];
-            if ($type === 'post') {
+            if ($supportsCategory) {
                 $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
-
                 $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
-                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
-
                 if ($newCatNames !== []) {
                     $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
                 }
+            }
+            if ($supportsTag) {
+                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
+                $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
                 if ($newTagNames !== []) {
                     $tagIds = array_merge($tagIds, $this->createNewTerms($newTagNames, 'tag'));
                 }
             }
 
             // případný nový thumbnail
-            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
-            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+            $selectedThumbId = $supportsThumbnail ? (int)($_POST['selected_thumbnail_id'] ?? 0) : 0;
+            $removeThumb = $supportsThumbnail && isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
 
-            if ($removeThumb) {
+            if ($supportsThumbnail) {
+                if ($removeThumb) {
+                    $upd['thumbnail_id'] = null;
+                }
+
+                if (!$removeThumb && !empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
+                    $mediaSvc = new MediaService();
+                    $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
+                    $upd['thumbnail_id'] = (int)$up['id'];
+                } elseif (!$removeThumb && $selectedThumbId > 0) {
+                    $upd['thumbnail_id'] = $selectedThumbId;
+                }
+            } else {
                 $upd['thumbnail_id'] = null;
-            }
-
-            if (!$removeThumb && !empty($_FILES['thumbnail']) && (int)$_FILES['thumbnail']['error'] !== UPLOAD_ERR_NO_FILE) {
-                $mediaSvc = new MediaService();
-                $up = $mediaSvc->uploadAndCreate($_FILES['thumbnail'], (int)$user['id'], $this->uploadPaths(), 'posts');
-                $upd['thumbnail_id'] = (int)$up['id'];
-            } elseif (!$removeThumb && $selectedThumbId > 0) {
-                $upd['thumbnail_id'] = $selectedThumbId;
             }
 
             $service = new PostsService();
             $service->update($id, $upd);
 
-            $this->syncPostMedia($id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
+            $this->syncPostMedia($type, $id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
 
             // ulož vazby termů (přepíše existující)
-            if ($type === 'post') {
-                $this->syncTerms($id, $catIds, $tagIds);
-            } else {
-                $this->syncTerms($id, [], []);
+            $termsToSync = [];
+            if ($supportsCategory) {
+                $termsToSync['category'] = $catIds;
             }
+            if ($supportsTag) {
+                $termsToSync['tag'] = $tagIds;
+            }
+            $this->syncTerms($type, $id, $termsToSync);
 
             $repo = new PostsRepository();
             $fresh = $repo->find($id) ?: [];
@@ -783,6 +913,11 @@ final class PostsController extends BaseAdminController
             }
 
             $requestedType = $this->requestedType();
+            $typeConfig = $this->currentTypeConfig($requestedType);
+            $supportsComments = $this->typeConfigSupports($typeConfig, 'comments');
+            $supportsThumbnail = $this->typeConfigSupports($typeConfig, 'thumbnail');
+            $supportsCategory = $this->taxonomySupported($typeConfig, 'category');
+            $supportsTag = $this->taxonomySupported($typeConfig, 'tag');
             $repo = new PostsRepository();
 
             $rawId = $_POST['id'] ?? $_POST['post_id'] ?? null;
@@ -796,18 +931,20 @@ final class PostsController extends BaseAdminController
                 $status = 'draft';
             }
 
-            $commentsAllowed = $requestedType === 'post' ? (isset($_POST['comments_allowed']) ? 1 : 0) : 0;
-            $selectedThumbId = isset($_POST['selected_thumbnail_id']) ? (int)$_POST['selected_thumbnail_id'] : 0;
-            $removeThumb = isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
+            $commentsAllowed = $supportsComments && isset($_POST['comments_allowed']) ? 1 : 0;
+            $selectedThumbId = $supportsThumbnail ? (int)($_POST['selected_thumbnail_id'] ?? 0) : 0;
+            $removeThumb = $supportsThumbnail && isset($_POST['remove_thumbnail']) && (int)$_POST['remove_thumbnail'] === 1;
 
             $catIds = [];
             $tagIds = [];
             $newCatNames = [];
             $newTagNames = [];
-            if ($requestedType === 'post') {
+            if ($supportsCategory) {
                 $catIds = isset($_POST['categories']) ? (array)$_POST['categories'] : [];
-                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
                 $newCatNames = $this->parseNewTerms((string)($_POST['new_categories'] ?? ''));
+            }
+            if ($supportsTag) {
+                $tagIds = isset($_POST['tags']) ? (array)$_POST['tags'] : [];
                 $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
             }
 
@@ -834,26 +971,46 @@ final class PostsController extends BaseAdminController
                 $rowType = (string)($existing['type'] ?? '');
                 if ($rowType !== '' && array_key_exists($rowType, $this->typeConfig())) {
                     $type = $rowType;
+                    $typeConfig = $this->currentTypeConfig($type);
+                    $supportsComments = $this->typeConfigSupports($typeConfig, 'comments');
+                    $supportsThumbnail = $this->typeConfigSupports($typeConfig, 'thumbnail');
+                    $supportsCategory = $this->taxonomySupported($typeConfig, 'category');
+                    $supportsTag = $this->taxonomySupported($typeConfig, 'tag');
+                    if (!$supportsCategory) {
+                        $catIds = [];
+                    }
+                    if (!$supportsTag) {
+                        $tagIds = [];
+                    }
                 }
 
                 $currentStatus = (string)($existing['status'] ?? $currentStatus);
                 $currentSlug = isset($existing['slug']) ? (string)$existing['slug'] : null;
 
-                if ($type !== 'post') {
+                if (!$supportsComments) {
                     $commentsAllowed = 0;
                 }
+
+                $existingHasComments = is_array($existing) && array_key_exists('comments_allowed', $existing);
 
                 $updates = [
                     'title'            => $title,
                     'content'          => $content,
-                    'comments_allowed' => $commentsAllowed,
                     'updated_at'       => $now,
                 ];
 
-                if ($removeThumb) {
+                if ($supportsComments || $existingHasComments) {
+                    $updates['comments_allowed'] = $supportsComments ? $commentsAllowed : 0;
+                }
+
+                if ($supportsThumbnail) {
+                    if ($removeThumb) {
+                        $updates['thumbnail_id'] = null;
+                    } elseif ($selectedThumbId > 0) {
+                        $updates['thumbnail_id'] = $selectedThumbId;
+                    }
+                } else {
                     $updates['thumbnail_id'] = null;
-                } elseif ($selectedThumbId > 0) {
-                    $updates['thumbnail_id'] = $selectedThumbId;
                 }
 
                 if (isset($_POST['slug']) && trim((string)$_POST['slug']) !== '') {
@@ -872,10 +1029,10 @@ final class PostsController extends BaseAdminController
                 $hasMeaningful = $title !== ''
                     || $contentPlain !== ''
                     || $attachedMedia !== []
-                    || $selectedThumbId > 0
-                    || $commentsAllowed === 0
-                    || $catIds !== []
-                    || $tagIds !== []
+                    || ($supportsThumbnail && $selectedThumbId > 0)
+                    || ($supportsComments && $commentsAllowed === 0)
+                    || ($supportsCategory && $catIds !== [])
+                    || ($supportsTag && $tagIds !== [])
                     || $status !== 'draft';
 
                 if (!$hasMeaningful) {
@@ -892,7 +1049,7 @@ final class PostsController extends BaseAdminController
                 $slug = Slugger::uniqueInPosts($slugSource, $type);
                 $currentSlug = $slug;
 
-                if ($type !== 'post') {
+                if (!$supportsComments) {
                     $commentsAllowed = 0;
                 }
 
@@ -903,8 +1060,8 @@ final class PostsController extends BaseAdminController
                     'status'           => 'draft',
                     'content'          => $content,
                     'author_id'        => (int)$user['id'],
-                    'thumbnail_id'     => $removeThumb ? null : ($selectedThumbId > 0 ? $selectedThumbId : null),
-                    'comments_allowed' => $commentsAllowed,
+                    'thumbnail_id'     => $supportsThumbnail && !$removeThumb && $selectedThumbId > 0 ? $selectedThumbId : null,
+                    'comments_allowed' => $supportsComments ? $commentsAllowed : 0,
                     'published_at'     => null,
                     'created_at'       => $now,
                     'updated_at'       => null,
@@ -918,12 +1075,15 @@ final class PostsController extends BaseAdminController
                 throw new \RuntimeException('Nepodařilo se uložit koncept.');
             }
 
-            $this->syncPostMedia($id, $attachedMedia);
-            if ($type === 'post') {
-                $this->syncTerms($id, $catIds, $tagIds);
-            } else {
-                $this->syncTerms($id, [], []);
+            $this->syncPostMedia($type, $id, $attachedMedia);
+            $termsToSync = [];
+            if ($supportsCategory) {
+                $termsToSync['category'] = $catIds;
             }
+            if ($supportsTag) {
+                $termsToSync['tag'] = $tagIds;
+            }
+            $this->syncTerms($type, $id, $termsToSync);
 
             $fresh = $repo->find($id) ?: [];
             $finalType = (string)($fresh['type'] ?? $type);
@@ -1142,8 +1302,13 @@ final class PostsController extends BaseAdminController
         return array_values(array_unique($ids));
     }
 
-    private function syncPostMedia(int $postId, array $mediaIds): void
+    private function syncPostMedia(string $type, int $postId, array $mediaIds): void
     {
+        $typeConfig = $this->currentTypeConfig($type);
+        $mediaSupported = $this->typeConfigSupports($typeConfig, 'media')
+            || $this->typeConfigSupports($typeConfig, 'attachments')
+            || $this->typeConfigSupports($typeConfig, 'thumbnail');
+
         $ids = array_values(array_unique(array_filter(array_map('intval', $mediaIds), static fn (int $id): bool => $id > 0)));
 
         DB::query()->table('post_media')
@@ -1151,7 +1316,7 @@ final class PostsController extends BaseAdminController
             ->where('post_id', '=', $postId)
             ->execute();
 
-        if ($ids === []) {
+        if (!$mediaSupported || $ids === []) {
             return;
         }
 
