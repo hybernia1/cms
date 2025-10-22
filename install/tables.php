@@ -130,6 +130,22 @@ CREATE TABLE IF NOT EXISTS settings (
 SQL
 ,
 
+/** NEWSLETTER SENDS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS newsletter_sends (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  subject VARCHAR(255) NOT NULL,
+  body MEDIUMTEXT NULL,
+  recipients_count INT UNSIGNED NOT NULL DEFAULT 0,
+  sent_count INT UNSIGNED NOT NULL DEFAULT 0,
+  failed_count INT UNSIGNED NOT NULL DEFAULT 0,
+  created_by BIGINT UNSIGNED NULL,
+  created_at DATETIME NOT NULL,
+  INDEX ix_newsletter_sends_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
 /** NAVIGATION MENUS */
 <<<SQL
 CREATE TABLE IF NOT EXISTS navigation_menus (

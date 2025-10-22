@@ -79,4 +79,31 @@ final class NewsletterSubscribersRepository
             ->orderBy('confirmed_at', 'DESC')
             ->get();
     }
+
+    public function confirmedCount(): int
+    {
+        return DB::query()
+            ->table('newsletter_subscribers')
+            ->where('status', '=', 'confirmed')
+            ->count();
+    }
+
+    public function confirmedEmails(int $limit, int $offset = 0): array
+    {
+        $query = DB::query()
+            ->table('newsletter_subscribers')
+            ->select(['id', 'email'])
+            ->where('status', '=', 'confirmed')
+            ->orderBy('id', 'ASC');
+
+        if ($limit > 0) {
+            $query->limit($limit);
+        }
+
+        if ($offset > 0) {
+            $query->offset($offset);
+        }
+
+        return $query->get();
+    }
 }

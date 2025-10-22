@@ -70,6 +70,13 @@ final class CmsSettings
         return is_array($mail) ? $mail : [];
     }
 
+    private static function newsletterSettings(): array
+    {
+        $data = self::data();
+        $newsletter = $data['newsletter'] ?? [];
+        return is_array($newsletter) ? $newsletter : [];
+    }
+
     private static function siteSettings(): array
     {
         $data = self::data();
@@ -195,6 +202,19 @@ final class CmsSettings
     {
         $mail = self::mailSettings();
         return trim((string)($mail['signature'] ?? ''));
+    }
+
+    public function newsletterCampaignLimit(): int
+    {
+        $newsletter = self::newsletterSettings();
+        $raw = $newsletter['campaign_limit'] ?? null;
+        $limit = is_numeric($raw) ? (int)$raw : 0;
+
+        if ($limit <= 0) {
+            $limit = 500;
+        }
+
+        return $limit;
     }
 
     public function seoUrlsEnabled(): bool

@@ -54,6 +54,16 @@ final class NewsletterService
         return $this->repo->confirmedForExport();
     }
 
+    public function confirmedCount(): int
+    {
+        return $this->repo->confirmedCount();
+    }
+
+    public function confirmedEmails(int $limit, int $offset = 0): array
+    {
+        return $this->repo->confirmedEmails($limit, $offset);
+    }
+
     public function createSubscriber(string $email, ?string $sourceUrl = null, int $confirmTtlHours = self::DEFAULT_CONFIRM_TTL_HOURS): int
     {
         $email = trim($email);
