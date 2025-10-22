@@ -8,11 +8,9 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var array<int,string> $timezones */
 /** @var string $previewNow */
-/** @var string $previewRelative */
-/** @var string $dateDisplayMode */
 /** @var array{date:array<int,string>,time:array<int,string>,datetime:array<int,string>} $formatPresets */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($settings,$csrf,$timezones,$previewNow,$formatPresets,$previewRelative,$dateDisplayMode) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($settings,$csrf,$timezones,$previewNow,$formatPresets) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $sel = fn(string $a,string $b): string => $a===$b?' selected':'';
   $datePresets = is_array($formatPresets['date'] ?? null) ? $formatPresets['date'] : [];
@@ -21,18 +19,9 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
   $webpEnabled = (int)($settings['webp_enabled'] ?? 0) === 1;
   $webpCompression = (string)($settings['webp_compression'] ?? 'medium');
   $curTz = \Cms\Admin\Utils\SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
-  $displayMode = in_array($dateDisplayMode ?? '', ['relative','format'], true) ? $dateDisplayMode : 'format';
   $tzLabel = static function(string $tz): string {
     return \Cms\Admin\Utils\SettingsPresets::timezoneLabel($tz);
   };
-  $tzPreviewLabel = $tzLabel($curTz);
-  $formatExample = trim((string)($settings['date_format'] ?? 'Y-m-d') . ' ' . (string)($settings['time_format'] ?? 'H:i'));
-  if ($tzPreviewLabel !== '') {
-    $formatExample .= $formatExample !== '' ? ' (' . $tzPreviewLabel . ')' : $tzPreviewLabel;
-  }
-  $staticPreview = $displayMode === 'relative'
-    ? 'Relativní čas — např. ' . $previewRelative
-    : ($formatExample !== '' ? $formatExample . ' — např. ' . $previewNow : $previewNow);
 ?>
   <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax data-form-helper="validation">
     <div class="card-body">
@@ -111,25 +100,17 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       <div class="mb-4 border-top pt-4">
         <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Datum &amp; čas</h2>
         <div class="row g-3 align-items-end">
-          <div class="col-xl-3 col-lg-6">
-            <label class="form-label" for="datetime_display">Zobrazení data a času</label>
-            <select class="form-select" name="datetime_display" id="datetime_display">
-              <option value="format"<?= $sel('format', $displayMode) ?>>Podle formátu</option>
-              <option value="relative"<?= $sel('relative', $displayMode) ?>>Relativně (např. před 5 minutami)</option>
-            </select>
-            <div class="form-text">Určuje, jak se budou data zobrazovat na webu.</div>
-          </div>
-          <div class="col-xl-3 col-lg-6" data-display-mode="format">
+          <div class="col-lg-4">
             <label class="form-label" for="date_format">Formát data</label>
-            <input class="form-control" name="date_format" id="date_format" value="<?= $h((string)($settings['date_format'] ?? 'Y-m-d')) ?>" placeholder="např. Y-m-d" list="dateFormatPresets" data-format-input>
+            <input class="form-control" name="date_format" id="date_format" value="<?= $h((string)($settings['date_format'] ?? 'Y-m-d')) ?>" placeholder="např. Y-m-d" list="dateFormatPresets">
             <div class="form-text">Použijte PHP zápis pro <code>date()</code>.</div>
           </div>
-          <div class="col-xl-3 col-lg-6" data-display-mode="format">
+          <div class="col-lg-4">
             <label class="form-label" for="time_format">Formát času</label>
-            <input class="form-control" name="time_format" id="time_format" value="<?= $h((string)($settings['time_format'] ?? 'H:i')) ?>" placeholder="např. H:i" list="timeFormatPresets" data-format-input>
+            <input class="form-control" name="time_format" id="time_format" value="<?= $h((string)($settings['time_format'] ?? 'H:i')) ?>" placeholder="např. H:i" list="timeFormatPresets">
             <div class="form-text">Použijte PHP zápis pro <code>date()</code>.</div>
           </div>
-          <div class="col-xl-3 col-lg-6">
+          <div class="col-lg-4">
             <label class="form-label" for="timezone">Časová zóna</label>
             <select class="form-select" name="timezone" id="timezone">
               <?php foreach ($timezones as $tz): ?>
@@ -153,7 +134,6 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             <option value="<?= $h($preset) ?>"></option>
           <?php endforeach; ?>
         </datalist>
-        <div class="form-text mt-2" data-relative-note<?= $displayMode === 'relative' ? '' : ' hidden' ?>>Relativní režim ignoruje výše uvedené formáty a data zobrazí jako „před 5 minutami“.</div>
         <?php if ($datetimePresets): ?>
           <div class="form-text mt-2">
             Oblíbené kombinace:
@@ -166,7 +146,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
         <div class="alert alert-secondary mt-3 mb-0">
           <div class="d-flex align-items-center gap-2">
             <strong>Náhled:</strong>
-            <span id="preview"><?= $h($staticPreview) ?></span>
+            <span id="preview"><?= $h($previewNow) ?></span>
           </div>
         </div>
       </div>
@@ -185,49 +165,15 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       const dateInput = document.getElementById('date_format');
       const timeInput = document.getElementById('time_format');
       const previewEl = document.getElementById('preview');
-      const displaySelect = document.getElementById('datetime_display');
-      const relativeNote = document.querySelector('[data-relative-note]');
-      const formatInputs = document.querySelectorAll('[data-format-input]');
       const webpToggle = document.getElementById('webp_enabled');
       const webpCompression = document.getElementById('webp_compression');
       const timezoneSelect = document.getElementById('timezone');
       const allowRegistrationToggle = document.getElementById('allow_registration');
       const registrationModeSelect = document.getElementById('registration_auto_approve_select');
       const registrationModeHidden = document.getElementById('registration_auto_approve_value');
-      const previewAbsoluteExample = '<?= $h($previewNow) ?>';
-      const previewRelativeExample = '<?= $h($previewRelative) ?>';
-
-      function setFormatInputsReadOnly(isReadOnly) {
-        formatInputs.forEach((input) => {
-          if (!(input instanceof HTMLInputElement)) return;
-          if (isReadOnly) {
-            input.setAttribute('readonly', 'readonly');
-            input.classList.add('opacity-75');
-          } else {
-            input.removeAttribute('readonly');
-            input.classList.remove('opacity-75');
-          }
-        });
-      }
-
-      function toggleRelativeNote(isRelative) {
-        if (!relativeNote) return;
-        relativeNote.hidden = !isRelative;
-      }
 
       function updatePreview() {
-        if (!previewEl) return;
-        const mode = displaySelect ? displaySelect.value : 'format';
-        const isRelative = mode === 'relative';
-        setFormatInputsReadOnly(isRelative);
-        toggleRelativeNote(isRelative);
-
-        if (isRelative) {
-          previewEl.textContent = 'Relativní čas — např. ' + previewRelativeExample;
-          return;
-        }
-
-        if (!dateInput || !timeInput) return;
+        if (!dateInput || !timeInput || !previewEl) return;
         const dateVal = dateInput.value || 'Y-m-d';
         const timeVal = timeInput.value || 'H:i';
         let tzPreview = '';
@@ -235,7 +181,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
           tzPreview = timezoneSelect.options[timezoneSelect.selectedIndex].textContent || '';
           tzPreview = tzPreview.trim();
         }
-        previewEl.textContent = dateVal + ' ' + timeVal + (tzPreview ? ' (' + tzPreview + ')' : '') + ' — např. ' + previewAbsoluteExample;
+        previewEl.textContent = dateVal + ' ' + timeVal + (tzPreview ? ' (' + tzPreview + ')' : '') + ' — např. <?= $h($previewNow) ?>';
       }
 
       function updateWebpState() {
@@ -267,9 +213,6 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       }
       if (timezoneSelect) {
         timezoneSelect.addEventListener('change', updatePreview);
-      }
-      if (displaySelect) {
-        displaySelect.addEventListener('change', updatePreview);
       }
       if (registrationModeSelect) {
         registrationModeSelect.addEventListener('change', syncRegistrationModeValue);
