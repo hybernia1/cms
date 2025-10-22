@@ -237,10 +237,9 @@ final class PostProvider
             $commentsAllowed = (int)$row['comments_allowed'] === 1;
         }
 
-        $permalink = match ($type) {
-            'page' => $this->links->page($slug),
-            default => $this->links->post($slug),
-        };
+        $permalink = $type === 'page'
+            ? $this->links->page($slug)
+            : $this->links->postOfType($type, $slug);
 
         $excerpt = (string)($row['excerpt'] ?? '');
         if ($excerpt === '') {

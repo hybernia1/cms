@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Utils;
 
+use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Settings\CmsSettings;
 
 final class LinkGenerator
@@ -13,6 +14,10 @@ final class LinkGenerator
     private string $pageBase;
     private string $categoryBase;
     private string $tagBase;
+    /**
+     * @var array<string,string>
+     */
+    private array $postTypeSlugs = [];
 
     public function __construct(?bool $pretty = null, ?CmsSettings $settings = null)
     {
@@ -23,6 +28,25 @@ final class LinkGenerator
         $this->categoryBase = $bases['category_base'];
         $this->tagBase = $bases['tag_base'];
         $this->pretty = $this->resolvePretty($pretty);
+        $this->postTypeSlugs = $this->loadPostTypeSlugs();
+    }
+
+    /**
+     * @return array<string,string>
+     */
+    private function loadPostTypeSlugs(): array
+    {
+        $registered = PostTypeRegistry::all();
+        $slugs = [];
+        foreach ($registered as $type => $config) {
+            $slug = trim((string)($config['slug'] ?? ''));
+            if ($slug === '') {
+                continue;
+            }
+            $slugs[$type] = $slug;
+        }
+
+        return $slugs;
     }
 
     private function resolvePretty(?bool $explicit): bool
@@ -92,10 +116,71 @@ final class LinkGenerator
 
     public function post(string $slug): string
     {
+        return $this->postOfType('post', $slug);
+    }
+
+    /**
+     * @return array{pretty:string,fallback:array{route:string,params:array<string,string>}}
+     */
+    public function postTypeBase(string $type): array
+    {
+        $normalized = trim($type) !== '' ? trim($type) : 'post';
+
+        if ($normalized === 'page') {
+            $pretty = trim($this->pageBase, '/');
+
+            return [
+                'pretty' => $pretty,
+                'fallback' => [
+                    'route' => 'page',
+                    'params' => [],
+                ],
+            ];
+        }
+
+        if ($normalized === 'post') {
+            $pretty = trim($this->postBase, '/');
+
+            return [
+                'pretty' => $pretty,
+                'fallback' => [
+                    'route' => 'post',
+                    'params' => [],
+                ],
+            ];
+        }
+
+        $slug = $this->postTypeSlugs[$normalized] ?? $normalized;
+        $slug = trim($slug, '/');
+        if ($slug === '') {
+            $slug = $normalized;
+        }
+
+        return [
+            'pretty' => $slug,
+            'fallback' => [
+                'route' => $slug,
+                'params' => ['type' => $normalized],
+            ],
+        ];
+    }
+
+    public function postOfType(string $type, string $slug): string
+    {
+        $base = $this->postTypeBase($type);
         $encoded = rawurlencode($slug);
-        return $this->pretty
-            ? $this->prettyPath($this->postBase . '/' . $encoded)
-            : $this->fallback('post', ['slug' => $slug]);
+
+        if ($this->pretty) {
+            $prettyBase = trim($base['pretty'], '/');
+            $path = $prettyBase === '' ? $encoded : $prettyBase . '/' . $encoded;
+
+            return $this->prettyPath($path);
+        }
+
+        $params = $base['fallback']['params'];
+        $params['slug'] = $slug;
+
+        return $this->fallback($base['fallback']['route'], $params);
     }
 
     public function page(string $slug): string

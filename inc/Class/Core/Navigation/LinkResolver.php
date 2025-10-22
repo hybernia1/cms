@@ -89,7 +89,9 @@ final class LinkResolver
 
         $status = (string)($row['status'] ?? '');
         $title = (string)($row['title'] ?? '');
-        $url = $type === 'page' ? $this->links->page($slug) : $this->links->post($slug);
+        $url = $type === 'page'
+            ? $this->links->page($slug)
+            : $this->links->postOfType($type, $slug);
         $valid = $status === 'publish';
 
         return [
