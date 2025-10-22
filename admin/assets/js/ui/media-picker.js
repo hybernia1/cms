@@ -32,11 +32,18 @@ function formatFileSummary(file) {
 function normalizeLibraryItem(item) {
   const data = item && typeof item === 'object' ? item : {};
   const id = data.id !== undefined && data.id !== null ? data.id : null;
+  const url = typeof data.url === 'string' ? data.url : '';
+  const displayUrlRaw = typeof data.display_url === 'string' && data.display_url
+    ? data.display_url
+    : (typeof data.displayUrl === 'string' && data.displayUrl ? data.displayUrl : '');
+  const displayUrl = displayUrlRaw || url;
   return {
     id: id,
-    url: data.url || '',
+    url,
+    displayUrl,
     mime: data.mime || '',
-    name: data.name || ''
+    name: data.name || '',
+    type: data.type || ''
   };
 }
 
@@ -187,14 +194,18 @@ export function initMediaPickerModals(root) {
       if (normalized.url) {
         button.dataset.mediaUrl = normalized.url;
       }
+      if (normalized.displayUrl && normalized.displayUrl !== normalized.url) {
+        button.dataset.mediaDisplayUrl = normalized.displayUrl;
+      }
       if (normalized.mime) {
         button.dataset.mediaMime = normalized.mime;
       }
       button.__mediaItem = normalized;
 
-      if (normalized.mime && normalized.mime.indexOf('image/') === 0 && normalized.url) {
+      const previewUrl = normalized.displayUrl || normalized.url;
+      if (normalized.mime && normalized.mime.indexOf('image/') === 0 && previewUrl) {
         const img = document.createElement('img');
-        img.src = normalized.url;
+        img.src = previewUrl;
         img.alt = normalized.name || 'Obrázek';
         img.style.maxHeight = '140px';
         img.style.maxWidth = '100%';

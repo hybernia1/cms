@@ -351,8 +351,10 @@ final class MediaController extends BaseAdminController
         $limit = max(1, min(100, (int)($_GET['limit'] ?? 60)));
         $type = trim((string)($_GET['type'] ?? ''));
 
+        $paths = $this->uploadPaths();
+
         $q = DB::query()->table('media','m')
-            ->select(['m.id','m.url','m.mime','m.type','m.created_at'])
+            ->select(['m.id','m.url','m.mime','m.type','m.created_at','m.rel_path','m.meta'])
             ->orderBy('m.created_at','DESC')
             ->limit($limit);
 
@@ -363,18 +365,21 @@ final class MediaController extends BaseAdminController
         $rows = $q->get();
         $items = [];
         foreach ($rows as $row) {
-            $url = (string)($row['url'] ?? '');
+            $item = $this->prepareItem($row, $paths);
+
+            $url = (string)($item['url'] ?? '');
             $path = $url !== '' ? parse_url($url, PHP_URL_PATH) : '';
             $basename = $path ? basename((string)$path) : '';
             if ($basename === '') {
-                $basename = 'ID ' . (int)($row['id'] ?? 0);
+                $basename = 'ID ' . (int)($item['id'] ?? 0);
             }
             $items[] = [
-                'id'   => (int)($row['id'] ?? 0),
-                'url'  => $url,
-                'mime' => (string)($row['mime'] ?? ''),
-                'type' => (string)($row['type'] ?? ''),
-                'name' => $basename,
+                'id'           => (int)($item['id'] ?? 0),
+                'url'          => $url,
+                'display_url'  => (string)($item['display_url'] ?? $url),
+                'mime'         => (string)($item['mime'] ?? ''),
+                'type'         => (string)($item['type'] ?? ''),
+                'name'         => $basename,
             ];
         }
 
