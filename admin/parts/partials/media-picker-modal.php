@@ -250,7 +250,7 @@ if ($footerRenderer === null) {
     };
 }
 
-$this->render('partials/media-upload-modal', [
+$this->render('parts/partials/media-upload-modal', [
     'modalId'          => $modalId,
     'title'            => $title,
     'dialogClass'      => $dialogClass,

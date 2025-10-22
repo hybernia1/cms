@@ -10,7 +10,7 @@ declare(strict_types=1);
 /** @var array<int,array{id:int,title:string,type:string,created_at_display:string}> $quickDraftRecent */
 
 // pro render použijeme layout s obsahem přes slot $content()
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash','csrf','quickDraftTypes','quickDraftOld','quickDraftRecent'), function () use ($csrf, $quickDraftTypes, $quickDraftOld, $quickDraftRecent) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash','csrf','quickDraftTypes','quickDraftOld','quickDraftRecent'), function () use ($csrf, $quickDraftTypes, $quickDraftOld, $quickDraftRecent) {
     $draftValues = is_array($quickDraftOld ?? null) ? $quickDraftOld : [];
 ?>
   <div class="row g-3">

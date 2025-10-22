@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** @var array $nav */
 /** @var array|null $currentUser */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function () {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), function () {
 ?>
   <div class="card">
     <div class="card-body">

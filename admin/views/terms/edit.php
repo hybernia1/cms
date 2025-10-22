@@ -9,7 +9,7 @@ declare(strict_types=1);
 /** @var string $type */
 /** @var array $types */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($term,$csrf,$type,$types) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($term,$csrf,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$term;
   $typeCfg = $types[$type] ?? ['label' => strtoupper($type), 'create' => 'Nový term'];

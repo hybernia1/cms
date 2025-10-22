@@ -10,7 +10,7 @@ declare(strict_types=1);
 /** @var string $siteEmail */
 /** @var string $siteName */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($mail,$drivers,$csrf,$siteEmail,$siteName) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($mail,$drivers,$csrf,$siteEmail,$siteName) {
     $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
     $driver = is_string($mail['driver'] ?? null) ? (string)$mail['driver'] : 'php';
 ?>

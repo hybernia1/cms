@@ -14,7 +14,7 @@ declare(strict_types=1);
 /** @var array<string,int> $statusCounts */
 /** @var callable $buildUrl */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts,$buildUrl) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts,$buildUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $currentUrl = (string)($_SERVER['REQUEST_URI'] ?? '');
 ?>

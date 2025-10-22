@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** @var array<string,bool> $applied */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($all,$applied,$csrf) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($all,$applied,$csrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
   <div class="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 mb-3">

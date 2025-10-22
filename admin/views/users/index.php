@@ -11,7 +11,7 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var string $currentUrl */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function() use ($items,$pagination,$searchQuery,
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function() use ($items,$pagination,$searchQuery,
 $buildUrl,$csrf,$currentUser,$currentUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $currentUserId = (int)($currentUser['id'] ?? 0);

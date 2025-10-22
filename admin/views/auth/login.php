@@ -41,7 +41,7 @@ $emailError = $extractErrorMessage('email');
 $passwordError = $extractErrorMessage('password');
 $formError = $extractErrorMessage('form');
 
-$this->render('layouts/auth', ['pageTitle' => $pageTitle ?? 'Přihlášení', 'flash' => $flashPayload], function () use ($csrf, $remember, $emailValue, $emailError, $passwordError, $formError) {
+$this->render('parts/layouts/auth', ['pageTitle' => $pageTitle ?? 'Přihlášení', 'flash' => $flashPayload], function () use ($csrf, $remember, $emailValue, $emailError, $passwordError, $formError) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $emailSanitized = $h($emailValue);
 ?>
