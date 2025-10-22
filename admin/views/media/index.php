@@ -95,34 +95,65 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       ]); ?>
     </div>
 
-    <div class="modal fade" id="mediaUploadModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form class="modal-content" method="post" action="admin.php?r=media&a=upload" enctype="multipart/form-data" id="media-upload-form" data-ajax data-media-action="upload" data-media-upload-form>
-          <div class="modal-header">
-            <h5 class="modal-title">Nahrát soubory</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
-          </div>
-          <div class="modal-body">
-            <div class="admin-dropzone" id="media-upload-dropzone">
-              <i class="bi bi-cloud-arrow-up fs-2 mb-2 d-block"></i>
-              <p class="mb-1">Přetáhni soubory sem nebo klikni pro výběr.</p>
-              <p class="text-secondary small mb-3">Podporované formáty: JPG, PNG, GIF, WEBP, SVG, PDF, ZIP, TXT, CSV.</p>
-              <button class="btn btn-outline-secondary btn-sm" type="button" id="media-upload-browse">Vybrat soubory</button>
-            </div>
-            <div id="media-upload-summary" class="text-secondary small mt-3 d-none"></div>
-            <input class="d-none" type="file" id="media-upload-input" name="files[]" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.pdf,.zip,.txt,.csv,image/*,application/pdf,application/zip,text/plain,text/csv">
-            <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-            <input type="hidden" name="context" data-media-context-input>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-primary" type="submit" id="media-upload-submit" disabled>
-              <i class="bi bi-cloud-arrow-up me-1"></i>Nahrát
-            </button>
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <?php $this->render('partials/media-upload-modal', [
+      'modalId'          => 'mediaUploadModal',
+      'title'            => 'Nahrát soubory',
+      'dialogClass'      => 'modal-lg modal-dialog-centered',
+      'headerCloseLabel' => 'Zavřít',
+      'footerCloseLabel' => 'Zavřít',
+      'form'             => [
+        'id'           => 'media-upload-form',
+        'action'       => 'admin.php?r=media&a=upload',
+        'enctype'      => 'multipart/form-data',
+        'attributes'   => [
+          'data-ajax'               => '1',
+          'data-media-action'       => 'upload',
+          'data-media-upload-form'  => '1',
+        ],
+        'hiddenFields' => [
+          ['name' => 'csrf', 'value' => $csrf],
+        ],
+        'submitButton' => [
+          'id'       => 'media-upload-submit',
+          'label'    => 'Nahrát',
+          'icon'     => 'bi bi-cloud-arrow-up me-1',
+          'class'    => 'btn btn-primary',
+          'type'     => 'submit',
+          'disabled' => true,
+        ],
+      ],
+      'dropzone'         => [
+        'id'              => 'media-upload-dropzone',
+        'class'           => 'admin-dropzone',
+        'headline'        => 'Přetáhni soubory sem nebo klikni pro výběr.',
+        'headlineClass'   => 'mb-1',
+        'description'     => 'Podporované formáty: JPG, PNG, GIF, WEBP, SVG, PDF, ZIP, TXT, CSV.',
+        'descriptionClass'=> 'text-secondary small mb-3',
+        'browseButton'    => [
+          'id'    => 'media-upload-browse',
+          'label' => 'Vybrat soubory',
+          'class' => 'btn btn-outline-secondary btn-sm',
+        ],
+        'summary'         => [
+          'id'    => 'media-upload-summary',
+          'class' => 'text-secondary small mt-3 d-none',
+        ],
+        'fileInput'       => [
+          'id'       => 'media-upload-input',
+          'name'     => 'files[]',
+          'class'    => 'd-none',
+          'accept'   => '.jpg,.jpeg,.png,.webp,.gif,.svg,.pdf,.zip,.txt,.csv,image/*,application/pdf,application/zip,text/plain,text/csv',
+          'multiple' => true,
+        ],
+        'extraInputs'     => [
+          [
+            'name'       => 'context',
+            'value'      => '',
+            'attributes' => ['data-media-context-input' => '1'],
+          ],
+        ],
+      ],
+    ]); ?>
 
     <div class="modal fade" id="mediaDetailModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-centered">
