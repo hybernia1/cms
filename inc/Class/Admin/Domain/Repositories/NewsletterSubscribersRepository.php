@@ -70,4 +70,13 @@ final class NewsletterSubscribersRepository
 
         return $q->paginate($page, $perPage);
     }
+
+    public function confirmedForExport(): array
+    {
+        return DB::query()->table('newsletter_subscribers')
+            ->select(['email', 'confirmed_at', 'created_at', 'source_url'])
+            ->where('status', '=', 'confirmed')
+            ->orderBy('confirmed_at', 'DESC')
+            ->get();
+    }
 }

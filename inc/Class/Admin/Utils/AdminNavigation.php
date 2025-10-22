@@ -56,6 +56,13 @@ final class AdminNavigation
                 'children'  => [],
             ],
             [
+                'key'       => 'newsletter',
+                'label'     => 'Newsletter',
+                'href'      => 'admin.php?r=newsletter',
+                'icon'      => 'bi-envelope-paper',
+                'children'  => [],
+            ],
+            [
                 'key'       => 'appearance',
                 'label'     => 'Vzhled',
                 'href'      => null,

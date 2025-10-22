@@ -10,6 +10,7 @@ use Cms\Admin\Http\Controllers\CommentsController;
 use Cms\Admin\Http\Controllers\MediaController;
 use Cms\Admin\Http\Controllers\MigrationsController;
 use Cms\Admin\Http\Controllers\NavigationController;
+use Cms\Admin\Http\Controllers\NewsletterController;
 use Cms\Admin\Http\Controllers\PostsController;
 use Cms\Admin\Http\Controllers\SettingsController;
 use Cms\Admin\Http\Controllers\TermsController;
@@ -34,6 +35,7 @@ final class AdminController
         'comments'   => CommentsController::class,
         'themes'     => ThemesController::class,
         'navigation' => NavigationController::class,
+        'newsletter' => NewsletterController::class,
         'settings'   => SettingsController::class,
         'migrations' => MigrationsController::class,
         'users'      => UsersController::class,
