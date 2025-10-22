@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+use Core\Cron\DatabaseTaskRepository;
+use Core\Cron\HookRegistry;
+use Core\Cron\Manager as CronManager;
+use Core\Cron\Scheduler;
+
 /**
  * load.php (portable, čistý)
  * - Autoload tříd z /inc/Class (PSR-4 + legacy underscore fallback)
@@ -73,6 +78,57 @@ if (is_dir(FUNCTIONS_DIR)) {
 }
 
 // ---------------------------------------------------------
+// Cron manager – sdílená instance + lazy runner
+// ---------------------------------------------------------
+
+function cms_cron_manager(): CronManager
+{
+    static $manager = null;
+    if ($manager instanceof CronManager) {
+        return $manager;
+    }
+
+    $manager = new CronManager(
+        new DatabaseTaskRepository(static fn() => \Core\Database\Init::query()),
+        new Scheduler(),
+        new HookRegistry()
+    );
+
+    cms_register_default_cron_hooks($manager);
+
+    return $manager;
+}
+
+function cms_register_default_cron_hooks(CronManager $manager): void
+{
+    static $registered = false;
+    if ($registered) {
+        return;
+    }
+
+    $registered = true;
+
+    $debugHook = 'core/debug-heartbeat';
+
+    $manager->registerHook($debugHook, static function (): void {
+        error_log('[CMS] Cron debug heartbeat executed at ' . gmdate('c'));
+    });
+
+    if ($manager->task($debugHook) === null) {
+        $manager->scheduleEvent($debugHook, 'hourly', [], time());
+    }
+}
+
+function cms_cron_enable_lazy_runner(): void
+{
+    if (PHP_SAPI === 'cli') {
+        return;
+    }
+
+    cms_cron_manager()->registerLazyRunner();
+}
+
+// ---------------------------------------------------------
 // Util: redirecty a bootstrap
 // ---------------------------------------------------------
 
@@ -110,6 +166,8 @@ function cms_bootstrap_config_or_redirect(): array
     $config = require $configFile;
 
     \Core\Database\Init::boot($config);
+
+    cms_cron_enable_lazy_runner();
 
     return $config;
 }
