@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin\Utils;
 
 use Core\Database\Init as DB;
+use Core\Text\Slug;
 
 /**
  * Generuje unikátní slug v tabulce posts (per type).
@@ -13,12 +14,7 @@ final class Slugger
 {
     public static function make(string $title): string
     {
-        $s = mb_strtolower($title, 'UTF-8');
-        $s = preg_replace('~[^\pL\d]+~u', '-', $s) ?? '';
-        $s = trim($s, '-');
-        $s = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
-        $s = preg_replace('~[^-\w]+~', '', $s) ?? '';
-        return $s !== '' ? $s : 'item';
+        return Slug::from($title, 'item');
     }
 
     public static function uniqueInPosts(string $raw, string $type, ?int $excludeId = null): string
