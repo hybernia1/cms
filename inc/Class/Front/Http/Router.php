@@ -5,6 +5,7 @@ namespace Cms\Front\Http;
 
 use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Settings\CmsSettings;
+use Cms\Admin\Domain\Services\NewsletterService;
 use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Passwords;
 use Cms\Admin\Domain\Repositories\UsersRepository;
@@ -35,6 +36,11 @@ final class Router
     private MailService $mail;
     private TemplateManager $templates;
     private AuthService $auth;
+    private NewsletterService $newsletter;
+    /**
+     * @var array<string,mixed>|null
+     */
+    private ?array $newsletterForm = null;
 
     public function __construct(
         ThemeViewEngine $view,
@@ -47,7 +53,8 @@ final class Router
         ?UsersRepository $users = null,
         ?MailService $mail = null,
         ?TemplateManager $templates = null,
-        ?AuthService $auth = null
+        ?AuthService $auth = null,
+        ?NewsletterService $newsletter = null
     ) {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
@@ -64,6 +71,7 @@ final class Router
         $this->mail = $mail ?? new MailService($this->settings);
         $this->templates = $templates ?? new TemplateManager();
         $this->auth = $auth ?? new AuthService();
+        $this->newsletter = $newsletter ?? new NewsletterService();
 
         $this->view->share([
             'navigation' => $this->menus->menusByLocation(),
@@ -73,6 +81,9 @@ final class Router
     public function dispatch(): void
     {
         $result = $this->resolve();
+        $this->view->share([
+            'newsletterForm' => $this->newsletterFormData(),
+        ]);
         http_response_code($result->status);
         $this->view->renderWithLayout($result->layout, $result->template, $result->data);
     }
@@ -173,6 +184,9 @@ final class Router
             'register' => $this->handleRegister(),
             'lost' => $this->handleLost(),
             'reset' => $this->handleReset((string)($params['token'] ?? ''), (int)($params['id'] ?? 0)),
+            'newsletter/subscribe' => $this->handleNewsletterSubscribe(),
+            'newsletter/confirm' => $this->handleNewsletterConfirm((string)($params['token'] ?? '')),
+            'newsletter/unsubscribe' => $this->handleNewsletterUnsubscribe((string)($params['token'] ?? '')),
             default => $this->notFound(),
         };
     }
@@ -279,6 +293,34 @@ final class Router
                 }
                 return ['name' => 'reset', 'params' => $params];
             }
+            if ($first === 'newsletter') {
+                $second = $segments[1] ?? '';
+                if ($second === 'subscribe') {
+                    return ['name' => 'newsletter/subscribe', 'params' => []];
+                }
+                if ($second === 'confirm') {
+                    $params = [];
+                    $token = $segments[2] ?? '';
+                    if ($token !== '') {
+                        $params['token'] = $token;
+                    }
+                    if (isset($_GET['token'])) {
+                        $params['token'] = (string)$_GET['token'];
+                    }
+                    return ['name' => 'newsletter/confirm', 'params' => $params];
+                }
+                if ($second === 'unsubscribe') {
+                    $params = [];
+                    $token = $segments[2] ?? '';
+                    if ($token !== '') {
+                        $params['token'] = $token;
+                    }
+                    if (isset($_GET['token'])) {
+                        $params['token'] = (string)$_GET['token'];
+                    }
+                    return ['name' => 'newsletter/unsubscribe', 'params' => $params];
+                }
+            }
         }
 
         // Pokud je page base prázdný, považuj první segment za slug stránky.
@@ -296,6 +338,262 @@ final class Router
         }
 
         return ['name' => 'page', 'params' => ['slug' => $segments[0] ?? '']];
+    }
+
+    private function handleNewsletterSubscribe(): RouteResult
+    {
+        $redirect = $this->normalizeReturnUrl((string)($_POST['redirect'] ?? ''));
+        $form = [
+            'success' => false,
+            'message' => null,
+            'errors' => [],
+            'old' => ['email' => ''],
+            'allowForm' => true,
+        ];
+        $status = 200;
+
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if ($method !== 'POST') {
+            $form['message'] = 'Formulář lze odeslat pouze metodou POST.';
+            $status = 405;
+            $this->storeFormState('newsletter:subscribe', $form, $status);
+            $this->redirect($redirect);
+        }
+
+        $token = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+        if (!$this->verifyCsrf($token)) {
+            $form['message'] = 'Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.';
+            $form['errors']['general'][] = 'Ověření formuláře selhalo.';
+            $status = 419;
+            $this->storeFormState('newsletter:subscribe', $form, $status);
+            $this->redirect($redirect);
+        }
+
+        $email = trim((string)($_POST['email'] ?? ''));
+        $form['old']['email'] = $email;
+
+        $input = ['email' => $email];
+        $validator = (new Validator())
+            ->require($input, 'email', 'Zadejte e-mail.')
+            ->email($input, 'email', 'Zadejte platný e-mail.');
+
+        $errors = $validator->errors();
+        if ($errors !== []) {
+            $form['errors'] = $errors;
+            $form['message'] = 'Zkontrolujte zvýrazněná pole.';
+            $status = 422;
+            $this->storeFormState('newsletter:subscribe', $form, $status);
+            $this->redirect($redirect);
+        }
+
+        $source = isset($_POST['source']) ? trim((string)$_POST['source']) : '';
+
+        try {
+            $existing = $this->newsletter->findByEmail($email);
+        } catch (Throwable $e) {
+            error_log('Newsletter subscribe: failed to check existing subscriber: ' . $e->getMessage());
+            $form['message'] = 'Ověření e-mailu se nezdařilo. Zkuste to prosím znovu.';
+            $status = 500;
+            $this->storeFormState('newsletter:subscribe', $form, $status);
+            $this->redirect($redirect);
+        }
+
+        if ($existing && (string)($existing['status'] ?? '') === NewsletterService::STATUS_CONFIRMED) {
+            $form['success'] = true;
+            $form['allowForm'] = false;
+            $form['message'] = 'Tento e-mail je již přihlášen k odběru.';
+            $form['old']['email'] = '';
+            $this->storeFormState('newsletter:subscribe', $form, $status);
+            $this->redirect($redirect);
+        }
+
+        try {
+            $this->newsletter->createSubscriber($email, $source !== '' ? $source : null);
+            $form['success'] = true;
+            $form['allowForm'] = false;
+            $form['message'] = $existing && (string)($existing['status'] ?? '') === NewsletterService::STATUS_UNSUBSCRIBED
+                ? 'Odběr byl znovu aktivován. Zkontrolujte prosím svůj e-mail a potvrďte jej.'
+                : 'Děkujeme za přihlášení. Zkontrolujte prosím svůj e-mail a potvrďte odběr.';
+            $form['old']['email'] = '';
+        } catch (\InvalidArgumentException $e) {
+            $form['errors']['email'][] = 'Zadejte platný e-mail.';
+            $form['message'] = 'Zkontrolujte zvýrazněná pole.';
+            $status = 422;
+        } catch (Throwable $e) {
+            error_log('Newsletter subscribe: failed to store subscriber: ' . $e->getMessage());
+            $form['message'] = 'Odběr se nepodařilo uložit. Zkuste to prosím znovu.';
+            $status = 500;
+        }
+
+        $this->storeFormState('newsletter:subscribe', $form, $status);
+        $this->redirect($redirect);
+
+        return $this->notFound();
+    }
+
+    private function handleNewsletterConfirm(string $token): RouteResult
+    {
+        $token = trim($token) !== '' ? trim($token) : trim((string)($_GET['token'] ?? ''));
+        $status = 200;
+        $success = false;
+        $message = 'Potvrzovací odkaz je neplatný nebo vypršel.';
+
+        if ($token === '') {
+            $status = 400;
+            $message = 'Potvrzovací odkaz je neplatný.';
+        } else {
+            try {
+                $success = $this->newsletter->confirmByToken($token);
+                if ($success) {
+                    $message = 'Odběr newsletteru byl úspěšně potvrzen. Děkujeme!';
+                } else {
+                    $status = 400;
+                }
+            } catch (Throwable $e) {
+                error_log('Newsletter confirm: failed to confirm token: ' . $e->getMessage());
+                $status = 500;
+                $message = 'Potvrzení se nezdařilo. Zkuste to prosím znovu nebo požádejte o nový odkaz.';
+            }
+        }
+
+        $meta = new SeoMeta('Potvrzení newsletteru | ' . $this->settings->siteTitle(), canonical: $this->links->newsletterConfirm());
+
+        return new RouteResult('newsletter-confirm', [
+            'success' => $success,
+            'message' => $message,
+            'meta' => $meta->toArray(),
+        ], $status);
+    }
+
+    private function handleNewsletterUnsubscribe(string $token): RouteResult
+    {
+        $token = trim($token) !== '' ? trim($token) : trim((string)($_GET['token'] ?? ''));
+        $status = 200;
+        $success = false;
+        $message = 'Odkaz pro odhlášení je neplatný nebo již byl použit.';
+
+        if ($token === '') {
+            $status = 400;
+            $message = 'Odkaz pro odhlášení je neplatný.';
+        } else {
+            try {
+                $success = $this->newsletter->unsubscribeByToken($token);
+                if ($success) {
+                    $message = 'Odběr newsletteru byl úspěšně zrušen.';
+                } else {
+                    $status = 400;
+                }
+            } catch (Throwable $e) {
+                error_log('Newsletter unsubscribe: failed to process token: ' . $e->getMessage());
+                $status = 500;
+                $message = 'Odhlášení se nepodařilo dokončit. Zkuste to prosím znovu.';
+            }
+        }
+
+        $meta = new SeoMeta('Odhlášení newsletteru | ' . $this->settings->siteTitle(), canonical: $this->links->newsletterUnsubscribe());
+
+        return new RouteResult('newsletter-unsubscribe', [
+            'success' => $success,
+            'message' => $message,
+            'meta' => $meta->toArray(),
+        ], $status);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function newsletterFormData(): array
+    {
+        if ($this->newsletterForm !== null) {
+            return $this->newsletterForm;
+        }
+
+        $data = [
+            'success' => false,
+            'message' => null,
+            'errors' => [],
+            'old' => ['email' => ''],
+            'allowForm' => true,
+        ];
+
+        $sessionForm = $this->pullFormState('newsletter:subscribe');
+        if (is_array($sessionForm)) {
+            if (isset($sessionForm['success'])) {
+                $data['success'] = !empty($sessionForm['success']);
+            }
+            if (array_key_exists('message', $sessionForm)) {
+                $data['message'] = is_string($sessionForm['message']) ? $sessionForm['message'] : null;
+            }
+            if (isset($sessionForm['errors']) && is_array($sessionForm['errors'])) {
+                $data['errors'] = $sessionForm['errors'];
+            }
+            if (isset($sessionForm['old']) && is_array($sessionForm['old'])) {
+                $data['old'] = array_replace($data['old'], $sessionForm['old']);
+            }
+            if (array_key_exists('allowForm', $sessionForm)) {
+                $data['allowForm'] = !empty($sessionForm['allowForm']);
+            }
+        }
+
+        $data['csrf'] = $this->csrfToken();
+        $data['action'] = $this->links->newsletterSubscribe();
+        $redirect = $this->currentRequestUri();
+        $data['redirect'] = $redirect;
+        $data['source'] = $this->links->absolute($redirect);
+
+        $this->newsletterForm = $data;
+
+        return $data;
+    }
+
+    private function currentRequestUri(): string
+    {
+        $uri = (string)($_SERVER['REQUEST_URI'] ?? '');
+        if ($uri === '') {
+            $home = $this->links->home();
+            return $home === './' ? '/' : $home;
+        }
+
+        return $uri;
+    }
+
+    private function normalizeReturnUrl(string $requested): string
+    {
+        $requested = trim($requested);
+        if ($requested === '') {
+            return $this->links->home();
+        }
+
+        if (preg_match('~^https?://~i', $requested)) {
+            $targetHost = parse_url($requested, PHP_URL_HOST);
+            $allowedHosts = [];
+            if (isset($_SERVER['HTTP_HOST'])) {
+                $allowedHosts[] = strtolower((string)$_SERVER['HTTP_HOST']);
+            }
+            $siteUrl = $this->settings->siteUrl();
+            if ($siteUrl !== '') {
+                $siteHost = parse_url($siteUrl, PHP_URL_HOST);
+                if (is_string($siteHost) && $siteHost !== '') {
+                    $allowedHosts[] = strtolower($siteHost);
+                }
+            }
+            $targetHost = is_string($targetHost) ? strtolower($targetHost) : '';
+            if ($targetHost !== '' && $allowedHosts !== [] && in_array($targetHost, $allowedHosts, true)) {
+                return $requested;
+            }
+
+            return $this->links->home();
+        }
+
+        if ($requested === '' || $requested === './') {
+            return $this->links->home();
+        }
+
+        if (!str_starts_with($requested, '/')) {
+            $requested = '/' . ltrim($requested, '/');
+        }
+
+        return $requested;
     }
 
     /**

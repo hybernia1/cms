@@ -28,3 +28,5 @@
         </div>
     <?php endif; ?>
 </section>
+
+<?php include __DIR__ . '/partials/newsletter-form.php'; ?>
