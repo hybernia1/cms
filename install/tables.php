@@ -236,51 +236,6 @@ WHERE m.slug = 'primary'
 SQL
 ,
 
-/** CRON TASKS */
-<<<SQL
-CREATE TABLE IF NOT EXISTS cron_tasks (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  hook VARCHAR(190) NOT NULL,
-  args LONGTEXT NOT NULL,
-  scheduled_at BIGINT UNSIGNED NOT NULL,
-  interval_seconds INT UNSIGNED NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NULL,
-  INDEX ix_cron_tasks_hook (hook),
-  INDEX ix_cron_tasks_scheduled (scheduled_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-SQL
-,
-
-/** CRON LOG */
-<<<SQL
-CREATE TABLE IF NOT EXISTS cron_log (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  task_id BIGINT UNSIGNED NULL,
-  hook VARCHAR(190) NOT NULL,
-  status ENUM('running','success','failure') NOT NULL,
-  started_at BIGINT UNSIGNED NOT NULL,
-  finished_at BIGINT UNSIGNED NULL,
-  message TEXT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX ix_cron_log_task (task_id),
-  INDEX ix_cron_log_hook (hook),
-  INDEX ix_cron_log_status (status),
-  INDEX ix_cron_log_started (started_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-SQL
-,
-
-/** DEFAULT CRON DEBUG TASK */
-<<<SQL
-INSERT INTO cron_tasks (hook, args, scheduled_at, interval_seconds, created_at)
-SELECT 'core/debug-heartbeat', '[]', UNIX_TIMESTAMP(), 3600, NOW()
-WHERE NOT EXISTS (
-    SELECT 1 FROM cron_tasks WHERE hook = 'core/debug-heartbeat'
-);
-SQL
-,
-
 /** COMMENTS (anonymní i registrovaní, parent pro vlákna) */
 <<<SQL
 CREATE TABLE IF NOT EXISTS comments (
