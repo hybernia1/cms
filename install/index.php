@@ -24,6 +24,7 @@ $haveConfig = is_file($CONFIG_FILE);
 $stepProvided = array_key_exists('step', $_GET);
 
 if ($haveConfig && !$stepProvided) {
+    header('Location: ../');
     exit;
 }
 

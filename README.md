@@ -68,3 +68,17 @@ Tento projekt obsahuje produkčně použitelný instalační proces a kompletní
 - Služby domény určené výhradně pro frontend (např. sitemap, strom komentářů, odesílání komentářů přes veřejné API).
 
 Projekt je připraven jako základ pro nový frontend engine, přičemž administrační část zůstává plně funkční.
+
+## Revize 2024-06
+
+### Odstraněné materiály
+- Dokument s auditem AJAX rozhraní byl odstraněn; obsahoval historické poznámky, které už neodpovídají současné podobě administrace.
+
+### Slabá místa administrace
+- Kontroler navigace opakovaně ověřuje existenci tabulek pomocí `SHOW TABLES` při každém zobrazení či uložení, což znamená dvě separátní dotazy navíc pro každý request; vyplatí se výsledek cachovat nebo validovat jednorázově při bootstrapu administrace.【F:inc/Class/Admin/Http/Controllers/NavigationController.php†L71-L113】
+- Formulář pro úpravu uživatelů vykresluje každou e-mailovou šablonu, aby získal předmět pro dropdown; při větším počtu šablon to načítá a interpretuje všechny PHP šablony při každém načtení stránky. Lze uložit metadata (předměty) předem, případně je lazy-loadovat až na požadavek uživatele.【F:inc/Class/Admin/Http/Controllers/UsersController.php†L53-L86】【F:inc/Class/Admin/Mail/TemplateManager.php†L18-L48】
+- Při zakládání nového uživatele se po insertu znovu dotazuje databáze na poslední `id`, pokud driver nevrátí integer. V prostředí s konkurenčními zápisy to může vrátit cizí řádek; vhodnější je spoléhat na `PDO::lastInsertId()` (přes wrapper) nebo transakční scope.【F:inc/Class/Admin/Http/Controllers/UsersController.php†L156-L183】
+
+### Instalátor – proč se po dokončení vracelo `/install`
+- Přepisovací pravidla `.htaccess` směrují všechny neexistující cesty na `index.php`, který při absenci konfigurace přesměruje na instalátor.【F:.htaccess†L20-L35】【F:index.php†L1-L17】【F:load.php†L79-L115】
+- Po úspěšné instalaci ale přístup na `/install/` bez parametru končil prázdnou stránkou, protože skript se ihned ukončil. Teď se návštěvník automaticky přesměruje na krok 4 s potvrzením dokončení.【F:install/index.php†L23-L55】
