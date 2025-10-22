@@ -34,6 +34,12 @@ $renderAttributes = static function (?array $attributes) use ($h): string {
     return $parts ? ' ' . implode(' ', $parts) : '';
 };
 
+$ensureAttribute = static function (array &$attributes, string $attribute, string $value): void {
+    if (!array_key_exists($attribute, $attributes)) {
+        $attributes[$attribute] = $value;
+    }
+};
+
 $dialogClass = isset($dialogClass) && $dialogClass !== '' ? $dialogClass : 'modal-lg modal-dialog-centered';
 $headerCloseLabel = isset($headerCloseLabel) && $headerCloseLabel !== '' ? $headerCloseLabel : 'Zavřít';
 $footerCloseLabel = isset($footerCloseLabel) && $footerCloseLabel !== '' ? $footerCloseLabel : 'Zavřít';
@@ -41,12 +47,17 @@ $modalAttributes = $modalAttributes ?? [];
 if (!array_key_exists('aria-hidden', $modalAttributes)) {
     $modalAttributes['aria-hidden'] = 'true';
 }
-$modalAttrString = $renderAttributes($modalAttributes);
-$contentAttributes = $contentAttributes ?? [];
 $formConfig = isset($form) && is_array($form) ? $form : null;
 $dropzoneConfig = isset($dropzone) && is_array($dropzone) ? $dropzone : null;
 $bodyRenderer = isset($body) && is_callable($body) ? $body : null;
 $footerRenderer = isset($footer) && is_callable($footer) ? $footer : null;
+
+$shouldInitUpload = $formConfig !== null;
+if ($shouldInitUpload) {
+    $ensureAttribute($modalAttributes, 'data-media-upload-modal', '1');
+}
+$modalAttrString = $renderAttributes($modalAttributes);
+$contentAttributes = $contentAttributes ?? [];
 
 $formMethod = 'post';
 $formAction = '';
@@ -61,6 +72,7 @@ if ($formConfig !== null) {
     $formId = isset($formConfig['id']) ? (string)$formConfig['id'] : '';
     $formEnctype = isset($formConfig['enctype']) ? (string)$formConfig['enctype'] : '';
     $formAttributes = isset($formConfig['attributes']) && is_array($formConfig['attributes']) ? $formConfig['attributes'] : [];
+    $ensureAttribute($formAttributes, 'data-role', 'media-upload-form');
     $formHiddenFields = isset($formConfig['hiddenFields']) && is_array($formConfig['hiddenFields']) ? $formConfig['hiddenFields'] : [];
     $submitButton = isset($formConfig['submitButton']) && is_array($formConfig['submitButton']) ? $formConfig['submitButton'] : null;
 }
@@ -117,6 +129,7 @@ $renderButton = static function (array $config) use ($h, $renderAttributes): voi
             if ($dropzoneId !== '') {
                 $dropzoneAttributes['id'] = $dropzoneId;
             }
+            $ensureAttribute($dropzoneAttributes, 'data-role', 'dropzone');
             $iconClass = isset($dropzoneConfig['iconClass']) ? (string)$dropzoneConfig['iconClass'] : 'bi bi-cloud-arrow-up fs-2 mb-2 d-block';
             $headline = isset($dropzoneConfig['headline']) ? (string)$dropzoneConfig['headline'] : '';
             $headlineClass = isset($dropzoneConfig['headlineClass']) ? (string)$dropzoneConfig['headlineClass'] : 'mb-1';
@@ -138,6 +151,7 @@ $renderButton = static function (array $config) use ($h, $renderAttributes): voi
                 if (isset($browseButton['id'])) {
                     $browseAttributes['id'] = (string)$browseButton['id'];
                 }
+                $ensureAttribute($browseAttributes, 'data-role', 'browse-button');
               ?>
                 <button<?= $renderAttributes($browseAttributes) ?>><?= $h((string)($browseButton['label'] ?? 'Vybrat soubory')) ?></button>
               <?php endif; ?>
@@ -149,6 +163,7 @@ $renderButton = static function (array $config) use ($h, $renderAttributes): voi
               }
               $summaryClass = isset($summary['class']) ? (string)$summary['class'] : 'text-secondary small mt-3 d-none';
               $summaryAttributes['class'] = trim(($summaryAttributes['class'] ?? '') . ' ' . $summaryClass);
+              $ensureAttribute($summaryAttributes, 'data-role', 'summary');
             ?>
               <div<?= $renderAttributes($summaryAttributes) ?>></div>
             <?php endif; ?>
@@ -171,6 +186,7 @@ $renderButton = static function (array $config) use ($h, $renderAttributes): voi
               if ($fileClass !== '') {
                   $fileAttributes['class'] = trim(($fileAttributes['class'] ?? '') . ' ' . $fileClass);
               }
+              $ensureAttribute($fileAttributes, 'data-role', 'file-input');
               $fileValue = isset($fileInput['value']) ? (string)$fileInput['value'] : '';
             ?>
               <input<?= $renderAttributes($fileAttributes) ?> value="<?= $h($fileValue) ?>">
@@ -215,6 +231,10 @@ $renderButton = static function (array $config) use ($h, $renderAttributes): voi
             <?php $footerRenderer(); ?>
           <?php else: ?>
             <?php if ($submitButton !== null):
+              if (!isset($submitButton['attributes']) || !is_array($submitButton['attributes'])) {
+                  $submitButton['attributes'] = [];
+              }
+              $ensureAttribute($submitButton['attributes'], 'data-role', 'submit');
               $submitButton['type'] = $submitButton['type'] ?? 'submit';
               $submitButton['class'] = $submitButton['class'] ?? 'btn btn-primary';
               $renderButton($submitButton);

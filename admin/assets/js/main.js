@@ -4,6 +4,7 @@ import {
   loadAdminPage,
   initAjaxForms,
   initAjaxLinks,
+  initMediaUploadModals,
   bootHistory,
   dispatchNavigated
 } from './admin.js';
@@ -26,6 +27,7 @@ function exposeAdminAPI() {
 function startAdminUI() {
   const initialRoot = document.querySelector('.admin-wrapper') || document;
   ensureDefaultFormHelpers();
+  initMediaUploadModals(document);
   refreshDynamicUI(initialRoot);
   initAjaxForms();
   initAjaxLinks();
