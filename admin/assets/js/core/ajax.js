@@ -71,6 +71,30 @@ function buildValidationMessage(errors) {
   return '';
 }
 
+function disposeExistingTooltips() {
+  if (typeof bootstrap === 'undefined' || typeof bootstrap.Tooltip !== 'function') {
+    return;
+  }
+  const elements = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  elements.forEach(function (el) {
+    let instance = null;
+    if (typeof bootstrap.Tooltip.getInstance === 'function') {
+      instance = bootstrap.Tooltip.getInstance(el);
+    }
+    if (!instance && typeof bootstrap.Tooltip.getOrCreateInstance === 'function') {
+      instance = bootstrap.Tooltip.getOrCreateInstance(el);
+    }
+    if (instance && typeof instance.dispose === 'function') {
+      instance.dispose();
+    }
+  });
+  [].slice.call(document.querySelectorAll('.tooltip')).forEach(function (tooltipEl) {
+    if (tooltipEl && tooltipEl.parentNode) {
+      tooltipEl.parentNode.removeChild(tooltipEl);
+    }
+  });
+}
+
 function executeScripts(root) {
   if (!root) {
     return;
@@ -89,6 +113,40 @@ function executeScripts(root) {
       newScript.textContent = oldScript.textContent;
     }
     oldScript.parentNode.replaceChild(newScript, oldScript);
+  });
+}
+
+function executeDetachedScripts(doc, wrapper) {
+  if (!doc) {
+    return;
+  }
+  const scripts = [].slice.call(doc.querySelectorAll('script'));
+  scripts.forEach(function (script) {
+    if (!script) {
+      return;
+    }
+    if (wrapper && wrapper.contains(script)) {
+      return;
+    }
+    const parentNode = script.parentNode;
+    const targetContainer = parentNode && parentNode.tagName === 'HEAD'
+      ? document.head
+      : (document.body || document.documentElement);
+    if (!targetContainer) {
+      return;
+    }
+    const newScript = document.createElement('script');
+    for (let i = 0; i < script.attributes.length; i += 1) {
+      const attr = script.attributes[i];
+      newScript.setAttribute(attr.name, attr.value);
+    }
+    if (!script.hasAttribute('src')) {
+      newScript.textContent = script.textContent;
+    }
+    targetContainer.appendChild(newScript);
+    if (!newScript.hasAttribute('src') && newScript.parentNode) {
+      newScript.parentNode.removeChild(newScript);
+    }
   });
 }
 
@@ -159,12 +217,14 @@ export function applyAdminHtml(html) {
   if (!doc) {
     return null;
   }
+  disposeExistingTooltips();
   const newWrapper = replaceAdminShell(doc);
   if (!newWrapper) {
     return null;
   }
   syncDocumentMeta(doc);
   executeScripts(newWrapper);
+  executeDetachedScripts(doc, newWrapper);
   callRefreshDynamicUI(newWrapper);
   return newWrapper;
 }
