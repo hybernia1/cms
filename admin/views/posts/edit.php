@@ -11,8 +11,9 @@ declare(strict_types=1);
 /** @var string $type */
 /** @var array $types */
 /** @var array<int> $attachedMedia */
+/** @var array{supports:array<int,string>} $typeConfig */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types,$typeConfig) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$post;
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek','edit'=>'Upravit příspěvek','label'=>strtoupper($type)];
@@ -26,8 +27,19 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
   $currentStatus = $isEdit ? (string)($post['status'] ?? 'draft') : 'draft';
   $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
   $currentStatusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
+  $supports = is_array($typeConfig['supports'] ?? null) ? $typeConfig['supports'] : [];
+  $supportsFeature = static fn(array $supports, string $feature): bool => in_array($feature, $supports, true);
+  $supportsTaxonomy = static function (array $supports, string $taxonomy) use ($supportsFeature): bool {
+    return $supportsFeature($supports, 'terms') || $supportsFeature($supports, 'terms:' . $taxonomy);
+  };
+
+  $thumbnailSupported = $supportsFeature($supports, 'thumbnail');
+  $commentsSupported = $supportsFeature($supports, 'comments');
+  $categorySupported = $supportsTaxonomy($supports, 'category');
+  $tagSupported = $supportsTaxonomy($supports, 'tag');
+
   $commentsAllowed = false;
-  if ($type === 'post') {
+  if ($commentsSupported) {
     $commentsAllowed = $isEdit ? ((int)($post['comments_allowed'] ?? 1) === 1) : true;
   }
   $typeLabel = (string)($typeCfg['label'] ?? strtoupper($type));
@@ -56,11 +68,11 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
     return $out;
   };
 
-  $categoriesWhitelist = $prepareTermList($terms['category'] ?? []);
-  $tagsWhitelist = $prepareTermList($terms['tag'] ?? []);
+  $categoriesWhitelist = $categorySupported ? $prepareTermList($terms['category'] ?? []) : [];
+  $tagsWhitelist = $tagSupported ? $prepareTermList($terms['tag'] ?? []) : [];
 
-  $categorySelectedIds = array_map('intval', $selected['category'] ?? []);
-  $tagSelectedIds = array_map('intval', $selected['tag'] ?? []);
+  $categorySelectedIds = $categorySupported ? array_map('intval', $selected['category'] ?? []) : [];
+  $tagSelectedIds = $tagSupported ? array_map('intval', $selected['tag'] ?? []) : [];
 
   $findSelectedItems = function (array $whitelist, array $selectedIds): array {
     $map = [];
@@ -82,7 +94,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
   $tagSelected = $findSelectedItems($tagsWhitelist, $tagSelectedIds);
 
   $currentThumb = null;
-  if ($isEdit && !empty($post['thumbnail_id'])) {
+  if ($thumbnailSupported && $isEdit && !empty($post['thumbnail_id'])) {
     $thumbRow = \Core\Database\Init::query()->table('media')->select(['id','url','mime'])->where('id','=',(int)$post['thumbnail_id'])->first();
     if ($thumbRow) {
       $currentThumb = [
@@ -174,7 +186,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             </div>
           </div>
 
-          <?php if ($type === 'post'): ?>
+          <?php if ($categorySupported): ?>
             <div class="card shadow-sm">
               <div class="card-header fw-semibold">Kategorie</div>
               <div class="card-body">
@@ -192,6 +204,9 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
                 </div>
               </div>
             </div>
+          <?php endif; ?>
+
+          <?php if ($tagSupported): ?>
             <div class="card shadow-sm">
               <div class="card-header fw-semibold">Štítky</div>
               <div class="card-body">
@@ -211,52 +226,54 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             </div>
           <?php endif; ?>
 
-          <div class="card shadow-sm">
-            <div class="card-header fw-semibold">Média</div>
-            <div class="card-body">
-              <div
-                id="thumbnail-preview"
-                class="border border-dashed rounded p-3 bg-body-tertiary d-flex flex-wrap align-items-center gap-3"
-                data-empty-text="Žádný obrázek není vybrán."
-                data-initial="<?= $encodeJson($currentThumb ?? null) ?>"
-                data-thumbnail-preview
-              >
-                <div id="thumbnail-preview-inner" class="d-flex align-items-center gap-3" data-thumbnail-preview-inner>
-                  <?php if ($currentThumb): ?>
-                    <?php if (str_starts_with((string)$currentThumb['mime'], 'image/')): ?>
-                      <img src="<?= $h((string)$currentThumb['url']) ?>" alt="Aktuální obrázek" style="max-width:220px;border-radius:.75rem">
+          <?php if ($thumbnailSupported): ?>
+            <div class="card shadow-sm">
+              <div class="card-header fw-semibold">Média</div>
+              <div class="card-body">
+                <div
+                  id="thumbnail-preview"
+                  class="border border-dashed rounded p-3 bg-body-tertiary d-flex flex-wrap align-items-center gap-3"
+                  data-empty-text="Žádný obrázek není vybrán."
+                  data-initial="<?= $encodeJson($currentThumb ?? null) ?>"
+                  data-thumbnail-preview
+                >
+                  <div id="thumbnail-preview-inner" class="d-flex align-items-center gap-3" data-thumbnail-preview-inner>
+                    <?php if ($currentThumb): ?>
+                      <?php if (str_starts_with((string)$currentThumb['mime'], 'image/')): ?>
+                        <img src="<?= $h((string)$currentThumb['url']) ?>" alt="Aktuální obrázek" style="max-width:220px;border-radius:.75rem">
+                      <?php else: ?>
+                        <div>
+                          <div class="fw-semibold text-truncate" style="max-width:260px;">
+                            <?= $h((string)$currentThumb['url']) ?>
+                          </div>
+                          <div class="text-secondary small mt-1">
+                            <?= $h((string)$currentThumb['mime']) ?>
+                          </div>
+                        </div>
+                      <?php endif; ?>
                     <?php else: ?>
-                      <div>
-                        <div class="fw-semibold text-truncate" style="max-width:260px;">
-                          <?= $h((string)$currentThumb['url']) ?>
-                        </div>
-                        <div class="text-secondary small mt-1">
-                          <?= $h((string)$currentThumb['mime']) ?>
-                        </div>
-                      </div>
+                      <div class="text-secondary">Žádný obrázek není vybrán.</div>
                     <?php endif; ?>
-                  <?php else: ?>
-                    <div class="text-secondary">Žádný obrázek není vybrán.</div>
-                  <?php endif; ?>
+                  </div>
+                  <div id="thumbnail-upload-info" class="text-secondary small d-none" data-thumbnail-upload-info></div>
                 </div>
-                <div id="thumbnail-upload-info" class="text-secondary small d-none" data-thumbnail-upload-info></div>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#mediaPickerModal">
+                    <i class="bi bi-images me-1"></i>Vybrat nebo nahrát
+                  </button>
+                  <button class="btn btn-outline-danger btn-sm<?= $currentThumb ? '' : ' disabled' ?>" type="button" id="thumbnail-remove-btn" data-thumbnail-remove>
+                    <i class="bi bi-x-lg me-1"></i>Odebrat
+                  </button>
+                </div>
+                <input type="hidden" name="selected_thumbnail_id" id="selected-thumbnail-id" value="<?= $currentThumb ? $h((string)$currentThumb['id']) : '' ?>" data-thumbnail-selected-input>
+                <input type="hidden" name="remove_thumbnail" id="remove-thumbnail" value="0" data-thumbnail-remove-input>
+                <input class="form-control d-none" type="file" name="thumbnail" id="thumbnail-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" data-thumbnail-file-input>
+                <div class="form-text mt-2">Vybraný soubor se uloží do <code>uploads/Y/m/posts/</code> a lze jej přetáhnout přímo do otevřeného modálu.</div>
               </div>
-              <div class="d-flex flex-wrap gap-2 mt-2">
-                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#mediaPickerModal">
-                  <i class="bi bi-images me-1"></i>Vybrat nebo nahrát
-                </button>
-                <button class="btn btn-outline-danger btn-sm<?= $currentThumb ? '' : ' disabled' ?>" type="button" id="thumbnail-remove-btn" data-thumbnail-remove>
-                  <i class="bi bi-x-lg me-1"></i>Odebrat
-                </button>
-              </div>
-              <input type="hidden" name="selected_thumbnail_id" id="selected-thumbnail-id" value="<?= $currentThumb ? $h((string)$currentThumb['id']) : '' ?>" data-thumbnail-selected-input>
-              <input type="hidden" name="remove_thumbnail" id="remove-thumbnail" value="0" data-thumbnail-remove-input>
-              <input class="form-control d-none" type="file" name="thumbnail" id="thumbnail-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" data-thumbnail-file-input>
-              <div class="form-text mt-2">Vybraný soubor se uloží do <code>uploads/Y/m/posts/</code> a lze jej přetáhnout přímo do otevřeného modálu.</div>
             </div>
-          </div>
+          <?php endif; ?>
 
-          <?php if ($type === 'post'): ?>
+          <?php if ($commentsSupported): ?>
             <div class="card shadow-sm">
               <div class="card-header fw-semibold">Nastavení</div>
               <div class="card-body">
@@ -273,41 +290,43 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
     </form>
 
 
-    <?php $this->render('parts/partials/media-picker-modal', [
-      'modalId'          => 'mediaPickerModal',
-      'title'            => 'Vybrat nebo nahrát obrázek',
-      'dialogClass'      => 'modal-xl modal-dialog-scrollable',
-      'modalAttributes'  => [
-        'data-media-picker-context'     => 'thumbnail',
-        'data-media-picker-library-url' => $mediaLibraryUrl,
-      ],
-      'tabs'             => [
-        'upload'  => 'Nahrát nový',
-        'library' => 'Knihovna',
-      ],
-      'upload'           => [
-        'headline'     => 'Přetáhni soubor sem nebo klikni pro výběr.',
-        'description'  => 'Podporované formáty: JPG, PNG, GIF, WEBP, PDF.',
-        'input'        => [
-          'accept' => '.jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf',
-          'class'  => 'form-control',
-          'style'  => 'max-width:320px;margin:0 auto;',
+    <?php if ($thumbnailSupported): ?>
+      <?php $this->render('parts/partials/media-picker-modal', [
+        'modalId'          => 'mediaPickerModal',
+        'title'            => 'Vybrat nebo nahrát obrázek',
+        'dialogClass'      => 'modal-xl modal-dialog-scrollable',
+        'modalAttributes'  => [
+          'data-media-picker-context'     => 'thumbnail',
+          'data-media-picker-library-url' => $mediaLibraryUrl,
         ],
-        'summaryClass' => 'text-secondary small mt-2 d-none',
-        'note'         => 'Po výběru potvrď tlačítkem „Použít“.',
-      ],
-      'library'          => [
-        'emptyText' => 'Žádné obrázky zatím nejsou k dispozici.',
-      ],
-      'applyButton'      => [
-        'defaultLabel' => 'Použít',
-        'uploadLabel'  => 'Použít nahraný soubor',
-        'libraryLabel' => 'Vybrat z knihovny',
-        'icon'         => 'bi bi-check2-circle me-1',
-      ],
-      'headerCloseLabel' => 'Zavřít',
-      'footerCloseLabel' => 'Zavřít',
-    ]); ?>
+        'tabs'             => [
+          'upload'  => 'Nahrát nový',
+          'library' => 'Knihovna',
+        ],
+        'upload'           => [
+          'headline'     => 'Přetáhni soubor sem nebo klikni pro výběr.',
+          'description'  => 'Podporované formáty: JPG, PNG, GIF, WEBP, PDF.',
+          'input'        => [
+            'accept' => '.jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf',
+            'class'  => 'form-control',
+            'style'  => 'max-width:320px;margin:0 auto;',
+          ],
+          'summaryClass' => 'text-secondary small mt-2 d-none',
+          'note'         => 'Po výběru potvrď tlačítkem „Použít“.',
+        ],
+        'library'          => [
+          'emptyText' => 'Žádné obrázky zatím nejsou k dispozici.',
+        ],
+        'applyButton'      => [
+          'defaultLabel' => 'Použít',
+          'uploadLabel'  => 'Použít nahraný soubor',
+          'libraryLabel' => 'Vybrat z knihovny',
+          'icon'         => 'bi bi-check2-circle me-1',
+        ],
+        'headerCloseLabel' => 'Zavřít',
+        'footerCloseLabel' => 'Zavřít',
+      ]); ?>
+    <?php endif; ?>
 
   <div class="modal fade" id="contentEditorLinkModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
