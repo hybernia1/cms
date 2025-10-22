@@ -416,7 +416,16 @@ final class PostsController extends BaseAdminController
             ],
             'affectedIds' => $normalizedIds,
             'nextState'   => $nextState,
+            'type'        => $type,
         ];
+
+        if ($success) {
+            try {
+                $payload['statusCounts'] = (new PostsRepository())->countByStatus($type);
+            } catch (\Throwable $e) {
+                // ignore count errors in the AJAX response
+            }
+        }
 
         if ($this->isAjax()) {
             $this->jsonResponse($payload, $status);

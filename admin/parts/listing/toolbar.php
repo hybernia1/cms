@@ -22,12 +22,19 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
     <nav aria-label="Filtr" class="<?= $h($tabsClass) ?>">
       <ul class="nav nav-pills nav-sm">
         <?php foreach ($tabs as $tab): ?>
+          <?php
+            $tabValue = array_key_exists('value', $tab) ? (string)$tab['value'] : null;
+            $tabCount = array_key_exists('count', $tab) ? $tab['count'] : null;
+          ?>
           <li class="nav-item small">
-            <a class="nav-link px-3 py-1 <?= !empty($tab['active']) ? 'active' : '' ?>" href="<?= $h((string)$tab['href']) ?>">
+            <a class="nav-link px-3 py-1 <?= !empty($tab['active']) ? 'active' : '' ?>"
+               href="<?= $h((string)$tab['href']) ?>"<?php if ($tabValue !== null): ?>
+               data-listing-tab-value="<?= $h($tabValue) ?>"<?php endif; ?>>
               <?= $h((string)$tab['label']) ?>
-              <?php if (array_key_exists('count', $tab) && $tab['count'] !== null): ?>
-                <span class="ms-1 badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">
-                  <?= $h((string)(int)$tab['count']) ?>
+              <?php if ($tabCount !== null): ?>
+                <span class="ms-1 badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"<?php if ($tabValue !== null): ?>
+                  data-listing-tab-count<?php endif; ?>>
+                  <?= $h((string)(int)$tabCount) ?>
                 </span>
               <?php endif; ?>
             </a>

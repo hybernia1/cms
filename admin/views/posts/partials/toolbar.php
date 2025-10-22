@@ -52,6 +52,7 @@ foreach ($statusTabs as $value => $label) {
         'href'   => $buildUrl(['status' => $value]),
         'active' => $status === $value,
         'count'  => $statusCountFor($value),
+        'value'  => $value,
     ];
 }
 
