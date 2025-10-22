@@ -14,6 +14,7 @@ declare(strict_types=1);
  */
 
 use Core\Database\Init as DB;
+use Core\Database\Migrations\Migrator;
 
 session_start();
 $BASE = dirname(__DIR__);           // root projektu
@@ -140,6 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 2) {
                 'updated_at' => null,
             ])->execute();
         }
+
+        // spusť dostupné migrace
+        $paths = require __DIR__ . '/migrations.php';
+        $migrator = new Migrator($paths);
+        $migrator->runPending();
 
         header('Location: ?step=3');
         exit;
