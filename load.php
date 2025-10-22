@@ -23,16 +23,6 @@ const CLASS_NAMESPACE_MAP = [
     'Core\\'        => __DIR__ . '/inc/Class/Core',
 ];
 
-if (is_dir(FUNCTIONS_DIR)) {
-    /** @var list<string> $functionFiles */
-    $functionFiles = glob(FUNCTIONS_DIR . '/*.php') ?: [];
-    sort($functionFiles);
-
-    foreach ($functionFiles as $file) {
-        require_once $file;
-    }
-}
-
 // ---------------------------------------------------------
 // Autoload pro /inc/Class (PSR-4 + fallback s podtržítky)
 // ---------------------------------------------------------
@@ -71,6 +61,16 @@ spl_autoload_register(
     },
     prepend: true
 );
+
+if (is_dir(FUNCTIONS_DIR)) {
+    /** @var list<string> $functionFiles */
+    $functionFiles = glob(FUNCTIONS_DIR . '/*.php') ?: [];
+    sort($functionFiles);
+
+    foreach ($functionFiles as $file) {
+        require_once $file;
+    }
+}
 
 // ---------------------------------------------------------
 // Util: redirecty a bootstrap
