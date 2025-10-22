@@ -49,6 +49,11 @@ final class NewsletterService
         return $this->repo->paginate($filters, $page, $perPage);
     }
 
+    public function confirmedForExport(): array
+    {
+        return $this->repo->confirmedForExport();
+    }
+
     public function createSubscriber(string $email, ?string $sourceUrl = null, int $confirmTtlHours = self::DEFAULT_CONFIRM_TTL_HOURS): int
     {
         $email = trim($email);
