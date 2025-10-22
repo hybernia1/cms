@@ -11,8 +11,11 @@ declare(strict_types=1);
 /** @var callable $buildUrl */
 /** @var string $csrf */
 /** @var string $currentUrl */
+/** @var int $confirmedCount */
+/** @var int $newsletterSendLimit */
+/** @var array<string,mixed>|null $lastSend */
 
-$this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($items, $pagination, $filters, $statusMeta, $buildUrl, $csrf, $currentUrl) {
+$this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($items, $pagination, $filters, $statusMeta, $buildUrl, $csrf, $currentUrl, $confirmedCount, $newsletterSendLimit, $lastSend) {
     $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     $statusOptions = ['' => 'Všechny stavy'];
     foreach ($statusMeta as $key => $meta) {
@@ -20,6 +23,62 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
     }
     $total = (int)($pagination['total'] ?? 0);
 ?>
+  <div class="card mb-4">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h2 class="h6 mb-0">Jednorázová kampaň</h2>
+        <div class="text-secondary small">Odeslání všem potvrzeným odběratelům</div>
+      </div>
+      <div class="text-secondary small text-end">
+        <div>Cíl: <?= (int)$confirmedCount ?> potvrzených</div>
+        <div>Limit: <?= (int)$newsletterSendLimit ?> adres</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <form
+        method="post"
+        action="admin.php?r=newsletter&a=send-campaign"
+        data-confirm-modal="Opravdu odeslat tuto kampaň?"
+        data-confirm-modal-title="Odeslat kampaň"
+        data-confirm-modal-confirm-label="Odeslat"
+        data-confirm-modal-cancel-label="Zrušit"
+      >
+        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
+        <div class="mb-3">
+          <label class="form-label" for="newsletter-campaign-subject">Předmět</label>
+          <input
+            class="form-control"
+            type="text"
+            id="newsletter-campaign-subject"
+            name="subject"
+            required
+          >
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="newsletter-campaign-body">Obsah (HTML)</label>
+          <textarea
+            class="form-control"
+            id="newsletter-campaign-body"
+            name="body"
+            rows="6"
+            required
+          ></textarea>
+          <div class="form-text">Newsletter se odešle jako HTML e-mail všem potvrzeným odběratelům. Podpis z nastavení se doplní automaticky.</div>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <?php if (is_array($lastSend)): ?>
+            <div class="text-secondary small">
+              Naposledy odesláno <?= $h((string)($lastSend['created_at'] ?? '')) ?> –
+              "<?= $h((string)($lastSend['subject'] ?? '')) ?>"
+              (<?= (int)($lastSend['sent'] ?? 0) ?>/<?= (int)($lastSend['recipients'] ?? 0) ?> úspěšně, <?= (int)($lastSend['failed'] ?? 0) ?> chyb)
+            </div>
+          <?php endif; ?>
+          <button class="btn btn-primary" type="submit">Odeslat kampaň</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
     <form class="row g-2 align-items-end" method="get" action="admin.php">
       <input type="hidden" name="r" value="newsletter">

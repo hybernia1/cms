@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Http\Controllers;
 
+use Cms\Admin\Domain\Repositories\NewsletterSendsRepository;
 use Cms\Admin\Domain\Services\NewsletterService;
 use Cms\Admin\Settings\CmsSettings;
+use Cms\Admin\Mail\MailService;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Throwable;
@@ -31,12 +33,16 @@ final class NewsletterController extends BaseAdminController
 
     private NewsletterService $service;
     private CmsSettings $settings;
+    private MailService $mailService;
+    private NewsletterSendsRepository $sendsRepository;
 
     public function __construct(string $baseViewsPath)
     {
         parent::__construct($baseViewsPath);
         $this->service = new NewsletterService();
         $this->settings = new CmsSettings();
+        $this->mailService = new MailService($this->settings);
+        $this->sendsRepository = new NewsletterSendsRepository();
     }
 
     public function handle(string $action): void
@@ -59,6 +65,9 @@ final class NewsletterController extends BaseAdminController
                 return;
             case 'export-confirmed':
                 $this->exportConfirmed();
+                return;
+            case 'send-campaign':
+                $this->sendCampaign();
                 return;
             case 'index':
             default:
@@ -92,6 +101,21 @@ final class NewsletterController extends BaseAdminController
             'page'   => $currentPage,
         ];
 
+        $confirmedCount = $this->service->confirmedCount();
+        $lastSendRow = $this->sendsRepository->latest();
+        $lastSend = null;
+
+        if (is_array($lastSendRow)) {
+            $lastSend = [
+                'subject'    => (string)($lastSendRow['subject'] ?? ''),
+                'created_at' => $this->formatDateTime($lastSendRow['created_at'] ?? null)
+                    ?? (string)($lastSendRow['created_at'] ?? ''),
+                'sent'       => (int)($lastSendRow['sent_count'] ?? 0),
+                'failed'     => (int)($lastSendRow['failed_count'] ?? 0),
+                'recipients' => (int)($lastSendRow['recipients_count'] ?? 0),
+            ];
+        }
+
         $this->renderAdmin('newsletter/index', [
             'pageTitle'   => 'Newsletter',
             'nav'         => AdminNavigation::build('newsletter'),
@@ -101,7 +125,78 @@ final class NewsletterController extends BaseAdminController
             'pagination'  => $pagination,
             'buildUrl'    => $this->listingUrlBuilder($baseQuery),
             'currentUrl'  => $currentUrl,
+            'confirmedCount' => $confirmedCount,
+            'newsletterSendLimit' => $this->settings->newsletterCampaignLimit(),
+            'lastSend'    => $lastSend,
         ]);
+    }
+
+    private function sendCampaign(): void
+    {
+        $this->assertCsrf();
+
+        $subject = trim((string)($_POST['subject'] ?? ''));
+        $body = trim((string)($_POST['body'] ?? ''));
+        $redirect = 'admin.php?r=newsletter';
+
+        if ($subject === '' || $body === '') {
+            $this->redirect($redirect, 'danger', 'Vyplňte prosím předmět i obsah kampaně.');
+        }
+
+        $limit = $this->settings->newsletterCampaignLimit();
+        $totalConfirmed = $this->service->confirmedCount();
+
+        if ($totalConfirmed === 0) {
+            $this->redirect($redirect, 'warning', 'Nemáte žádné potvrzené odběratele.');
+        }
+
+        if ($totalConfirmed > $limit) {
+            $this->redirect(
+                $redirect,
+                'danger',
+                sprintf('Odeslání zastaveno: počet potvrzených odběratelů (%d) překračuje limit %d.', $totalConfirmed, $limit)
+            );
+        }
+
+        $recipients = $this->service->confirmedEmails($limit);
+        $sent = 0;
+        $failed = 0;
+
+        foreach ($recipients as $recipient) {
+            $email = (string)($recipient['email'] ?? '');
+            if ($email === '') {
+                continue;
+            }
+
+            $ok = $this->mailService->send($email, $subject, $body, null, strip_tags($body));
+            if ($ok) {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+
+        $user = $this->auth->user();
+
+        $this->sendsRepository->create([
+            'subject'          => $subject,
+            'body'             => $body,
+            'recipients_count' => $totalConfirmed,
+            'sent_count'       => $sent,
+            'failed_count'     => $failed,
+            'created_by'       => $user ? (int)($user['id'] ?? 0) : null,
+            'created_at'       => DateTimeFactory::nowString(),
+        ]);
+
+        if ($failed > 0) {
+            $this->redirect(
+                $redirect,
+                'warning',
+                sprintf('Kampaň odeslána, ale %d adres se nepodařilo doručit.', $failed)
+            );
+        }
+
+        $this->redirect($redirect, 'success', sprintf('Kampaň byla odeslána %d odběratelům.', $sent));
     }
 
     private function detail(): void
