@@ -535,22 +535,22 @@ a.admin-table-line:hover {
     font-size: 0.95rem;
   }
   .admin-topbar {
-    padding: var(--admin-space-150) var(--admin-space-200);
+    padding: var(--admin-space-150) var(--admin-space-100);
   }
   .admin-content {
-    padding: var(--admin-space-200);
+    padding: var(--admin-space-100);
   }
   .admin-page-title {
     font-size: clamp(1.35rem, 1.1rem + 1vw, 1.6rem);
   }
   .admin-menu-link {
-    padding: 0.65rem var(--admin-space-200);
+    padding: 0.65rem var(--admin-space-100);
   }
   .admin-submenu-link {
-    padding-left: calc(var(--admin-space-200) + 1.1rem);
+    padding-left: calc(var(--admin-space-100) + 1.1rem);
   }
   .admin-submenu-link.is-active::before {
-    left: calc(var(--admin-space-200) + 0.6rem);
+    left: calc(var(--admin-space-100) + 0.6rem);
   }
 }
 
