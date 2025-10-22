@@ -2,6 +2,12 @@ import { adminAjax } from '../../core/ajax.js';
 import { dispatchFormEvent } from '../../core/form-events.js';
 import { HISTORY_STATE_KEY } from '../../core/navigation.js';
 import { cssEscapeValue } from '../../utils/css-escape.js';
+import {
+  buildListingJsonUrl,
+  cleanListingUrl,
+  pushListingHistory,
+  setListingLoadingState
+} from './listing-utils.js';
 
 var termsListingControllers = new WeakMap();
 
@@ -107,60 +113,30 @@ function createTermsListingController(container) {
   };
 
   function setLoading(isLoading) {
-    if (isLoading) {
-      container.classList.add('is-loading');
-      container.setAttribute('aria-busy', 'true');
-    } else {
-      container.classList.remove('is-loading');
-      container.removeAttribute('aria-busy');
-    }
+    setListingLoadingState(container, isLoading);
   }
 
   function cleanUrl(url) {
-    if (!url) {
-      return url;
-    }
-    try {
-      var parsed = new URL(url, window.location.href);
-      parsed.searchParams.delete('format');
-      return parsed.toString();
-    } catch (err) {
-      return url;
-    }
+    return cleanListingUrl(url);
   }
 
   function buildJsonUrl(url) {
-    try {
-      var parsed = new URL(url, window.location.href);
-      var typeValue = container.getAttribute('data-terms-type') || '';
-      if (typeValue && !parsed.searchParams.get('type')) {
-        parsed.searchParams.set('type', typeValue);
-      }
-      parsed.searchParams.set('format', 'json');
-      return parsed.toString();
-    } catch (err) {
-      return url;
+    var typeValue = container.getAttribute('data-terms-type') || '';
+    var params = {};
+    if (typeValue) {
+      params.type = typeValue;
     }
+    return buildListingJsonUrl(url, params, { skipExisting: ['type'] });
   }
 
   function updateHistory(url) {
-    if (!url || !window.history || typeof window.history.pushState !== 'function') {
-      return;
-    }
-    try {
-      var parsed = new URL(url, window.location.href);
-      parsed.searchParams.delete('format');
-      var stateObj = {};
-      if (window.history.state && typeof window.history.state === 'object') {
-        Object.keys(window.history.state).forEach(function (key) {
-          stateObj[key] = window.history.state[key];
-        });
-      }
+    pushListingHistory(url, function (currentState) {
+      var stateObj = currentState && typeof currentState === 'object'
+        ? Object.assign({}, currentState)
+        : {};
       stateObj[HISTORY_STATE_KEY] = true;
-      window.history.pushState(stateObj, '', parsed.toString());
-    } catch (err) {
-      /* ignore history errors */
-    }
+      return stateObj;
+    });
   }
 
   function replaceSection(selector, html) {
