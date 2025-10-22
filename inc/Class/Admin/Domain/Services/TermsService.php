@@ -17,11 +17,10 @@ final class TermsService
         $v = (new Validator())->require(compact('name'), 'name');
         if (!$v->ok()) throw new \InvalidArgumentException(json_encode($v->errors(), JSON_UNESCAPED_UNICODE));
 
-        $slug = $slug ?: Slugger::make($name);
-        // unikatnost slugů přes existující repo (není per-type unikátní; pokud chceš, můžeš přidat kontrolu per type)
-        if ($this->repo->findBySlug($slug)) {
-            $slug = $slug . '-' . substr(bin2hex(random_bytes(2)),0,3);
-        }
+        $baseSlug = trim((string)($slug ?? ''));
+        $slug = $baseSlug !== ''
+            ? Slugger::uniqueInTerms($baseSlug, $type)
+            : Slugger::uniqueInTerms($name, $type);
 
         return $this->repo->create([
             'type'        => $type,

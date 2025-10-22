@@ -12,9 +12,22 @@ final class TermsRepository
         return DB::query()->table('terms')->select(['*'])->where('id','=',$id)->first();
     }
 
-    public function findBySlug(string $slug): ?array
+    public function findBySlug(string $slug, ?string $type = null, ?int $excludeId = null): ?array
     {
-        return DB::query()->table('terms')->select(['*'])->where('slug','=',$slug)->first();
+        $query = DB::query()
+            ->table('terms')
+            ->select(['*'])
+            ->where('slug', '=', $slug);
+
+        if ($type !== null && $type !== '') {
+            $query->where('type', '=', $type);
+        }
+
+        if ($excludeId !== null) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        return $query->first();
     }
 
     public function findByNameAndType(string $name, string $type): ?array
