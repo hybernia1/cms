@@ -21,10 +21,11 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       <thead class="table-light">
         <tr>
           <th>Předmět</th>
-          <th style="width:200px">Odeslání</th>
+          <th style="width:200px">Stav</th>
+          <th style="width:240px">Plán</th>
           <th style="width:200px">Autor</th>
           <th style="width:180px">Vytvořeno</th>
-          <th style="width:220px" class="text-end">Akce</th>
+          <th style="width:260px" class="text-end">Akce</th>
         </tr>
       </thead>
       <tbody data-newsletter-campaigns-tbody>
@@ -32,9 +33,17 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
           <?php
             $id = (int)($item['id'] ?? 0);
             $subject = (string)($item['subject'] ?? '');
+            $status = (string)($item['status'] ?? 'draft');
+            $statusLabel = (string)($item['status_label'] ?? $status);
+            $statusBadge = (string)($item['status_badge'] ?? 'secondary');
             $recipients = (int)($item['recipients_count'] ?? 0);
             $sent = (int)($item['sent_count'] ?? 0);
             $failed = (int)($item['failed_count'] ?? 0);
+            $schedule = is_array($item['schedule'] ?? null) ? $item['schedule'] : [];
+            $scheduleStatus = (string)($schedule['status_label'] ?? '');
+            $scheduleNext = (string)($schedule['next_run_at_display'] ?? '');
+            $scheduleAttempts = (int)($schedule['attempts'] ?? 0);
+            $scheduleMaxAttempts = (int)($schedule['max_attempts'] ?? 0);
             $authorName = trim((string)($item['author_name'] ?? ''));
             $authorEmail = trim((string)($item['author_email'] ?? ''));
             $createdDisplay = (string)($item['created_at_display'] ?? '');
@@ -44,6 +53,8 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
                 'id'      => $id,
                 'subject' => $subject,
                 'body'    => (string)($item['body'] ?? ''),
+                'status'  => $status,
+                'schedule'=> $schedule,
             ];
           ?>
           <tr data-newsletter-campaign-row data-campaign-id="<?= $id ?>">
@@ -53,8 +64,24 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
               </div>
             </td>
             <td>
+              <div>
+                <span class="badge bg-<?= $h($statusBadge) ?>"><?= $h($statusLabel) ?></span>
+              </div>
               <div class="text-secondary small">Adresátů: <?= $recipients ?></div>
               <div class="text-secondary small">Úspěšně: <?= $sent ?>, Chyby: <?= $failed ?></div>
+            </td>
+            <td>
+              <?php if ($scheduleStatus !== ''): ?>
+                <div class="fw-semibold small"><?= $h($scheduleStatus) ?></div>
+              <?php else: ?>
+                <div class="text-secondary small">Bez plánu</div>
+              <?php endif; ?>
+              <div class="text-secondary small">
+                Pokusy: <?= $scheduleAttempts ?> / <?= $scheduleMaxAttempts ?>
+              </div>
+              <?php if ($scheduleNext !== ''): ?>
+                <div class="text-secondary small">Další spuštění: <?= $h($scheduleNext) ?></div>
+              <?php endif; ?>
             </td>
             <td>
               <?php if ($authorName !== ''): ?>
@@ -89,6 +116,79 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
               >
                 <i class="bi bi-pencil"></i>
               </button>
+              <button
+                class="btn btn-light btn-sm border me-1"
+                type="button"
+                data-newsletter-campaign-schedule-trigger
+                data-campaign-id="<?= $id ?>"
+                data-bs-toggle="tooltip"
+                data-bs-title="Plánování"
+              >
+                <i class="bi bi-calendar-event"></i>
+              </button>
+              <?php $this->render('parts/forms/confirm-action', [
+                'action' => 'admin.php?r=newsletter-campaigns&a=pause',
+                'csrf'   => $csrf,
+                'hidden' => [
+                  'id'     => $id,
+                  'q'      => $filters['q'],
+                  'author' => $filters['author'],
+                  'page'   => $page,
+                ],
+                'button' => [
+                  'icon'      => 'bi bi-pause-circle',
+                  'tooltip'   => 'Pozastavit plán',
+                  'ariaLabel' => 'Pozastavit plán',
+                ],
+                'confirm' => [
+                  'message' => 'Pozastavit plán této kampaně?',
+                  'title'   => 'Pozastavení plánu',
+                  'confirm' => 'Pozastavit',
+                  'cancel'  => 'Zrušit',
+                ],
+              ]); ?>
+              <?php $this->render('parts/forms/confirm-action', [
+                'action' => 'admin.php?r=newsletter-campaigns&a=resume',
+                'csrf'   => $csrf,
+                'hidden' => [
+                  'id'     => $id,
+                  'q'      => $filters['q'],
+                  'author' => $filters['author'],
+                  'page'   => $page,
+                ],
+                'button' => [
+                  'icon'      => 'bi bi-play-circle',
+                  'tooltip'   => 'Obnovit plán',
+                  'ariaLabel' => 'Obnovit plán',
+                ],
+                'confirm' => [
+                  'message' => 'Obnovit plán této kampaně?',
+                  'title'   => 'Obnovení plánu',
+                  'confirm' => 'Obnovit',
+                  'cancel'  => 'Zrušit',
+                ],
+              ]); ?>
+              <?php $this->render('parts/forms/confirm-action', [
+                'action' => 'admin.php?r=newsletter-campaigns&a=trigger',
+                'csrf'   => $csrf,
+                'hidden' => [
+                  'id'     => $id,
+                  'q'      => $filters['q'],
+                  'author' => $filters['author'],
+                  'page'   => $page,
+                ],
+                'button' => [
+                  'icon'      => 'bi bi-lightning-charge',
+                  'tooltip'   => 'Spustit nyní',
+                  'ariaLabel' => 'Spustit nyní',
+                ],
+                'confirm' => [
+                  'message' => 'Spustit tuto kampaň okamžitě?',
+                  'title'   => 'Ruční spuštění',
+                  'confirm' => 'Spustit',
+                  'cancel'  => 'Zrušit',
+                ],
+              ]); ?>
               <?php $this->render('parts/forms/confirm-action', [
                 'action' => 'admin.php?r=newsletter-campaigns&a=duplicate',
                 'csrf'   => $csrf,
@@ -142,7 +242,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
 
         <?php if ($items === []): ?>
           <tr data-newsletter-campaigns-empty-row>
-            <td colspan="5" class="text-center text-secondary py-4">
+            <td colspan="6" class="text-center text-secondary py-4">
               <i class="bi bi-inbox me-1"></i>Žádné kampaně
             </td>
           </tr>

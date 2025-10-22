@@ -171,12 +171,22 @@ SQL
 CREATE TABLE IF NOT EXISTS newsletter_campaign_schedules (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   campaign_id INT UNSIGNED NOT NULL,
-  scheduled_for DATETIME NOT NULL,
-  status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  status VARCHAR(50) NOT NULL DEFAULT 'draft',
+  start_at DATETIME NULL,
+  end_at DATETIME NULL,
+  interval_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+  max_attempts INT UNSIGNED NOT NULL DEFAULT 1,
+  attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  next_run_at DATETIME NULL,
+  last_run_at DATETIME NULL,
   created_at DATETIME NOT NULL,
-  processed_at DATETIME NULL,
-  INDEX ix_newsletter_campaign_schedules_campaign (campaign_id),
-  INDEX ix_newsletter_campaign_schedules_status (status)
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_newsletter_campaign_schedule_campaign (campaign_id),
+  INDEX ix_newsletter_campaign_schedules_status (status),
+  INDEX ix_newsletter_campaign_schedules_next_run (next_run_at),
+  CONSTRAINT fk_newsletter_campaign_schedule_campaign
+    FOREIGN KEY (campaign_id) REFERENCES newsletter_campaigns(id)
+    ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
 ,

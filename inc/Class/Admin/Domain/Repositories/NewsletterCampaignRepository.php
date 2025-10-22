@@ -4,11 +4,17 @@ declare(strict_types=1);
 namespace Cms\Admin\Domain\Repositories;
 
 use Cms\Admin\Domain\Entities\NewsletterCampaign;
+use Cms\Admin\Domain\Repositories\NewsletterCampaignScheduleRepository;
 use Cms\Admin\Utils\DateTimeFactory;
 use Core\Database\Init as DB;
 
 final class NewsletterCampaignRepository
 {
+    public function __construct(
+        private readonly NewsletterCampaignScheduleRepository $scheduleRepository = new NewsletterCampaignScheduleRepository(),
+    ) {
+    }
+
     public function create(NewsletterCampaign $campaign): NewsletterCampaign
     {
         $id = (int) DB::query()
@@ -37,6 +43,8 @@ final class NewsletterCampaignRepository
 
     public function delete(int $id): void
     {
+        $this->scheduleRepository->deleteForCampaign($id);
+
         DB::query()
             ->table('newsletter_campaigns')
             ->delete()
