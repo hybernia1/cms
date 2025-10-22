@@ -12,6 +12,7 @@ use Core\Database\SchemaChecker;
 require_once __DIR__ . '/load.php';
 
 cms_bootstrap_config_or_redirect();
+cms_bootstrap_cron();
 
 $schemaChecker = new SchemaChecker();
 $schemaChecker->preload();

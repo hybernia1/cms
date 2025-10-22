@@ -114,3 +114,17 @@ function cms_bootstrap_config_or_redirect(): array
     return $config;
 }
 
+function cms_bootstrap_cron(bool $runTick = true): void
+{
+    if (!class_exists(\Core\Cron\Cron::class)) {
+        return;
+    }
+
+    $cron = \Core\Cron\Cron::instance();
+    $ready = $cron->ensureReady();
+
+    if ($runTick && $ready) {
+        $cron->tick();
+    }
+}
+
