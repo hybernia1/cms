@@ -95,15 +95,13 @@ final class MediaController extends BaseAdminController
             ]);
 
             $this->jsonResponse([
-                'success' => true,
-                'data'    => [
-                    'filters'    => $filters,
-                    'pagination' => $pagination,
-                    'items'      => $items,
-                    'html'       => [
-                        'grid'       => $gridHtml,
-                        'pagination' => $paginationHtml,
-                    ],
+                'success'    => true,
+                'filters'    => $filters,
+                'pagination' => $pagination,
+                'items'      => $items,
+                'html'       => [
+                    'grid'       => $gridHtml,
+                    'pagination' => $paginationHtml,
                 ],
             ]);
         }
@@ -174,12 +172,10 @@ final class MediaController extends BaseAdminController
                 $this->jsonResponse([
                     'success' => true,
                     'flash'   => ['type' => 'success', 'msg' => $message],
-                    'data'    => [
-                        'items'  => $itemsData['list'],
-                        'html'   => ['items' => $cards],
-                        'insert' => 'prepend',
-                        'context'=> $this->extractContext($_POST),
-                    ],
+                    'items'   => $itemsData['list'],
+                    'html'    => ['items' => $cards],
+                    'insert'  => 'prepend',
+                    'context' => $this->extractContext($_POST),
                 ]);
             }
 
@@ -226,12 +222,10 @@ final class MediaController extends BaseAdminController
 
         if ($this->isAjax()) {
             $this->jsonResponse([
-                'success' => true,
-                'flash'   => ['type' => 'success', 'msg' => 'Soubor odstraněn.'],
-                'data'    => [
-                    'removedId' => $id,
-                    'context'   => $this->extractContext($_POST),
-                ],
+                'success'   => true,
+                'flash'     => ['type' => 'success', 'msg' => 'Soubor odstraněn.'],
+                'removedId' => $id,
+                'context'   => $this->extractContext($_POST),
             ]);
         }
 
@@ -325,11 +319,9 @@ final class MediaController extends BaseAdminController
                 $this->jsonResponse([
                     'success' => true,
                     'flash'   => ['type' => $flashType, 'msg' => $message],
-                    'data'    => [
-                        'item'  => $item,
-                        'html'  => ['items' => $cards],
-                        'context' => $this->extractContext($_POST),
-                    ],
+                    'item'    => $item,
+                    'html'    => ['items' => $cards],
+                    'context' => $this->extractContext($_POST),
                 ]);
             }
 
