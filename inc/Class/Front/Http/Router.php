@@ -12,7 +12,7 @@ use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\DateTimeFactory;
-use Cms\Admin\Validation\Validator;
+use Core\Validation\Validator;
 use Cms\Front\Data\CommentProvider;
 use Cms\Front\Data\MenuProvider;
 use Cms\Front\Data\PostProvider;
