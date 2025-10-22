@@ -36,6 +36,7 @@ import {
   configurePostsListing,
   handlePostsActionResponse
 } from './ui/listings/posts.js';
+import { initPostEditor } from './ui/post-editor.js';
 import { cssEscapeValue } from './utils/css-escape.js';
 
   var adminMenuMediaQuery = null;
@@ -288,6 +289,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     initPostsListing(root);
     initMediaLibrary(root);
     initQuickDraftWidget(root);
+    initPostEditor(root);
     initAdminMenuToggle(root);
     initTopbarActions(root);
     initNavigationUI(root);
