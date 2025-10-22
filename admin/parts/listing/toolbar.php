@@ -22,7 +22,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
     <nav aria-label="Filtr" class="<?= $h($tabsClass) ?>">
       <ul class="nav nav-pills nav-sm">
         <?php foreach ($tabs as $tab): ?>
-          <li class="nav-item">
+          <li class="nav-item small">
             <a class="nav-link px-3 py-1 <?= !empty($tab['active']) ? 'active' : '' ?>" href="<?= $h((string)$tab['href']) ?>">
               <?= $h((string)$tab['label']) ?>
               <?php if (array_key_exists('count', $tab) && $tab['count'] !== null): ?>
