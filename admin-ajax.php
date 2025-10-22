@@ -8,7 +8,6 @@ use Cms\Admin\Http\AjaxResponse;
 require_once __DIR__ . '/load.php';
 
 cms_bootstrap_config_or_redirect();
-cms_bootstrap_cron();
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
