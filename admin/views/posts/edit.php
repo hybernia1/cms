@@ -273,52 +273,40 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </form>
 
 
-    <?php $this->render('partials/media-upload-modal', [
+    <?php $this->render('partials/media-picker-modal', [
       'modalId'          => 'mediaPickerModal',
       'title'            => 'Vybrat nebo nahrát obrázek',
       'dialogClass'      => 'modal-xl modal-dialog-scrollable',
       'modalAttributes'  => [
-        'data-thumbnail-modal'       => '1',
-        'data-thumbnail-library-url' => $mediaLibraryUrl,
+        'data-media-picker-context'     => 'thumbnail',
+        'data-media-picker-library-url' => $mediaLibraryUrl,
+      ],
+      'tabs'             => [
+        'upload'  => 'Nahrát nový',
+        'library' => 'Knihovna',
+      ],
+      'upload'           => [
+        'headline'     => 'Přetáhni soubor sem nebo klikni pro výběr.',
+        'description'  => 'Podporované formáty: JPG, PNG, GIF, WEBP, PDF.',
+        'input'        => [
+          'accept' => '.jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf',
+          'class'  => 'form-control',
+          'style'  => 'max-width:320px;margin:0 auto;',
+        ],
+        'summaryClass' => 'text-secondary small mt-2 d-none',
+        'note'         => 'Po výběru potvrď tlačítkem „Použít“.',
+      ],
+      'library'          => [
+        'emptyText' => 'Žádné obrázky zatím nejsou k dispozici.',
+      ],
+      'applyButton'      => [
+        'defaultLabel' => 'Použít',
+        'uploadLabel'  => 'Použít nahraný soubor',
+        'libraryLabel' => 'Vybrat z knihovny',
+        'icon'         => 'bi bi-check2-circle me-1',
       ],
       'headerCloseLabel' => 'Zavřít',
       'footerCloseLabel' => 'Zavřít',
-      'body'             => function (): void { ?>
-        <ul class="nav nav-tabs" id="mediaPickerTabs" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="media-upload-tab" data-bs-toggle="tab" data-bs-target="#media-upload-pane" type="button" role="tab">Nahrát nový</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="media-library-tab" data-bs-toggle="tab" data-bs-target="#media-library-pane" type="button" role="tab" data-thumbnail-library-tab>Knihovna</button>
-          </li>
-        </ul>
-        <div class="tab-content pt-3">
-          <div class="tab-pane fade show active" id="media-upload-pane" role="tabpanel" aria-labelledby="media-upload-tab">
-            <div id="media-dropzone" class="border border-dashed rounded-3 p-4 text-center bg-body-tertiary" data-thumbnail-dropzone>
-              <i class="bi bi-cloud-arrow-up fs-2 mb-2 d-block"></i>
-              <p class="mb-2">Přetáhni soubor sem nebo klikni pro výběr.</p>
-              <p class="text-secondary small mb-3">Podporované formáty: JPG, PNG, GIF, WEBP, PDF.</p>
-              <input type="file" id="media-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" class="form-control" style="max-width:320px;margin:0 auto;" data-thumbnail-modal-file-input>
-              <p class="text-secondary small mt-3 mb-0">Po výběru potvrď tlačítkem <strong>Použít</strong>.</p>
-              <div id="media-upload-preview" class="text-secondary small mt-2 d-none" data-thumbnail-upload-preview></div>
-            </div>
-          </div>
-          <div class="tab-pane fade" id="media-library-pane" role="tabpanel" aria-labelledby="media-library-tab">
-            <div id="media-library-loading" class="text-center py-4 d-none" data-thumbnail-library-loading>
-              <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Načítání…</span></div>
-            </div>
-            <div id="media-library-error" class="alert alert-danger d-none" data-thumbnail-library-error></div>
-            <div id="media-library-empty" class="text-secondary text-center py-4 d-none" data-thumbnail-library-empty>Žádné obrázky zatím nejsou k dispozici.</div>
-            <div id="media-library-grid" class="row g-3" data-thumbnail-library-grid></div>
-          </div>
-        </div>
-      <?php },
-      'footer'           => function (): void { ?>
-        <button type="button" class="btn btn-primary" id="media-apply-btn" disabled data-default-label="Použít" data-thumbnail-apply>
-          <i class="bi bi-check2-circle me-1"></i><span data-label>Použít</span>
-        </button>
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
-      <?php },
     ]); ?>
 
   <div class="modal fade" id="contentEditorLinkModal" tabindex="-1" aria-hidden="true">
@@ -347,40 +335,38 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
-  <?php $this->render('partials/media-upload-modal', [
+  <?php $this->render('partials/media-picker-modal', [
     'modalId'          => 'contentEditorImageModal',
     'title'            => 'Vložit obrázek',
     'dialogClass'      => 'modal-lg modal-dialog-scrollable',
-    'headerCloseLabel' => 'Zavřít',
-    'footerCloseLabel' => 'Zavřít',
-    'body'             => function (): void { ?>
-      <ul class="nav nav-tabs" id="content-image-tabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="content-image-upload-tab" data-bs-toggle="tab" data-bs-target="#content-image-upload-pane" type="button" role="tab">Nahrát nový</button>
-        </li>
-        <li class="nav-item" role="presentation">
-          <button class="nav-link" id="content-image-library-tab" data-bs-toggle="tab" data-bs-target="#content-image-library-pane" type="button" role="tab">Knihovna</button>
-        </li>
-      </ul>
-      <div class="tab-content pt-3">
-        <div class="tab-pane fade show active" id="content-image-upload-pane" role="tabpanel" aria-labelledby="content-image-upload-tab">
-          <div class="border border-dashed rounded-3 p-4 text-center bg-body-tertiary" id="content-image-dropzone">
-            <i class="bi bi-cloud-arrow-up fs-2 mb-2 d-block"></i>
-            <p class="mb-2">Přetáhni soubor sem nebo klikni pro výběr.</p>
-            <p class="text-secondary small mb-3">Podporované formáty: JPG, PNG, GIF, WEBP.</p>
-            <input type="file" id="content-image-file" accept=".jpg,.jpeg,.png,.webp,.gif,image/*" class="form-control" style="max-width:320px;margin:0 auto;">
-            <div id="content-image-upload-info" class="text-secondary small mt-2 d-none"></div>
-          </div>
-        </div>
-        <div class="tab-pane fade" id="content-image-library-pane" role="tabpanel" aria-labelledby="content-image-library-tab">
-          <div id="content-image-library-loading" class="text-center py-4 d-none">
-            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Načítání…</span></div>
-          </div>
-          <div id="content-image-library-error" class="alert alert-danger d-none"></div>
-          <div id="content-image-library-empty" class="text-secondary text-center py-4 d-none">Žádné obrázky zatím nejsou k dispozici.</div>
-          <div id="content-image-library-grid" class="row g-3"></div>
-        </div>
-      </div>
+    'modalAttributes'  => [
+      'data-media-picker-context'     => 'content-image',
+      'data-media-picker-library-url' => 'admin.php?r=media&a=library&type=image&limit=60',
+    ],
+    'tabs'             => [
+      'upload'  => 'Nahrát nový',
+      'library' => 'Knihovna',
+    ],
+    'upload'           => [
+      'headline'     => 'Přetáhni soubor sem nebo klikni pro výběr.',
+      'description'  => 'Podporované formáty: JPG, PNG, GIF, WEBP.',
+      'input'        => [
+        'accept' => '.jpg,.jpeg,.png,.webp,.gif,image/*',
+        'class'  => 'form-control',
+        'style'  => 'max-width:320px;margin:0 auto;',
+      ],
+      'summaryClass' => 'text-secondary small mt-2 d-none',
+    ],
+    'library'          => [
+      'emptyText' => 'Žádné obrázky zatím nejsou k dispozici.',
+    ],
+    'applyButton'      => [
+      'defaultLabel' => 'Vložit',
+      'uploadLabel'  => 'Nahrát a vložit',
+      'libraryLabel' => 'Vložit z knihovny',
+      'attributes'   => ['data-image-confirm' => '1'],
+    ],
+    'afterTabs'        => function (): void { ?>
       <div class="mt-4">
         <label class="form-label" for="content-image-alt">Alternativní text</label>
         <input type="text" class="form-control" id="content-image-alt" data-image-alt placeholder="Popis obrázku">
@@ -388,11 +374,11 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
       </div>
       <div class="text-danger small mt-3 d-none" data-image-error></div>
     <?php },
-    'footer'           => function (): void { ?>
-      <div class="me-auto text-secondary small" id="content-image-selected-info"></div>
-      <button type="button" class="btn btn-primary" data-image-confirm disabled>Vložit</button>
-      <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
+    'footerBeforeButtons' => function (): void { ?>
+      <div class="me-auto text-secondary small" data-image-selected-info></div>
     <?php },
+    'headerCloseLabel' => 'Zavřít',
+    'footerCloseLabel' => 'Zavřít',
   ]); ?>
   </div>
 <?php
