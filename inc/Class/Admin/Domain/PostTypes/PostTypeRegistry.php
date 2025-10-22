@@ -7,6 +7,7 @@ use InvalidArgumentException;
 
 /**
  * @phpstan-type PostTypeConfig array{
+ *     slug: string,
  *     nav: string,
  *     list: string,
  *     create: string,
@@ -24,6 +25,11 @@ final class PostTypeRegistry
     private static array $types = [];
 
     /**
+     * @var array<string,string>
+     */
+    private static array $typesBySlug = [];
+
+    /**
      * @param array<string,mixed> $args
      */
     public static function register(string $type, array $args): void
@@ -34,8 +40,10 @@ final class PostTypeRegistry
         }
 
         $label = (string)($args['label'] ?? self::humanizeSlug($type));
+        $slug = self::normalizeSlug($args['slug'] ?? null, $type);
 
         $defaults = [
+            'slug'     => $slug,
             'nav'      => $label,
             'list'     => $label,
             'create'   => 'Create ' . $label,
@@ -47,6 +55,7 @@ final class PostTypeRegistry
 
         /**
          * @var array{
+         *     slug?:string,
          *     nav?:string,
          *     list?:string,
          *     create?:string,
@@ -58,9 +67,25 @@ final class PostTypeRegistry
          */
         $config = array_replace($defaults, $args);
 
+        $config['slug'] = self::normalizeSlug($config['slug'] ?? null, $type);
         $supports = self::normalizeSupports($config['supports']);
 
+        $previousSlug = self::$types[$type]['slug'] ?? null;
+        if ($previousSlug !== null && $previousSlug !== $config['slug']) {
+            unset(self::$typesBySlug[$previousSlug]);
+        }
+
+        $existingTypeForSlug = self::$typesBySlug[$config['slug']] ?? null;
+        if ($existingTypeForSlug !== null && $existingTypeForSlug !== $type) {
+            throw new InvalidArgumentException(sprintf(
+                'Post type slug "%s" is already registered for type "%s".',
+                $config['slug'],
+                $existingTypeForSlug
+            ));
+        }
+
         self::$types[$type] = [
+            'slug'     => $config['slug'],
             'nav'      => (string)$config['nav'],
             'list'     => (string)$config['list'],
             'create'   => (string)$config['create'],
@@ -69,6 +94,8 @@ final class PostTypeRegistry
             'icon'     => (string)$config['icon'],
             'supports' => $supports,
         ];
+
+        self::$typesBySlug[$config['slug']] = $type;
     }
 
     /**
@@ -85,6 +112,22 @@ final class PostTypeRegistry
     public static function get(string $type): ?array
     {
         return self::$types[$type] ?? null;
+    }
+
+    public static function slugForType(string $type): ?string
+    {
+        return self::$types[$type]['slug'] ?? null;
+    }
+
+    public static function typeForSlug(string $slug): ?string
+    {
+        try {
+            $normalized = self::normalizeSlug($slug, $slug);
+        } catch (InvalidArgumentException $exception) {
+            return null;
+        }
+
+        return self::$typesBySlug[$normalized] ?? null;
     }
 
     /**
@@ -113,6 +156,26 @@ final class PostTypeRegistry
         }
 
         return array_values($normalized);
+    }
+
+    private static function normalizeSlug(mixed $slug, string $type): string
+    {
+        $value = trim((string)($slug ?? ''));
+        if ($value === '') {
+            $value = trim($type);
+        }
+
+        $value = strtolower($value);
+
+        if ($value === '') {
+            throw new InvalidArgumentException('Post type slug must not be empty.');
+        }
+
+        if (!preg_match('/^[a-z0-9_-]+$/', $value)) {
+            throw new InvalidArgumentException('Post type slug may only contain lowercase letters, numbers, underscores, and hyphens.');
+        }
+
+        return $value;
     }
 
     private static function assertFeatureSupported(string $feature): void
