@@ -34,6 +34,16 @@ final class NewsletterService
         return $this->repo->findByEmail($email);
     }
 
+    public function findByUnsubscribeToken(string $token): ?array
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        return $this->repo->findByUnsubscribeToken($token);
+    }
+
     public function paginate(array $filters = [], int $page = 1, int $perPage = 20): array
     {
         return $this->repo->paginate($filters, $page, $perPage);
@@ -214,6 +224,11 @@ final class NewsletterService
         }
 
         if ((string) ($subscriber['status'] ?? '') === self::STATUS_UNSUBSCRIBED) {
+            if (!empty($subscriber['unsubscribe_token'])) {
+                $this->repo->update((int) $subscriber['id'], [
+                    'unsubscribe_token' => null,
+                ]);
+            }
             return true;
         }
 
@@ -221,6 +236,7 @@ final class NewsletterService
             'status'             => self::STATUS_UNSUBSCRIBED,
             'confirm_token'      => null,
             'confirm_expires_at' => null,
+            'unsubscribe_token'  => null,
             'unsubscribed_at'    => DateTimeFactory::nowString(),
         ]);
 
