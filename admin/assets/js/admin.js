@@ -287,6 +287,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     initTermsListing(root);
     initTermsForm(root);
     initPostsListing(root);
+    initMediaUploadModals(root);
     initMediaLibrary(root);
     initQuickDraftWidget(root);
     initPostEditor(root);
@@ -573,6 +574,140 @@ import { cssEscapeValue } from './utils/css-escape.js';
     });
   }
 
+  function initMediaUploadModals(root) {
+    var scope = root || document;
+    var modals = [].slice.call(scope.querySelectorAll('[data-media-upload-modal]'));
+    var instances = [];
+    modals.forEach(function (modalEl) {
+      if (!modalEl || modalEl.dataset.mediaUploadBound === '1') {
+        if (modalEl && modalEl._mediaUploadState) {
+          instances.push(modalEl._mediaUploadState);
+        }
+        return;
+      }
+
+      var form = modalEl.querySelector('[data-role="media-upload-form"]') || modalEl.querySelector('[data-media-upload-form]');
+      var fileInput = modalEl.querySelector('[data-role="file-input"]');
+      var dropzone = modalEl.querySelector('[data-role="dropzone"]');
+      var browseBtn = modalEl.querySelector('[data-role="browse-button"]');
+      var summary = modalEl.querySelector('[data-role="summary"]');
+      var submitBtn = modalEl.querySelector('[data-role="submit"]');
+
+      if (!(form instanceof HTMLFormElement) || !(fileInput instanceof HTMLInputElement) || !summary || !submitBtn) {
+        return;
+      }
+
+      function formatFileSize(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) {
+          return '';
+        }
+        var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        var value = bytes;
+        var index = 0;
+        while (value >= 1024 && index < units.length - 1) {
+          value /= 1024;
+          index += 1;
+        }
+        return index === 0 ? Math.round(value) + ' ' + units[index] : value.toFixed(1) + ' ' + units[index];
+      }
+
+      function renderSummary() {
+        var files = fileInput.files;
+        summary.innerHTML = '';
+        if (!files || files.length === 0) {
+          summary.classList.add('d-none');
+          if (typeof submitBtn.disabled === 'boolean') {
+            submitBtn.disabled = true;
+          }
+          return;
+        }
+        var list = document.createElement('ul');
+        list.className = 'list-unstyled mb-2';
+        Array.from(files).forEach(function (file) {
+          var li = document.createElement('li');
+          li.className = 'mb-1';
+          var sizeText = typeof file.size === 'number' ? formatFileSize(file.size) : '';
+          li.textContent = file.name + (sizeText ? ' (' + sizeText + ')' : '');
+          list.appendChild(li);
+        });
+        summary.appendChild(list);
+        summary.classList.remove('d-none');
+        if (typeof submitBtn.disabled === 'boolean') {
+          submitBtn.disabled = false;
+        }
+      }
+
+      function resetUpload() {
+        try { fileInput.value = ''; } catch (err) {}
+        summary.innerHTML = '';
+        summary.classList.add('d-none');
+        if (typeof submitBtn.disabled === 'boolean') {
+          submitBtn.disabled = true;
+        }
+      }
+
+      fileInput.addEventListener('change', renderSummary);
+
+      if (browseBtn) {
+        browseBtn.addEventListener('click', function (evt) {
+          evt.preventDefault();
+          fileInput.click();
+        });
+      }
+
+      if (dropzone) {
+        dropzone.addEventListener('dragover', function (evt) {
+          evt.preventDefault();
+          dropzone.classList.add('is-dragover');
+        });
+        dropzone.addEventListener('dragleave', function () {
+          dropzone.classList.remove('is-dragover');
+        });
+        dropzone.addEventListener('dragend', function () {
+          dropzone.classList.remove('is-dragover');
+        });
+        dropzone.addEventListener('drop', function (evt) {
+          evt.preventDefault();
+          dropzone.classList.remove('is-dragover');
+          if (!evt.dataTransfer || !evt.dataTransfer.files || evt.dataTransfer.files.length === 0) {
+            return;
+          }
+          var files = evt.dataTransfer.files;
+          try {
+            var dt = new DataTransfer();
+            Array.from(files).forEach(function (file) { dt.items.add(file); });
+            fileInput.files = dt.files;
+          } catch (err) {
+            try { fileInput.files = files; } catch (e) {}
+          }
+          renderSummary();
+        });
+        dropzone.addEventListener('click', function (evt) {
+          if (browseBtn && (evt.target === browseBtn || browseBtn.contains(evt.target))) {
+            return;
+          }
+          fileInput.click();
+        });
+      }
+
+      modalEl.addEventListener('show.bs.modal', resetUpload);
+      modalEl.addEventListener('hidden.bs.modal', resetUpload);
+
+      resetUpload();
+
+      var api = {
+        reset: resetUpload,
+        renderSummary: renderSummary,
+        modal: modalEl,
+        form: form
+      };
+      modalEl.dataset.mediaUploadBound = '1';
+      modalEl._mediaUploadState = api;
+      instances.push(api);
+    });
+    return instances;
+  }
+
   function initMediaLibrary(root) {
     var scope = root || document;
     var containers = [].slice.call(scope.querySelectorAll('[data-media-library]'));
@@ -809,128 +944,31 @@ import { cssEscapeValue } from './utils/css-escape.js';
         return api;
       }
 
-      function initUploadModal() {
+      function getUploadState() {
         if (state.upload) {
           return state.upload;
         }
-        var modalEl = document.getElementById('mediaUploadModal');
-        var form = document.getElementById('media-upload-form');
-        var fileInput = document.getElementById('media-upload-input');
-        var dropzone = document.getElementById('media-upload-dropzone');
-        var browseBtn = document.getElementById('media-upload-browse');
-        var summary = document.getElementById('media-upload-summary');
-        var submitBtn = document.getElementById('media-upload-submit');
-
-        if (!modalEl || !form || !fileInput || !summary || !submitBtn) {
-          return null;
+        var instances = initMediaUploadModals(document);
+        var modalForm = document.querySelector('[data-media-upload-modal] [data-media-upload-form]');
+        if (modalForm && modalForm.closest) {
+          var modalElement = modalForm.closest('[data-media-upload-modal]');
+          if (modalElement && modalElement._mediaUploadState) {
+            state.upload = modalElement._mediaUploadState;
+            return state.upload;
+          }
         }
-        if (modalEl.dataset.mediaUploadBound === '1') {
-          state.upload = modalEl._mediaUploadState || null;
+        for (var index = 0; index < instances.length; index += 1) {
+          if (instances[index]) {
+            state.upload = instances[index];
+            return state.upload;
+          }
+        }
+        var fallbackModal = document.querySelector('[data-media-upload-modal]');
+        if (fallbackModal && fallbackModal._mediaUploadState) {
+          state.upload = fallbackModal._mediaUploadState;
           return state.upload;
         }
-
-        function formatFileSize(bytes) {
-          if (!Number.isFinite(bytes) || bytes <= 0) {
-            return '';
-          }
-          var units = ['B', 'KB', 'MB', 'GB', 'TB'];
-          var value = bytes;
-          var index = 0;
-          while (value >= 1024 && index < units.length - 1) {
-            value /= 1024;
-            index += 1;
-          }
-          return index === 0 ? Math.round(value) + ' ' + units[index] : value.toFixed(1) + ' ' + units[index];
-        }
-
-        function renderSummary() {
-          var files = fileInput.files;
-          summary.innerHTML = '';
-          if (!files || files.length === 0) {
-            summary.classList.add('d-none');
-            submitBtn.disabled = true;
-            return;
-          }
-          var list = document.createElement('ul');
-          list.className = 'list-unstyled mb-2';
-          Array.from(files).forEach(function (file) {
-            var li = document.createElement('li');
-            li.className = 'mb-1';
-            var sizeText = typeof file.size === 'number' ? formatFileSize(file.size) : '';
-            li.textContent = file.name + (sizeText ? ' (' + sizeText + ')' : '');
-            list.appendChild(li);
-          });
-          summary.appendChild(list);
-          summary.classList.remove('d-none');
-          submitBtn.disabled = false;
-        }
-
-        function resetUpload() {
-          try { fileInput.value = ''; } catch (err) {}
-          summary.innerHTML = '';
-          summary.classList.add('d-none');
-          submitBtn.disabled = true;
-        }
-
-        fileInput.addEventListener('change', renderSummary);
-
-        if (browseBtn) {
-          browseBtn.addEventListener('click', function (evt) {
-            evt.preventDefault();
-            fileInput.click();
-          });
-        }
-
-        if (dropzone) {
-          dropzone.addEventListener('dragover', function (evt) {
-            evt.preventDefault();
-            dropzone.classList.add('is-dragover');
-          });
-          dropzone.addEventListener('dragleave', function () {
-            dropzone.classList.remove('is-dragover');
-          });
-          dropzone.addEventListener('dragend', function () {
-            dropzone.classList.remove('is-dragover');
-          });
-          dropzone.addEventListener('drop', function (evt) {
-            evt.preventDefault();
-            dropzone.classList.remove('is-dragover');
-            if (!evt.dataTransfer || !evt.dataTransfer.files || evt.dataTransfer.files.length === 0) {
-              return;
-            }
-            var files = evt.dataTransfer.files;
-            try {
-              var dt = new DataTransfer();
-              Array.from(files).forEach(function (file) { dt.items.add(file); });
-              fileInput.files = dt.files;
-            } catch (err) {
-              try { fileInput.files = files; } catch (e) {}
-            }
-            renderSummary();
-          });
-          dropzone.addEventListener('click', function (evt) {
-            if (browseBtn && (evt.target === browseBtn || browseBtn.contains(evt.target))) {
-              return;
-            }
-            fileInput.click();
-          });
-        }
-
-        modalEl.addEventListener('show.bs.modal', resetUpload);
-        modalEl.addEventListener('hidden.bs.modal', resetUpload);
-
-        resetUpload();
-
-        var api = {
-          reset: resetUpload,
-          renderSummary: renderSummary,
-          modal: modalEl,
-          form: form
-        };
-        modalEl.dataset.mediaUploadBound = '1';
-        modalEl._mediaUploadState = api;
-        state.upload = api;
-        return api;
+        return null;
       }
 
       function refreshMediaThumbnails(scopeElement) {
@@ -1131,7 +1169,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
           if (data.html && data.html.items) {
             insertMediaCards(data.html.items, 'prepend');
           }
-          var uploadState = state.upload || initUploadModal();
+          var uploadState = getUploadState();
           if (uploadState) {
             uploadState.reset();
             if (typeof bootstrap !== 'undefined' && typeof bootstrap.Modal === 'function') {
@@ -1307,7 +1345,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
       refreshMediaThumbnails(container);
       refreshMediaCopyButtons(container);
       refreshMediaActionForms(container);
-      initUploadModal();
+      initMediaUploadModals(document);
 
       var filterForm = container.querySelector('[data-media-filter-form]');
       if (filterForm && filterForm.dataset.mediaFilterBound !== '1') {
@@ -1510,6 +1548,7 @@ import { cssEscapeValue } from './utils/css-escape.js';
     loadAdminPage,
     initAjaxForms,
     initAjaxLinks,
+    initMediaUploadModals,
     bootHistory,
     dispatchNavigated,
     adminAjax,
