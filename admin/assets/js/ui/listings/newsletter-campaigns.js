@@ -105,27 +105,54 @@ function parseCampaignData(container, id) {
 function syncModalContext(container) {
   const modal = document.getElementById('newsletterCampaignEditModal');
   if (!modal) {
+    // continue to schedule modal sync even if edit modal missing
+  } else {
+    const form = modal.querySelector('[data-newsletter-campaigns-edit-form]');
+    if (form instanceof HTMLFormElement) {
+      const csrfInput = form.querySelector('input[name="csrf"]');
+      if (csrfInput) {
+        csrfInput.value = container.getAttribute('data-newsletter-campaigns-csrf') || '';
+      }
+      const qInput = form.querySelector('input[name="q"]');
+      if (qInput) {
+        qInput.value = container.getAttribute('data-newsletter-campaigns-filter-q') || '';
+      }
+      const authorInput = form.querySelector('input[name="author"]');
+      if (authorInput) {
+        authorInput.value = container.getAttribute('data-newsletter-campaigns-filter-author') || '0';
+      }
+      const pageInput = form.querySelector('input[name="page"]');
+      if (pageInput) {
+        pageInput.value = container.getAttribute('data-newsletter-campaigns-page') || '1';
+      }
+    }
+  }
+
+  const scheduleModal = document.getElementById('newsletterCampaignScheduleModal');
+  if (!scheduleModal) {
     return;
   }
-  const form = modal.querySelector('[data-newsletter-campaigns-edit-form]');
-  if (!(form instanceof HTMLFormElement)) {
+
+  const scheduleForm = scheduleModal.querySelector('[data-newsletter-campaigns-schedule-form]');
+  if (!(scheduleForm instanceof HTMLFormElement)) {
     return;
   }
-  const csrfInput = form.querySelector('input[name="csrf"]');
-  if (csrfInput) {
-    csrfInput.value = container.getAttribute('data-newsletter-campaigns-csrf') || '';
+
+  const scheduleCsrf = scheduleForm.querySelector('input[name="csrf"]');
+  if (scheduleCsrf) {
+    scheduleCsrf.value = container.getAttribute('data-newsletter-campaigns-csrf') || '';
   }
-  const qInput = form.querySelector('input[name="q"]');
-  if (qInput) {
-    qInput.value = container.getAttribute('data-newsletter-campaigns-filter-q') || '';
+  const scheduleQ = scheduleForm.querySelector('input[name="q"]');
+  if (scheduleQ) {
+    scheduleQ.value = container.getAttribute('data-newsletter-campaigns-filter-q') || '';
   }
-  const authorInput = form.querySelector('input[name="author"]');
-  if (authorInput) {
-    authorInput.value = container.getAttribute('data-newsletter-campaigns-filter-author') || '0';
+  const scheduleAuthor = scheduleForm.querySelector('input[name="author"]');
+  if (scheduleAuthor) {
+    scheduleAuthor.value = container.getAttribute('data-newsletter-campaigns-filter-author') || '0';
   }
-  const pageInput = form.querySelector('input[name="page"]');
-  if (pageInput) {
-    pageInput.value = container.getAttribute('data-newsletter-campaigns-page') || '1';
+  const schedulePage = scheduleForm.querySelector('input[name="page"]');
+  if (schedulePage) {
+    schedulePage.value = container.getAttribute('data-newsletter-campaigns-page') || '1';
   }
 }
 
@@ -155,6 +182,63 @@ function openEditModal(container, id) {
     idInput.value = String(id);
   }
   syncModalContext(container);
+  if (typeof bootstrap !== 'undefined' && typeof bootstrap.Modal !== 'undefined') {
+    const instance = bootstrap.Modal.getOrCreateInstance(modal);
+    instance.show();
+  }
+}
+
+function openScheduleModal(container, id) {
+  const data = parseCampaignData(container, id);
+  if (!data) {
+    return;
+  }
+
+  const modal = document.getElementById('newsletterCampaignScheduleModal');
+  if (!modal) {
+    return;
+  }
+
+  const form = modal.querySelector('[data-newsletter-campaigns-schedule-form]');
+  if (!(form instanceof HTMLFormElement)) {
+    return;
+  }
+
+  const startInput = form.querySelector('#newsletter-campaign-schedule-start');
+  const endInput = form.querySelector('#newsletter-campaign-schedule-end');
+  const intervalInput = form.querySelector('#newsletter-campaign-schedule-interval');
+  const attemptsInput = form.querySelector('#newsletter-campaign-schedule-attempts');
+  const idInput = form.querySelector('input[name="id"]');
+
+  const schedule = data.schedule && typeof data.schedule === 'object' ? data.schedule : {};
+
+  if (startInput instanceof HTMLInputElement) {
+    startInput.value = typeof schedule.start_at_local === 'string' ? schedule.start_at_local : '';
+  }
+  if (endInput instanceof HTMLInputElement) {
+    endInput.value = typeof schedule.end_at_local === 'string' ? schedule.end_at_local : '';
+  }
+  if (intervalInput instanceof HTMLInputElement) {
+    const intervalRaw = schedule.interval_minutes;
+    const intervalValue = typeof intervalRaw === 'number'
+      ? intervalRaw
+      : parseInt(String(intervalRaw || ''), 10);
+    intervalInput.value = String(Number.isFinite(intervalValue) ? Math.max(0, intervalValue) : 0);
+  }
+  if (attemptsInput instanceof HTMLInputElement) {
+    const attemptsRaw = schedule.max_attempts;
+    const attemptsValue = typeof attemptsRaw === 'number'
+      ? attemptsRaw
+      : parseInt(String(attemptsRaw || ''), 10);
+    const normalized = Number.isFinite(attemptsValue) ? Math.max(1, attemptsValue) : 1;
+    attemptsInput.value = String(normalized);
+  }
+  if (idInput instanceof HTMLInputElement) {
+    idInput.value = String(id);
+  }
+
+  syncModalContext(container);
+
   if (typeof bootstrap !== 'undefined' && typeof bootstrap.Modal !== 'undefined') {
     const instance = bootstrap.Modal.getOrCreateInstance(modal);
     instance.show();
@@ -229,6 +313,27 @@ function createController(container) {
     });
   }
 
+  function bindScheduleButtons() {
+    const buttons = [].slice.call(container.querySelectorAll('[data-newsletter-campaign-schedule-trigger]'));
+    buttons.forEach(function (button) {
+      if (!(button instanceof HTMLElement)) {
+        return;
+      }
+      if (button.dataset.newsletterCampaignsScheduleBound === '1') {
+        return;
+      }
+      button.dataset.newsletterCampaignsScheduleBound = '1';
+      button.addEventListener('click', function (event) {
+        event.preventDefault();
+        const id = button.getAttribute('data-campaign-id');
+        if (!id) {
+          return;
+        }
+        openScheduleModal(container, id);
+      });
+    });
+  }
+
   function submitFilterForm(form, submitter) {
     const method = (form.getAttribute('method') || 'GET').toUpperCase();
     const action = form.getAttribute('action') || window.location.href;
@@ -261,6 +366,7 @@ function createController(container) {
       refreshUI(container);
       bindFilterForm();
       bindEditButtons();
+      bindScheduleButtons();
     }
     if (data.filters && typeof data.filters === 'object') {
       if (Object.prototype.hasOwnProperty.call(data.filters, 'q')) {
@@ -337,6 +443,7 @@ function createController(container) {
   container.addEventListener('click', handleClick, true);
   bindFilterForm();
   bindEditButtons();
+  bindScheduleButtons();
   syncModalContext(container);
 
   return {
@@ -384,6 +491,15 @@ export function handleNewsletterCampaignsFormSuccess(event) {
       const instance = bootstrap.Modal.getInstance(modal);
       if (instance) {
         instance.hide();
+      }
+    }
+  }
+  if (form.hasAttribute('data-newsletter-campaigns-schedule-form')) {
+    const scheduleModal = document.getElementById('newsletterCampaignScheduleModal');
+    if (scheduleModal && typeof bootstrap !== 'undefined' && typeof bootstrap.Modal !== 'undefined') {
+      const scheduleInstance = bootstrap.Modal.getInstance(scheduleModal);
+      if (scheduleInstance) {
+        scheduleInstance.hide();
       }
     }
   }

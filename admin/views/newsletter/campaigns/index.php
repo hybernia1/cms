@@ -56,5 +56,10 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
     'filters' => $filters,
     'page'    => $page,
   ]); ?>
+  <?php $this->render('newsletter/campaigns/schedule-modal', [
+    'csrf'    => $csrf,
+    'filters' => $filters,
+    'page'    => $page,
+  ]); ?>
 <?php
 });

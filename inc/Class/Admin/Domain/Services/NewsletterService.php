@@ -60,10 +60,16 @@ final class NewsletterService
         $schedule = new NewsletterCampaignSchedule(
             null,
             $campaign->id() ?? 0,
+            NewsletterCampaignSchedule::STATUS_RUNNING,
             $now,
-            NewsletterCampaignSchedule::STATUS_PROCESSING,
             $now,
+            0,
+            1,
+            1,
             null,
+            $now,
+            $now,
+            $now,
         );
 
         $schedule = $this->campaignScheduleRepository->create($schedule);
@@ -122,12 +128,23 @@ final class NewsletterService
 
         $this->campaignRepository->update($updatedCampaign);
 
-        $scheduleStatus = $failed > 0 && $sent === 0
-            ? NewsletterCampaignSchedule::STATUS_FAILED
-            : NewsletterCampaignSchedule::STATUS_COMPLETED;
-
         if ($schedule->id() !== null) {
-            $this->campaignScheduleRepository->markProcessed($schedule->id(), $scheduleStatus, $now);
+            $updatedSchedule = new NewsletterCampaignSchedule(
+                $schedule->id(),
+                $schedule->campaignId(),
+                NewsletterCampaignSchedule::STATUS_COMPLETED,
+                $schedule->startAt(),
+                $now,
+                $schedule->intervalMinutes(),
+                $schedule->maxAttempts(),
+                $schedule->attempts(),
+                null,
+                $now,
+                $schedule->createdAt(),
+                $now,
+            );
+
+            $this->campaignScheduleRepository->update($updatedSchedule);
         }
     }
 
