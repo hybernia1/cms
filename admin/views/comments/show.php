@@ -40,50 +40,18 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       <hr>
       <div style="white-space:pre-wrap"><?= nl2br($h((string)$comment['content'])) ?></div>
     </div>
-    <div class="card-footer d-flex flex-wrap gap-2">
-      <form method="post" action="admin.php?r=comments&a=approve" data-ajax data-comments-action="status">
-        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-        <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
-        <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
-        <button class="btn btn-light btn-sm border" type="submit"
-                aria-label="Schválit" data-bs-toggle="tooltip" data-bs-title="Schválit">
-          <i class="bi bi-check-lg"></i>
-        </button>
-      </form>
-      <form method="post" action="admin.php?r=comments&a=draft" data-ajax data-comments-action="status">
-        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-        <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
-        <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
-        <button class="btn btn-light btn-sm border" type="submit"
-                aria-label="Přepnout na koncept" data-bs-toggle="tooltip" data-bs-title="Přepnout na koncept">
-          <i class="bi bi-file-earmark"></i>
-        </button>
-      </form>
-      <form method="post" action="admin.php?r=comments&a=spam" data-ajax data-comments-action="status">
-        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-        <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
-        <input type="hidden" name="_back" value="<?= 'admin.php?r=comments&a=show&id='.(int)$comment['id'] ?>">
-        <button class="btn btn-light btn-sm border" type="submit"
-                aria-label="Označit jako spam" data-bs-toggle="tooltip" data-bs-title="Označit jako spam">
-          <i class="bi bi-slash-circle"></i>
-        </button>
-      </form>
-      <form method="post"
-            action="admin.php?r=comments&a=delete"
-            data-ajax
-            data-comments-action="delete"
-            data-confirm-modal="Opravdu smazat? Smaže i odpovědi."
-            data-confirm-modal-title="Potvrzení smazání"
-            data-confirm-modal-confirm-label="Smazat"
-            data-confirm-modal-cancel-label="Zrušit">
-        <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-        <input type="hidden" name="id" value="<?= (int)$comment['id'] ?>">
-        <input type="hidden" name="_back" value="<?= $back ?>">
-        <button class="btn btn-light btn-sm border" type="submit"
-                aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">
-          <i class="bi bi-trash"></i>
-        </button>
-      </form>
+    <div class="card-footer">
+      <?php $this->render('parts/comments/actions', [
+        'comment'          => $comment,
+        'csrf'             => $csrf,
+        'backUrl'          => 'admin.php?r=comments&a=show&id=' . (int)$comment['id'],
+        'deleteBackUrl'    => $back,
+        'wrapperClass'     => 'd-flex flex-wrap gap-2',
+        'statusActions'    => ['approve', 'draft', 'spam'],
+        'statusButtonClass'=> '',
+        'deleteButtonClass'=> '',
+        'deleteButtonTooltip' => 'Smazat',
+      ]); ?>
     </div>
   </div>
 
