@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+use Core\Cron\DatabaseTaskRepository;
+use Core\Cron\HookRegistry;
+use Core\Cron\Manager as CronManager;
+use Core\Cron\Scheduler;
+
 /**
  * load.php (portable, čistý)
  * - Autoload tříd z /inc/Class (PSR-4 + legacy underscore fallback)
@@ -73,6 +78,35 @@ if (is_dir(FUNCTIONS_DIR)) {
 }
 
 // ---------------------------------------------------------
+// Cron manager – sdílená instance + lazy runner
+// ---------------------------------------------------------
+
+function cms_cron_manager(): CronManager
+{
+    static $manager = null;
+    if ($manager instanceof CronManager) {
+        return $manager;
+    }
+
+    $manager = new CronManager(
+        new DatabaseTaskRepository(static fn() => \Core\Database\Init::query()),
+        new Scheduler(),
+        new HookRegistry()
+    );
+
+    return $manager;
+}
+
+function cms_cron_enable_lazy_runner(): void
+{
+    if (PHP_SAPI === 'cli') {
+        return;
+    }
+
+    cms_cron_manager()->registerLazyRunner();
+}
+
+// ---------------------------------------------------------
 // Util: redirecty a bootstrap
 // ---------------------------------------------------------
 
@@ -110,6 +144,8 @@ function cms_bootstrap_config_or_redirect(): array
     $config = require $configFile;
 
     \Core\Database\Init::boot($config);
+
+    cms_cron_enable_lazy_runner();
 
     return $config;
 }
