@@ -92,6 +92,11 @@ final class NavigationController extends BaseAdminController
             && $this->schemaChecker->hasTable('navigation_items');
     }
 
+    private function tableExists(string $table): bool
+    {
+        return $this->schemaChecker->hasTable($table);
+    }
+
     private function linkResolver(): LinkResolver
     {
         if ($this->linkResolver === null) {
