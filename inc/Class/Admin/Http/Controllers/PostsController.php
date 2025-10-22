@@ -13,6 +13,7 @@ use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\Slugger;
 use Core\Database\Init as DB;
+use function registered_post_types;
 
 final class PostsController extends BaseAdminController
 {
@@ -55,22 +56,7 @@ final class PostsController extends BaseAdminController
     // ---------------- Helpers ----------------
     private function typeConfig(): array
     {
-        return [
-            'post' => [
-                'nav'    => 'Příspěvky',
-                'list'   => 'Příspěvky',
-                'create' => 'Nový příspěvek',
-                'edit'   => 'Upravit příspěvek',
-                'label'  => 'Příspěvek',
-            ],
-            'page' => [
-                'nav'    => 'Stránky',
-                'list'   => 'Stránky',
-                'create' => 'Nová stránka',
-                'edit'   => 'Upravit stránku',
-                'label'  => 'Stránka',
-            ],
-        ];
+        return registered_post_types();
     }
 
     private function requestedType(): string
