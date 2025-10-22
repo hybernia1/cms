@@ -92,11 +92,6 @@ final class NavigationController extends BaseAdminController
             && $this->schemaChecker->hasTable('navigation_items');
     }
 
-    private function tableExists(string $table): bool
-    {
-        return $this->schemaChecker->hasTable($table);
-    }
-
     private function linkResolver(): LinkResolver
     {
         if ($this->linkResolver === null) {
@@ -515,12 +510,12 @@ final class NavigationController extends BaseAdminController
 
         $links = new LinkGenerator();
 
-        if ($this->tableExists('posts')) {
+        if ($this->schemaChecker->hasTable('posts')) {
             $options['pages'] = $this->loadQuickPosts('page', $links);
             $options['posts'] = $this->loadQuickPosts('post', $links);
         }
 
-        if ($this->tableExists('terms')) {
+        if ($this->schemaChecker->hasTable('terms')) {
             $options['categories'] = $this->loadQuickCategories($links);
         }
 
