@@ -49,21 +49,25 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
             <a class="btn btn-light btn-sm border me-1" href="<?= $h('admin.php?' . http_build_query(['r' => 'terms', 'a' => 'edit', 'id' => $id, 'type' => $type])) ?>" aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
               <i class="bi bi-pencil"></i>
             </a>
-            <form method="post"
-                  action="<?= $h('admin.php?' . http_build_query(['r' => 'terms', 'a' => 'delete', 'type' => $type])) ?>"
-                  class="d-inline"
-                  data-ajax
-                  data-terms-delete-form
-                  data-confirm-modal="Opravdu smazat? Bude odpojen od všech příspěvků."
-                  data-confirm-modal-title="Potvrzení smazání"
-                  data-confirm-modal-confirm-label="Smazat"
-                  data-confirm-modal-cancel-label="Zrušit">
-              <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-              <input type="hidden" name="id" value="<?= $h((string)$id) ?>">
-              <button class="btn btn-light btn-sm border" type="submit" aria-label="Smazat" data-bs-toggle="tooltip" data-bs-title="Smazat">
-                <i class="bi bi-trash"></i>
-              </button>
-            </form>
+            <?php $this->render('parts/forms/confirm-action', [
+              'action'         => 'admin.php?' . http_build_query(['r' => 'terms', 'a' => 'delete', 'type' => $type]),
+              'csrf'           => $csrf,
+              'hidden'         => ['id' => (int)$id],
+              'dataAttributes' => [
+                'data-terms-delete-form' => '1',
+              ],
+              'button'         => [
+                'tooltip'   => 'Smazat',
+                'ariaLabel' => 'Smazat',
+                'icon'      => 'bi bi-trash',
+              ],
+              'confirm'        => [
+                'message' => 'Opravdu smazat? Bude odpojen od všech příspěvků.',
+                'title'   => 'Potvrzení smazání',
+                'confirm' => 'Smazat',
+                'cancel'  => 'Zrušit',
+              ],
+            ]); ?>
           </td>
         </tr>
       <?php endforeach; ?>
