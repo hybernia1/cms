@@ -99,6 +99,10 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
     <?php endif; ?>
 </article>
 
+<aside class="entry__newsletter">
+    <?php include __DIR__ . '/partials/newsletter-form.php'; ?>
+</aside>
+
 <?php
     $oldName = trim((string)($commentOld['name'] ?? ''));
     $oldEmail = trim((string)($commentOld['email'] ?? ''));

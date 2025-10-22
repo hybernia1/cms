@@ -32,3 +32,5 @@ $tags = array_values(array_filter(is_array($post['terms'] ?? null) ? $post['term
         </footer>
     <?php endif; ?>
 </article>
+
+<?php include __DIR__ . '/partials/newsletter-form.php'; ?>

@@ -308,6 +308,51 @@ final class LinkGenerator
         return $this->pretty ? $this->prettyPath('comment') : $this->fallback('comment');
     }
 
+    public function newsletterSubscribe(): string
+    {
+        return $this->pretty ? $this->prettyPath('newsletter/subscribe') : $this->fallback('newsletter/subscribe');
+    }
+
+    public function newsletterConfirm(?string $token = null): string
+    {
+        $token = $token !== null ? trim($token) : '';
+        if ($this->pretty) {
+            $path = 'newsletter/confirm';
+            if ($token !== '') {
+                $path .= '/' . rawurlencode($token);
+            }
+
+            return $this->prettyPath($path);
+        }
+
+        $params = [];
+        if ($token !== '') {
+            $params['token'] = $token;
+        }
+
+        return $this->fallback('newsletter/confirm', $params);
+    }
+
+    public function newsletterUnsubscribe(?string $token = null): string
+    {
+        $token = $token !== null ? trim($token) : '';
+        if ($this->pretty) {
+            $path = 'newsletter/unsubscribe';
+            if ($token !== '') {
+                $path .= '/' . rawurlencode($token);
+            }
+
+            return $this->prettyPath($path);
+        }
+
+        $params = [];
+        if ($token !== '') {
+            $params['token'] = $token;
+        }
+
+        return $this->fallback('newsletter/unsubscribe', $params);
+    }
+
     public function prettyUrlsEnabled(): bool
     {
         return $this->pretty;

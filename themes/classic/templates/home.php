@@ -37,3 +37,7 @@ $postCardTemplate = __DIR__ . '/partials/post-card.php';
         </div>
     <?php endif; ?>
 </section>
+
+<section class="section section--newsletter">
+    <?php include __DIR__ . '/partials/newsletter-form.php'; ?>
+</section>

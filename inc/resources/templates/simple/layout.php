@@ -83,6 +83,15 @@ $renderMenu = static function (array $items): string {
         .post-card { background:#fff; padding:1.5rem; border-radius:12px; box-shadow:0 1px 2px rgba(15,23,42,0.08); }
         .post-card__meta { margin:0 0 0.5rem; font-size:0.85rem; color:#52606d; }
         .notice { border-radius:12px; padding:1rem 1.25rem; background:#edf2f7; border:1px solid #d0d7de; }
+        .notice-success { border-radius:12px; padding:1rem 1.25rem; background:#def7ec; border:1px solid #3f9d5d; }
+        .notice-warning { border-radius:12px; padding:1rem 1.25rem; background:#fff4e5; border:1px solid #f0ad4e; }
+        .newsletter-box { background:#fff; padding:1.75rem; border-radius:12px; box-shadow:0 1px 2px rgba(15,23,42,0.08); margin-top:2.5rem; }
+        .newsletter-box h2 { margin-top:0; }
+        .newsletter-form { display:grid; gap:0.75rem; margin-top:1rem; max-width:420px; }
+        .newsletter-form input[type="email"] { padding:0.75rem 1rem; border-radius:10px; border:1px solid #d0d7de; font-size:1rem; }
+        .newsletter-form button { background:#0b7285; color:#fff; border:none; border-radius:999px; padding:0.75rem 1.5rem; font-size:1rem; cursor:pointer; width:max-content; }
+        .newsletter-form button:hover, .newsletter-form button:focus { background:#095f6c; }
+        .newsletter-form__error { color:#c81e1e; margin:0; font-size:0.85rem; }
     </style>
 </head>
 <body class="<?= htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8'); ?>">
