@@ -3,7 +3,7 @@ declare(strict_types=1);
 /** @var array|null $user */
 /** @var array<int,array{key:string,label:string}> $mailTemplates */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates) {
   $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
   $sel = fn($a,$b)=>$a===$b?' selected':'';
 ?>

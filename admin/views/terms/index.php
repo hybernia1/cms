@@ -13,7 +13,7 @@ declare(strict_types=1);
 /** @var \Cms\Admin\Utils\LinkGenerator $urls */
 /** @var callable $buildUrl */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$buildUrl) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$buildUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $currentUrl = $buildUrl(['page' => (int)($pagination['page'] ?? 1)]);
 ?>

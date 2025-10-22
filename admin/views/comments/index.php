@@ -12,7 +12,7 @@ declare(strict_types=1);
 /** @var callable $buildUrl */
 /** @var string $currentUrl */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$statusCounts,$buildUrl,$currentUrl) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$statusCounts,$buildUrl,$currentUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
   <div

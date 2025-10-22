@@ -10,7 +10,7 @@ declare(strict_types=1);
 /** @var string $previewNow */
 /** @var array{date:array<int,string>,time:array<int,string>,datetime:array<int,string>} $formatPresets */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($settings,$csrf,$timezones,$previewNow,$formatPresets) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($settings,$csrf,$timezones,$previewNow,$formatPresets) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $sel = fn(string $a,string $b): string => $a===$b?' selected':'';
   $datePresets = is_array($formatPresets['date'] ?? null) ? $formatPresets['date'] : [];

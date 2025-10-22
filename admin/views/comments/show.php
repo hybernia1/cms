@@ -9,7 +9,7 @@ declare(strict_types=1);
 /** @var string $csrf */
 /** @var int $replyParentId */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($comment,$children,$csrf,$replyParentId) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($comment,$children,$csrf,$replyParentId) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $badge = function(string $status): string {
     return match($status){

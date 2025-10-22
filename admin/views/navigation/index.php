@@ -19,7 +19,7 @@ declare(strict_types=1);
 /** @var array<string,string> $linkTypeLabels */
 /** @var array<string,string> $linkStatusMessages */
 
-  $this->render('layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use (
+  $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use (
       $csrf,
       $tablesReady,
       $menus,

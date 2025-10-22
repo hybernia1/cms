@@ -12,7 +12,7 @@ declare(strict_types=1);
 /** @var array $types */
 /** @var array<int> $attachedMedia */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$post;
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek','edit'=>'Upravit příspěvek','label'=>strtoupper($type)];
@@ -273,7 +273,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </form>
 
 
-    <?php $this->render('partials/media-picker-modal', [
+    <?php $this->render('parts/partials/media-picker-modal', [
       'modalId'          => 'mediaPickerModal',
       'title'            => 'Vybrat nebo nahrát obrázek',
       'dialogClass'      => 'modal-xl modal-dialog-scrollable',
@@ -335,7 +335,7 @@ $this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), 
     </div>
   </div>
 
-  <?php $this->render('partials/media-picker-modal', [
+  <?php $this->render('parts/partials/media-picker-modal', [
     'modalId'          => 'contentEditorImageModal',
     'title'            => 'Vložit obrázek',
     'dialogClass'      => 'modal-lg modal-dialog-scrollable',

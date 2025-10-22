@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** @var array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string} $defaults */
 /** @var string $csrf */
 
-$this->render('layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($permalinks,$defaults,$csrf) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($permalinks,$defaults,$csrf) {
     $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
     $seoEnabled = !empty($permalinks['seo_urls']);
 
