@@ -3,17 +3,25 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Http\Controllers;
 
-use Cms\Admin\Utils\Slugger;
-use Core\Database\Init as DB;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
+use Cms\Admin\Utils\Slugger;
+use Core\Database\Init as DB;
+use Core\Database\SchemaChecker;
 use Core\Navigation\LinkResolver;
 use Core\Navigation\ThemeMenuLocator;
 
 final class NavigationController extends BaseAdminController
 {
     private ?LinkResolver $linkResolver = null;
+    private SchemaChecker $schemaChecker;
+
+    public function __construct(string $baseViewsPath, ?SchemaChecker $schemaChecker = null)
+    {
+        parent::__construct($baseViewsPath);
+        $this->schemaChecker = $schemaChecker ?? new SchemaChecker();
+    }
 
     public function handle(string $action): void
     {
@@ -80,15 +88,8 @@ final class NavigationController extends BaseAdminController
 
     private function tablesReady(): bool
     {
-        return $this->tableExists('navigation_menus') && $this->tableExists('navigation_items');
-    }
-
-    private function tableExists(string $table): bool
-    {
-        $pdo = DB::pdo();
-        $sql = 'SHOW TABLES LIKE ' . $pdo->quote($table);
-        $stmt = $pdo->query($sql);
-        return (bool) $stmt->fetchColumn();
+        return $this->schemaChecker->hasTable('navigation_menus')
+            && $this->schemaChecker->hasTable('navigation_items');
     }
 
     private function linkResolver(): LinkResolver
