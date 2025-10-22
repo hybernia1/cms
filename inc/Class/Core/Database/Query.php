@@ -326,6 +326,11 @@ final class Query
         return $this->pdo->lastInsertId();
     }
 
+    public function lastInsertId(): string
+    {
+        return $this->pdo->lastInsertId();
+    }
+
     public function execute(): int
     {
         $stmt = $this->run();

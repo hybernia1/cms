@@ -41,6 +41,13 @@ final class Init
         return self::$connect->transactional(fn() => $fn(self::query()));
     }
 
+    public static function lastInsertId(): string
+    {
+        self::ensureBooted();
+        /** @phpstan-ignore-next-line */
+        return self::$connect->pdo()->lastInsertId();
+    }
+
     private static function ensureBooted(): void
     {
         if (!self::$booted || !self::$connect) {

@@ -159,11 +159,13 @@ final class UsersController extends BaseAdminController
             'token_expire' => null,
         ];
 
+        $newId = 0;
         try {
-            $newId = DB::query()->table('users')->insertRow($data)->execute();
-            if (!is_int($newId)) {
-                $row = DB::query()->table('users')->select(['id'])->orderBy('id','DESC')->first();
-                $newId = (int)($row['id'] ?? 0);
+            $query = DB::query();
+            $query->table('users')->insertRow($data)->execute();
+            $newId = (int)$query->lastInsertId();
+            if ($newId <= 0) {
+                throw new \RuntimeException('Unable to determine new user ID.');
             }
         } catch (Throwable $e) {
             $this->respondFailure('Uživatele se nepodařilo uložit.', 'admin.php?r=users&a=edit', $e);
