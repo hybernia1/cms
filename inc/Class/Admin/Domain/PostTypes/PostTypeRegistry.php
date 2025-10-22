@@ -12,6 +12,7 @@ use InvalidArgumentException;
  *     create: string,
  *     edit: string,
  *     label: string,
+ *     icon: string,
  *     supports: array<int,string>
  * }
  */
@@ -40,10 +41,21 @@ final class PostTypeRegistry
             'create'   => 'Create ' . $label,
             'edit'     => 'Edit ' . $label,
             'label'    => $label,
+            'icon'     => 'bi-file-earmark',
             'supports' => [],
         ];
 
-        /** @var array{nav?:string,list?:string,create?:string,edit?:string,label?:string,supports?:mixed} $config */
+        /**
+         * @var array{
+         *     nav?:string,
+         *     list?:string,
+         *     create?:string,
+         *     edit?:string,
+         *     label?:string,
+         *     icon?:string,
+         *     supports?:mixed
+         * } $config
+         */
         $config = array_replace($defaults, $args);
 
         $supports = self::normalizeSupports($config['supports']);
@@ -54,6 +66,7 @@ final class PostTypeRegistry
             'create'   => (string)$config['create'],
             'edit'     => (string)$config['edit'],
             'label'    => (string)$config['label'],
+            'icon'     => (string)$config['icon'],
             'supports' => $supports,
         ];
     }

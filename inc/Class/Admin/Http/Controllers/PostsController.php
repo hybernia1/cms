@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Http\Controllers;
 
+use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Domain\Repositories\PostsRepository;
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Domain\Services\PostsService;
@@ -13,10 +14,13 @@ use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\Slugger;
 use Core\Database\Init as DB;
-use function registered_post_types;
-
 final class PostsController extends BaseAdminController
 {
+    /**
+     * @var array<string,array{nav:string,list:string,create:string,edit:string,label:string,icon:string,supports:array<int,string>}>|null
+     */
+    private ?array $postTypesCache = null;
+
     public function handle(string $action): void
     {
         switch ($action) {
@@ -56,17 +60,49 @@ final class PostsController extends BaseAdminController
     // ---------------- Helpers ----------------
     private function typeConfig(): array
     {
-        return registered_post_types();
+        if ($this->postTypesCache === null) {
+            $registered = PostTypeRegistry::all();
+            if ($registered === []) {
+                throw new \RuntimeException('No post types have been registered.');
+            }
+            $this->postTypesCache = $registered;
+        }
+
+        return $this->postTypesCache;
     }
 
     private function requestedType(): string
     {
         $types = $this->typeConfig();
-        $type = (string)($_GET['type'] ?? 'post');
-        if (!array_key_exists($type, $types)) {
-            $type = 'post';
+        $requested = isset($_GET['type']) ? (string)$_GET['type'] : '';
+        if ($requested !== '' && array_key_exists($requested, $types)) {
+            return $requested;
         }
-        return $type;
+
+        $fallback = array_key_first($types);
+        if ($fallback === null) {
+            throw new \RuntimeException('No post types have been registered.');
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @return array{nav:string,list:string,create:string,edit:string,label:string,icon:string,supports:array<int,string>}
+     */
+    private function currentTypeConfig(string $type): array
+    {
+        $types = $this->typeConfig();
+        if (!array_key_exists($type, $types)) {
+            $fallback = array_key_first($types);
+            if ($fallback === null) {
+                throw new \RuntimeException('No post types have been registered.');
+            }
+
+            $type = $fallback;
+        }
+
+        return $types[$type];
     }
 
     /** Načte seznam termů rozdělený podle typu + aktuálně vybrané pro daný post. */
@@ -157,6 +193,7 @@ final class PostsController extends BaseAdminController
 
         $types = $this->typeConfig();
         $type = $this->requestedType();
+        $typeConfig = $this->currentTypeConfig($type);
         $filters = [
             'type'   => $type,
             'status' => (string)($_GET['status'] ?? ''),
@@ -187,6 +224,7 @@ final class PostsController extends BaseAdminController
                     'filters'      => $filters,
                     'type'         => $type,
                     'types'        => $types,
+                    'typeConfig'   => $typeConfig,
                     'urls'         => $urls,
                     'statusCounts' => $statusCounts,
                     'buildUrl'     => $buildUrl,
@@ -195,6 +233,7 @@ final class PostsController extends BaseAdminController
                     'items' => $items,
                     'csrf'  => $this->token(),
                     'type'  => $type,
+                    'typeConfig' => $typeConfig,
                     'urls'  => $urls,
                 ]),
                 'pagination' => $this->renderPartial('posts/partials/pagination', [
@@ -218,13 +257,14 @@ final class PostsController extends BaseAdminController
         }
 
         $this->renderAdmin('posts/index', [
-            'pageTitle'  => $types[$type]['list'] ?? 'Příspěvky',
+            'pageTitle'  => $typeConfig['list'],
             'nav'        => AdminNavigation::build('posts:' . $type),
             'filters'    => $filters,
             'items'      => $items,
             'pagination' => $pagination,
             'type'       => $type,
             'types'      => $types,
+            'typeConfig' => $typeConfig,
             'urls'       => $urls,
             'statusCounts' => $statusCounts,
             'buildUrl'   => $buildUrl,
@@ -386,15 +426,18 @@ final class PostsController extends BaseAdminController
         }
 
         $terms = $this->termsData($id ?: null, $type);
+        $types = $this->typeConfig();
+        $typeConfig = $this->currentTypeConfig($type);
 
         $this->renderAdmin('posts/edit', [
-            'pageTitle'      => $this->typeConfig()[$type][$id ? 'edit' : 'create'],
+            'pageTitle'      => $typeConfig[$id ? 'edit' : 'create'],
             'nav'            => AdminNavigation::build('posts:' . $type),
             'post'           => $row,
             'terms'          => $terms['byType'],
             'selected'       => $terms['selected'],
             'type'           => $type,
-            'types'          => $this->typeConfig(),
+            'types'          => $types,
+            'typeConfig'     => $typeConfig,
             'attachedMedia'  => $this->attachedMediaIds($id),
         ]);
     }

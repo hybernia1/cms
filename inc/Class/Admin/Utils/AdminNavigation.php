@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Utils;
 
+use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
+
 /**
  * Central builder for admin navigation.
  * Provides consistent structure for the sidebar including hierarchy data
@@ -15,6 +17,16 @@ final class AdminNavigation
      */
     public static function build(string $activeKey): array
     {
+        $postTypeChildren = [];
+        foreach (PostTypeRegistry::all() as $type => $config) {
+            $postTypeChildren[] = [
+                'key'   => 'posts:' . $type,
+                'label' => $config['nav'],
+                'href'  => 'admin.php?r=posts&type=' . urlencode((string)$type),
+                'icon'  => $config['icon'] ?? 'bi-file-earmark',
+            ];
+        }
+
         $items = [
             [
                 'key'       => 'dashboard',
@@ -29,14 +41,12 @@ final class AdminNavigation
                 'href'      => null,
                 'icon'      => 'bi-folder2',
                 'section'   => true,
-                'children'  => [
-                    ['key' => 'posts:post', 'label' => 'Příspěvky', 'href' => 'admin.php?r=posts&type=post', 'icon' => 'bi-file-earmark-text'],
-                    ['key' => 'posts:page', 'label' => 'Stránky',   'href' => 'admin.php?r=posts&type=page', 'icon' => 'bi-file-earmark-richtext'],
+                'children'  => array_merge($postTypeChildren, [
                     ['key' => 'media',         'label' => 'Média',     'href' => 'admin.php?r=media',             'icon' => 'bi-images'],
                     ['key' => 'terms:category','label' => 'Kategorie', 'href' => 'admin.php?r=terms&type=category','icon' => 'bi-collection'],
                     ['key' => 'terms:tag',     'label' => 'Štítky',    'href' => 'admin.php?r=terms&type=tag',     'icon' => 'bi-hash'],
                     ['key' => 'comments',      'label' => 'Komentáře', 'href' => 'admin.php?r=comments',          'icon' => 'bi-chat-dots'],
-                ],
+                ]),
             ],
             [
                 'key'       => 'users',
