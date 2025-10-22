@@ -56,6 +56,12 @@ $currentBack = $backUrl !== null && $backUrl !== '' ? $backUrl : ((string)($_SER
             $commentPreview .= '…';
           }
           $postTitle = (string)($c['post_title'] ?? '');
+          $postType = (string)($c['post_type'] ?? '');
+          $postId = (int)($c['post_id'] ?? 0);
+          $postUrl = 'admin.php?r=posts&a=edit&id=' . $postId;
+          if ($postType !== '') {
+            $postUrl .= '&type=' . rawurlencode($postType);
+          }
         ?>
           <tr data-comment-row data-comment-id="<?= $h((string)($c['id'] ?? '')) ?>" data-comment-status="<?= $h($statusValue) ?>">
             <td>
@@ -93,8 +99,8 @@ $currentBack = $backUrl !== null && $backUrl !== '' ? $backUrl : ((string)($_SER
             </td>
             <td>
               <div class="admin-table-stack">
-                <a class="admin-table-line admin-table-line--muted text-decoration-none" href="admin.php?r=posts&a=edit&id=<?= (int)($c['post_id'] ?? 0) ?>">
-                  #<?= (int)($c['post_id'] ?? 0) ?>
+                <a class="admin-table-line admin-table-line--muted text-decoration-none" href="<?= $h($postUrl) ?>">
+                  #<?= $postId ?>
                 </a>
                 <?php if ($postTitle !== ''): ?>
                   <div class="admin-table-line admin-table-line--muted" title="<?= $h($postTitle) ?>">
