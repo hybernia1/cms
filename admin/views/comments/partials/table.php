@@ -17,70 +17,7 @@ $statusLabels = [
     'draft'     => 'Koncept',
     'spam'      => 'Spam',
 ];
-$statusActionOrder = ['approve', 'draft', 'spam'];
-$statusActions = [
-    'draft'     => ['approve', 'spam'],
-    'published' => ['draft', 'spam'],
-    'spam'      => ['approve', 'draft'],
-];
-$actionDefinitions = [
-    'approve' => ['route' => 'approve', 'icon' => 'bi-check-lg', 'title' => 'Schválit komentář'],
-    'draft'   => ['route' => 'draft',   'icon' => 'bi-file-earmark', 'title' => 'Uložit jako koncept'],
-    'spam'    => ['route' => 'spam',    'icon' => 'bi-slash-circle', 'title' => 'Označit jako spam'],
-];
-$view = $this;
 $currentBack = $backUrl !== null && $backUrl !== '' ? $backUrl : ((string)($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments'));
-
-$renderStatusAction = function (string $key, array $comment) use ($actionDefinitions, $h, $csrf, $currentBack): string {
-    if (!isset($actionDefinitions[$key])) {
-        return '';
-    }
-    $def = $actionDefinitions[$key];
-    ob_start();
-    ?>
-    <form method="post"
-          action="admin.php?r=comments&a=<?= $h($def['route']) ?>"
-          class="d-inline"
-          data-ajax
-          data-comments-action="status">
-      <input type="hidden" name="csrf" value="<?= $h($csrf) ?>">
-      <input type="hidden" name="id" value="<?= (int)($comment['id'] ?? 0) ?>">
-      <input type="hidden" name="_back" value="<?= $h($currentBack) ?>">
-      <button class="btn btn-light btn-sm border px-2" type="submit" aria-label="<?= $h($def['title']) ?>" data-bs-toggle="tooltip" data-bs-title="<?= $h($def['title']) ?>">
-        <i class="<?= $h($def['icon']) ?>"></i>
-      </button>
-    </form>
-    <?php
-    return trim((string)ob_get_clean());
-};
-
-$renderDeleteAction = function (array $comment) use ($h, $csrf, $currentBack): string {
-    ob_start();
-    $this->render('parts/forms/confirm-action', [
-        'action'         => 'admin.php?r=comments&a=delete',
-        'csrf'           => $csrf,
-        'hidden'         => [
-            'id'    => (int)($comment['id'] ?? 0),
-            '_back' => $currentBack,
-        ],
-        'dataAttributes' => [
-            'data-comments-action' => 'delete',
-        ],
-        'button'         => [
-            'class'     => 'px-2 text-danger',
-            'tooltip'   => 'Smazat',
-            'ariaLabel' => 'Smazat',
-            'icon'      => 'bi bi-trash',
-        ],
-        'confirm'        => [
-            'message' => 'Opravdu smazat? Smaže i odpovědi.',
-            'title'   => 'Potvrzení smazání',
-            'confirm' => 'Smazat',
-            'cancel'  => 'Zrušit',
-        ],
-    ]);
-    return trim((string)ob_get_clean());
-};
 ?>
 <div class="card" data-comments-table>
   <?php $this->render('parts/listing/bulk-header', [
@@ -167,17 +104,16 @@ $renderDeleteAction = function (array $comment) use ($h, $csrf, $currentBack): s
               </div>
             </td>
             <td class="text-end">
-              <div class="d-flex justify-content-end flex-wrap gap-1">
-                <a class="btn btn-light btn-sm border px-2" href="admin.php?r=comments&a=show&id=<?= (int)($c['id'] ?? 0) ?>" aria-label="Detail" data-bs-toggle="tooltip" data-bs-title="Detail">
-                  <i class="bi bi-eye"></i>
-                </a>
-                <?php foreach ($statusActionOrder as $actionKey): ?>
-                  <?php if (in_array($actionKey, $statusActions[$statusValue] ?? [], true)): ?>
-                    <?= $renderStatusAction($actionKey, $c) ?>
-                  <?php endif; ?>
-                <?php endforeach; ?>
-                <?= $renderDeleteAction($c) ?>
-              </div>
+              <?php $this->render('parts/comments/actions', [
+                'comment'            => $c,
+                'csrf'               => $csrf,
+                'backUrl'            => $currentBack,
+                'wrapperClass'       => 'd-flex justify-content-end flex-wrap gap-1',
+                'showDetail'         => true,
+                'detailUrl'          => 'admin.php?r=comments&a=show&id=' . (int)($c['id'] ?? 0),
+                'detailTooltip'      => 'Detail',
+                'detailAriaLabel'    => 'Detail',
+              ]); ?>
             </td>
           </tr>
         <?php endforeach; ?>
