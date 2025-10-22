@@ -193,14 +193,8 @@ final class TermsController extends BaseAdminController
             $this->respondValidationErrors($errors, 'Název je povinný.', 'admin.php?r=terms&a=create&type=' . urlencode($type));
         }
 
-        if ($slug === '') {
-            $slug = Slugger::make($name);
-        }
-
         $repo = new TermsRepository();
-        if ($repo->findBySlug($slug)) {
-            $slug .= '-' . substr(bin2hex(random_bytes(2)), 0, 3);
-        }
+        $slug = Slugger::uniqueInTerms($slug !== '' ? $slug : $name, $type);
 
         try {
             $service = new TermsService($repo);
@@ -264,14 +258,7 @@ final class TermsController extends BaseAdminController
             $this->respondValidationErrors($errors, 'Název je povinný.', 'admin.php?r=terms&a=edit&id=' . $id . '&type=' . urlencode($type));
         }
 
-        if ($slug === '') {
-            $slug = Slugger::make($name);
-        }
-
-        $exists = $repo->findBySlug($slug);
-        if ($exists && (int)($exists['id'] ?? 0) !== $id) {
-            $slug .= '-' . substr(bin2hex(random_bytes(2)), 0, 3);
-        }
+        $slug = Slugger::uniqueInTerms($slug !== '' ? $slug : $name, $type, $id);
 
         try {
             DB::query()->table('terms')->update([

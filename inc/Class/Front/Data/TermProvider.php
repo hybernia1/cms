@@ -29,7 +29,7 @@ final class TermProvider
         }
 
         try {
-            $term = $this->terms->findBySlug($slug);
+            $term = $this->terms->findBySlug($slug, $type);
         } catch (Throwable $e) {
             error_log('Failed to load term: ' . $e->getMessage());
             $this->cache[$key] = null;

@@ -35,7 +35,7 @@ SQL
 CREATE TABLE IF NOT EXISTS posts (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
-  slug VARCHAR(255) NOT NULL UNIQUE,
+  slug VARCHAR(255) NOT NULL,
   type VARCHAR(50) NOT NULL DEFAULT 'post',
   status ENUM('draft','publish') NOT NULL DEFAULT 'draft',
   content LONGTEXT NULL,
@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS posts (
   INDEX ix_posts_status (status),
   INDEX ix_posts_author (author_id),
   INDEX ix_posts_published (published_at),
-  INDEX ix_posts_created (created_at)
+  INDEX ix_posts_created (created_at),
+  UNIQUE KEY uq_posts_type_slug (type, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
 ,
@@ -90,12 +91,13 @@ SQL
 CREATE TABLE IF NOT EXISTS terms (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   type VARCHAR(50) NOT NULL DEFAULT 'tag',  -- "category","tag", do budoucna cokoliv
-  slug VARCHAR(190) NOT NULL UNIQUE,
+  slug VARCHAR(190) NOT NULL,
   name VARCHAR(190) NOT NULL,
   description TEXT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX ix_terms_type (type),
-  INDEX ix_terms_created (created_at)
+  INDEX ix_terms_created (created_at),
+  UNIQUE KEY uq_terms_type_slug (type, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
 ,
