@@ -4,6 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/load.php';
 
 cms_bootstrap_config_or_redirect();
+cms_bootstrap_cron();
 
 $settings = new Cms\Admin\Settings\CmsSettings();
 $links = new Cms\Admin\Utils\LinkGenerator(null, $settings);
