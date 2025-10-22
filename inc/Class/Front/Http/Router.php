@@ -10,6 +10,7 @@ use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Passwords;
 use Cms\Admin\Domain\Repositories\UsersRepository;
 use Cms\Admin\Mail\MailService;
+use Cms\Admin\Mail\NewsletterMailer;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\DateTimeFactory;
@@ -37,6 +38,7 @@ final class Router
     private TemplateManager $templates;
     private AuthService $auth;
     private NewsletterService $newsletter;
+    private NewsletterMailer $newsletterMailer;
     /**
      * @var array<string,mixed>|null
      */
@@ -54,7 +56,8 @@ final class Router
         ?MailService $mail = null,
         ?TemplateManager $templates = null,
         ?AuthService $auth = null,
-        ?NewsletterService $newsletter = null
+        ?NewsletterService $newsletter = null,
+        ?NewsletterMailer $newsletterMailer = null
     ) {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
@@ -72,6 +75,8 @@ final class Router
         $this->templates = $templates ?? new TemplateManager();
         $this->auth = $auth ?? new AuthService();
         $this->newsletter = $newsletter ?? new NewsletterService();
+        $this->newsletterMailer = $newsletterMailer
+            ?? new NewsletterMailer($this->mail, $this->templates, $this->links, $this->settings);
 
         $this->view->share([
             'navigation' => $this->menus->menusByLocation(),
@@ -407,14 +412,25 @@ final class Router
             $this->redirect($redirect);
         }
 
+        $subscriberId = null;
         try {
-            $this->newsletter->createSubscriber($email, $source !== '' ? $source : null);
+            $subscriberId = $this->newsletter->createSubscriber($email, $source !== '' ? $source : null);
             $form['success'] = true;
             $form['allowForm'] = false;
             $form['message'] = $existing && (string)($existing['status'] ?? '') === NewsletterService::STATUS_UNSUBSCRIBED
                 ? 'Odběr byl znovu aktivován. Zkontrolujte prosím svůj e-mail a potvrďte jej.'
                 : 'Děkujeme za přihlášení. Zkontrolujte prosím svůj e-mail a potvrďte odběr.';
             $form['old']['email'] = '';
+            if ($subscriberId !== null) {
+                try {
+                    $subscriber = $this->newsletter->find($subscriberId);
+                    if (is_array($subscriber)) {
+                        $this->newsletterMailer->sendConfirmationEmail($subscriber);
+                    }
+                } catch (Throwable $e) {
+                    error_log('Newsletter subscribe: failed to send confirmation e-mail: ' . $e->getMessage());
+                }
+            }
         } catch (\InvalidArgumentException $e) {
             $form['errors']['email'][] = 'Zadejte platný e-mail.';
             $form['message'] = 'Zkontrolujte zvýrazněná pole.';
@@ -476,17 +492,39 @@ final class Router
             $status = 400;
             $message = 'Odkaz pro odhlášení je neplatný.';
         } else {
+            $subscriber = null;
             try {
-                $success = $this->newsletter->unsubscribeByToken($token);
-                if ($success) {
-                    $message = 'Odběr newsletteru byl úspěšně zrušen.';
-                } else {
-                    $status = 400;
-                }
+                $subscriber = $this->newsletter->findByUnsubscribeToken($token);
             } catch (Throwable $e) {
-                error_log('Newsletter unsubscribe: failed to process token: ' . $e->getMessage());
-                $status = 500;
-                $message = 'Odhlášení se nepodařilo dokončit. Zkuste to prosím znovu.';
+                error_log('Newsletter unsubscribe: failed to find subscriber: ' . $e->getMessage());
+            }
+
+            if (!is_array($subscriber)) {
+                $status = 400;
+            } else {
+                try {
+                    $success = $this->newsletter->unsubscribeByToken($token);
+                    if ($success) {
+                        $message = 'Odběr newsletteru byl úspěšně zrušen.';
+                        try {
+                            $subscriberId = isset($subscriber['id']) ? (int)$subscriber['id'] : 0;
+                            if ($subscriberId > 0) {
+                                $freshSubscriber = $this->newsletter->find($subscriberId);
+                                if (is_array($freshSubscriber)) {
+                                    $this->newsletterMailer->sendUnsubscribeEmail($freshSubscriber);
+                                }
+                            }
+                        } catch (Throwable $e) {
+                            error_log('Newsletter unsubscribe: failed to send confirmation e-mail: ' . $e->getMessage());
+                        }
+                    } else {
+                        $status = 400;
+                    }
+                } catch (Throwable $e) {
+                    error_log('Newsletter unsubscribe: failed to process token: ' . $e->getMessage());
+                    $status = 500;
+                    $message = 'Odhlášení se nepodařilo dokončit. Zkuste to prosím znovu.';
+                }
             }
         }
 
