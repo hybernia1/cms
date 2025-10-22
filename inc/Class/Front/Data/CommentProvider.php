@@ -5,6 +5,7 @@ namespace Cms\Front\Data;
 
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
+use Cms\Admin\Utils\RelativeDateFormatter;
 use Core\Database\Init as DB;
 use Throwable;
 
@@ -14,6 +15,8 @@ final class CommentProvider
     private string $dateFormat;
     private string $timeFormat;
     private string $dateTimeFormat;
+    private bool $useRelativeDates;
+    private ?\DateTimeImmutable $relativeReference = null;
 
     public function __construct(?CmsSettings $settings = null)
     {
@@ -24,6 +27,7 @@ final class CommentProvider
         if ($this->dateTimeFormat === '') {
             $this->dateTimeFormat = 'Y-m-d H:i';
         }
+        $this->useRelativeDates = $this->settings->useRelativeDates();
     }
 
     /**
@@ -100,6 +104,16 @@ final class CommentProvider
         $dateTime = DateTimeFactory::fromStorage($raw);
         if ($dateTime === null) {
             return ['', ''];
+        }
+
+        if ($this->useRelativeDates) {
+            if ($this->relativeReference === null) {
+                $this->relativeReference = DateTimeFactory::now();
+            }
+            return [
+                RelativeDateFormatter::format($dateTime, $this->relativeReference),
+                $dateTime->format(DATE_ATOM),
+            ];
         }
 
         $format = $this->dateTimeFormat !== '' ? $this->dateTimeFormat : 'Y-m-d H:i';
