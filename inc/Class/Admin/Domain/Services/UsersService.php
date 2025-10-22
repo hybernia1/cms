@@ -6,7 +6,7 @@ namespace Cms\Admin\Domain\Services;
 use Cms\Admin\Auth\Passwords;
 use Cms\Admin\Domain\Repositories\UsersRepository;
 use Cms\Admin\Utils\DateTimeFactory;
-use Cms\Admin\Validation\Validator;
+use Core\Validation\Validator;
 
 final class UsersService
 {

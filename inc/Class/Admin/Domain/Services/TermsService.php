@@ -6,7 +6,7 @@ namespace Cms\Admin\Domain\Services;
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\Slugger;
-use Cms\Admin\Validation\Validator;
+use Core\Validation\Validator;
 
 final class TermsService
 {
