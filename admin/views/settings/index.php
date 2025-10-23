@@ -18,12 +18,14 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
   $datetimePresets = is_array($formatPresets['datetime'] ?? null) ? $formatPresets['datetime'] : [];
   $webpEnabled = (int)($settings['webp_enabled'] ?? 0) === 1;
   $webpCompression = (string)($settings['webp_compression'] ?? 'medium');
+  $faviconUrl = (string)($settings['favicon_url'] ?? '');
+  $hasFavicon = $faviconUrl !== '';
   $curTz = \Cms\Admin\Utils\SettingsPresets::normalizeTimezone((string)($settings['timezone'] ?? 'UTC+01:00'));
   $tzLabel = static function(string $tz): string {
     return \Cms\Admin\Utils\SettingsPresets::timezoneLabel($tz);
   };
 ?>
-  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax data-form-helper="validation">
+  <form class="card" method="post" action="admin.php?r=settings&a=index" id="settingsForm" data-ajax data-form-helper="validation" enctype="multipart/form-data">
     <div class="card-body">
       <div class="alert alert-danger mb-3" data-error-for="form" hidden></div>
       <div class="mb-4">
@@ -37,6 +39,24 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             <label class="form-label" for="site_email">E-mail webu</label>
             <input class="form-control" id="site_email" name="site_email" value="<?= $h((string)($settings['site_email'] ?? '')) ?>" type="email" placeholder="admin@example.com">
             <div class="invalid-feedback" data-error-for="site_email" hidden></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="site_favicon">Favicon</label>
+            <?php if ($hasFavicon): ?>
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <img src="<?= $h($faviconUrl) ?>" alt="Aktuální favicon" class="rounded border" style="width: 32px; height: 32px; object-fit: contain; background: #fff;">
+                <span class="text-secondary small">Aktuálně nastavená ikona</span>
+              </div>
+            <?php endif; ?>
+            <input class="form-control" id="site_favicon" name="favicon" type="file" accept=".ico,image/x-icon,image/png,image/svg+xml,image/webp,image/gif,image/jpeg,image/avif">
+            <?php if ($hasFavicon): ?>
+              <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="favicon_remove" name="favicon_remove" value="1">
+                <label class="form-check-label" for="favicon_remove">Odstranit aktuální faviconu</label>
+              </div>
+            <?php endif; ?>
+            <div class="form-text">Podporované formáty: ICO, PNG, SVG, JPEG, WebP, AVIF nebo GIF. Maximální velikost 2&nbsp;MB.</div>
+            <div class="invalid-feedback" data-error-for="favicon" hidden></div>
           </div>
         </div>
       </div>
