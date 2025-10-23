@@ -93,6 +93,14 @@ textarea {
   align-items: center;
   gap: var(--admin-space-100);
 }
+.admin-brand-logo {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.25rem;
+  object-fit: contain;
+  background: #fff;
+  padding: 0.15rem;
+}
 .admin-menu ul {
   list-style: none;
   margin: 0;

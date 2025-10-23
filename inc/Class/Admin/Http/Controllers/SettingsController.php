@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Cms\Admin\Http\Controllers;
 
 use Core\Database\Init as DB;
+use Core\Files\PathResolver;
+use Core\Files\Uploader;
 use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Settings\CmsSettings;
@@ -71,6 +73,23 @@ final class SettingsController extends BaseAdminController
         $media = is_array($data['media'] ?? null) ? $data['media'] : [];
         $row['webp_enabled'] = !empty($media['webp_enabled']) ? 1 : 0;
         $row['webp_compression'] = $this->normalizeWebpCompression((string)($media['webp_compression'] ?? ''));
+
+        $favicon = is_array($media['favicon'] ?? null) ? $media['favicon'] : [];
+        $faviconRelative = isset($favicon['relative']) ? (string)$favicon['relative'] : '';
+        $faviconUrl = '';
+        if ($faviconRelative !== '') {
+            try {
+                $faviconUrl = $this->uploadPaths()->publicUrl($faviconRelative);
+            } catch (\Throwable) {
+                $faviconUrl = isset($favicon['url']) ? (string)$favicon['url'] : '';
+            }
+        } elseif (!empty($favicon['url'])) {
+            $faviconUrl = (string)$favicon['url'];
+        }
+
+        $row['favicon_relative'] = $faviconRelative;
+        $row['favicon_url'] = $faviconUrl;
+        $row['favicon_mime'] = isset($favicon['mime']) ? (string)$favicon['mime'] : '';
 
         [$normalizedTz, $tzAdjusted] = $this->sanitizeTimezone($storedTimezone);
         $row['timezone'] = $normalizedTz;
@@ -369,6 +388,20 @@ final class SettingsController extends BaseAdminController
 
         $webpEnabled = (int)($_POST['webp_enabled'] ?? 0) === 1;
         $webpCompression = $this->normalizeWebpCompression((string)($_POST['webp_compression'] ?? ''));
+        $faviconRemove = (int)($_POST['favicon_remove'] ?? 0) === 1;
+        $hasFaviconUpload = $this->hasUploadedFile('favicon');
+
+        $faviconUpload = null;
+        $uploadPaths = null;
+        if ($hasFaviconUpload && $errors === []) {
+            try {
+                $uploadPaths = $this->uploadPaths();
+                $uploader = new Uploader($uploadPaths, $this->faviconMimeWhitelist(), 2000000);
+                $faviconUpload = $uploader->handle($_FILES['favicon'], 'settings');
+            } catch (\Throwable) {
+                $errors['favicon'][] = 'Soubor se nepodařilo nahrát. Zkontrolujte formát a velikost.';
+            }
+        }
 
         if ($errors !== []) {
             $errors['form'][] = 'Opravte zvýrazněné chyby.';
@@ -383,6 +416,27 @@ final class SettingsController extends BaseAdminController
         if (!isset($data['media']) || !is_array($data['media'])) {
             $data['media'] = [];
         }
+        $existingFavicon = is_array($data['media']['favicon'] ?? null) ? $data['media']['favicon'] : [];
+        $existingFaviconRel = isset($existingFavicon['relative']) ? (string)$existingFavicon['relative'] : '';
+
+        if ($uploadPaths === null) {
+            $uploadPaths = $this->uploadPaths();
+        }
+
+        if ($faviconUpload !== null) {
+            if ($existingFaviconRel !== '') {
+                $this->removeFaviconFile($existingFavicon, $uploadPaths);
+            }
+            $data['media']['favicon'] = [
+                'relative' => $faviconUpload['relative'],
+                'url'      => $faviconUpload['url'],
+                'mime'     => $faviconUpload['mime'],
+            ];
+        } elseif ($faviconRemove && $existingFaviconRel !== '') {
+            $this->removeFaviconFile($existingFavicon, $uploadPaths);
+            unset($data['media']['favicon']);
+        }
+
         $data['media']['webp_enabled'] = $webpEnabled;
         $data['media']['webp_compression'] = $webpCompression;
 
@@ -408,6 +462,49 @@ final class SettingsController extends BaseAdminController
         CmsSettings::refresh();
 
         $this->respondSettingsSuccess('Nastavení uloženo.', 'admin.php?r=settings');
+    }
+
+    private function hasUploadedFile(string $field): bool
+    {
+        if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
+            return false;
+        }
+
+        $error = (int)($_FILES[$field]['error'] ?? UPLOAD_ERR_NO_FILE);
+
+        return $error !== UPLOAD_ERR_NO_FILE;
+    }
+
+    private function faviconMimeWhitelist(): array
+    {
+        return [
+            'image/png',
+            'image/jpeg',
+            'image/gif',
+            'image/webp',
+            'image/avif',
+            'image/svg+xml',
+            'image/x-icon',
+            'image/vnd.microsoft.icon',
+        ];
+    }
+
+    private function removeFaviconFile(array $favicon, PathResolver $paths): void
+    {
+        $relative = isset($favicon['relative']) ? (string)$favicon['relative'] : '';
+        if ($relative === '') {
+            return;
+        }
+
+        try {
+            $absolute = $paths->absoluteFromRelative($relative);
+        } catch (\Throwable) {
+            return;
+        }
+
+        if (is_file($absolute)) {
+            @unlink($absolute);
+        }
     }
 
     private function saveMail(): void

@@ -10,6 +10,7 @@ $locale = (string)($site['locale'] ?? 'cs');
 $locale = $locale !== '' ? $locale : 'cs';
 $siteTitle = (string)($site['title'] ?? 'Web');
 $siteTagline = (string)($site['description'] ?? '');
+$siteFavicon = (string)($site['favicon'] ?? '');
 $metaTitle = (string)($meta['title'] ?? $siteTitle);
 $metaDescription = isset($meta['description']) && $meta['description'] !== '' ? (string)$meta['description'] : null;
 $canonical = isset($meta['canonical']) && $meta['canonical'] !== '' ? (string)$meta['canonical'] : null;
@@ -115,6 +116,9 @@ $renderMenu = static function (array $items, string $class = 'menu', int $depth 
     <?php endif; ?>
     <?php if ($themeName !== ''): ?>
         <meta name="generator" content="<?= htmlspecialchars($themeName . ($themeVersion !== '' ? ' v' . $themeVersion : ''), ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endif; ?>
+    <?php if ($siteFavicon !== ''): ?>
+        <link rel="icon" href="<?= htmlspecialchars($siteFavicon, ENT_QUOTES, 'UTF-8'); ?>">
     <?php endif; ?>
     <?php foreach ($metaExtra as $key => $value): ?>
         <?php

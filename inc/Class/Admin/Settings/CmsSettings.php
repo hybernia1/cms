@@ -6,6 +6,7 @@ namespace Cms\Admin\Settings;
 use Core\Database\Init as DB;
 use Cms\Admin\Utils\PermalinkSettings;
 use Cms\Admin\Utils\SettingsPresets;
+use Cms\Admin\Utils\UploadPathFactory;
 
 final class CmsSettings
 {
@@ -195,6 +196,23 @@ final class CmsSettings
     {
         $mail = self::mailSettings();
         return trim((string)($mail['signature'] ?? ''));
+    }
+
+    public function siteFavicon(): string
+    {
+        $media = self::mediaSettings();
+        $favicon = is_array($media['favicon'] ?? null) ? $media['favicon'] : [];
+        $relative = isset($favicon['relative']) ? trim((string)$favicon['relative']) : '';
+        if ($relative !== '') {
+            try {
+                return UploadPathFactory::forUploads()->publicUrl($relative);
+            } catch (\Throwable) {
+                // fallback to stored URL if resolver fails
+            }
+        }
+
+        $url = isset($favicon['url']) ? trim((string)$favicon['url']) : '';
+        return $url;
     }
 
     public function seoUrlsEnabled(): bool

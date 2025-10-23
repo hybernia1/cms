@@ -8,6 +8,9 @@ $assets = require __DIR__.'/../../assets/manifest.php';
 $cssAssets = isset($assets['css']) && is_array($assets['css']) ? $assets['css'] : [];
 $jsAssets = isset($assets['js']) && is_array($assets['js']) ? $assets['js'] : [];
 $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+$settings = new \Cms\Admin\Settings\CmsSettings();
+$adminFavicon = $settings->siteFavicon();
+$adminBrand = $settings->siteTitle() ?: 'CMS';
 ?>
 <!doctype html>
 <html lang="cs" data-bs-theme="light">
@@ -15,6 +18,9 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   <meta charset="utf-8">
   <title><?= $h(($pageTitle ?? 'Admin').' – CMS') ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <?php if ($adminFavicon !== ''): ?>
+    <link rel="icon" href="<?= $h($adminFavicon) ?>">
+  <?php endif; ?>
   <?php foreach ($cssAssets as $css): ?>
     <link rel="stylesheet" href="<?= $h((string)$css) ?>">
   <?php endforeach; ?>
@@ -23,7 +29,14 @@ $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 <div class="admin-wrapper">
   <aside class="admin-sidebar" aria-label="Admin menu">
     <div class="admin-brand">
-      <a href="admin.php"><i class="bi bi-wordpress"></i> CMS Admin</a>
+      <a href="admin.php">
+        <?php if ($adminFavicon !== ''): ?>
+          <img src="<?= $h($adminFavicon) ?>" alt="" class="admin-brand-logo">
+        <?php else: ?>
+          <i class="bi bi-wordpress"></i>
+        <?php endif; ?>
+        <span><?= $h($adminBrand) ?> Admin</span>
+      </a>
     </div>
     <nav class="admin-menu">
       <ul>

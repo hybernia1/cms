@@ -142,6 +142,7 @@ final class ThemeViewEngine
         $siteLocale = $this->settings->siteLocale();
         $siteEmail = $this->settings->siteEmail();
         $siteTimezone = $this->settings->timezone();
+        $siteFavicon = $this->settings->siteFavicon();
 
         $this->defaultMeta = $this->buildDefaultMeta($siteTitle, $siteTagline, $siteUrl, $siteLocale);
         $this->createFormatters();
@@ -157,6 +158,7 @@ final class ThemeViewEngine
                 'date_format' => $this->dateFormat,
                 'time_format' => $this->timeFormat,
                 'datetime_format' => $this->dateTimeFormat,
+                'favicon' => $siteFavicon,
             ],
             'links' => $this->links,
             'navigation' => [],
