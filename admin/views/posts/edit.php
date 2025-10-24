@@ -15,10 +15,8 @@ declare(strict_types=1);
 /** @var string|null $publicUrl */
 /** @var string|null $deleteUrl */
 /** @var string|null $deleteCsrf */
-/** @var array<string,array<string,mixed>> $metaDefinitions */
-/** @var array<string,mixed> $metaValues */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types,$typeConfig,$publicUrl,$deleteUrl,$deleteCsrf,$metaDefinitions,$metaValues) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types,$typeConfig,$publicUrl,$deleteUrl,$deleteCsrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$post;
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek','edit'=>'Upravit příspěvek','label'=>strtoupper($type)];
@@ -97,28 +95,6 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       }
     }
     return $result;
-  };
-
-  $metaDefs = is_array($metaDefinitions ?? null) ? $metaDefinitions : [];
-  $metaVals = is_array($metaValues ?? null) ? $metaValues : [];
-  $metaGroups = [];
-  foreach ($metaDefs as $metaKey => $definition) {
-    $groupName = isset($definition['group']) ? trim((string)$definition['group']) : '';
-    if (!array_key_exists($groupName, $metaGroups)) {
-      $metaGroups[$groupName] = [];
-    }
-    $metaGroups[$groupName][$metaKey] = $definition;
-  }
-  $metaFieldId = static function (string $key): string {
-    $normalized = preg_replace('/[^a-z0-9_-]+/i', '-', $key);
-    if ($normalized === null || $normalized === '') {
-      $normalized = $key;
-    }
-    $normalized = trim($normalized, '-');
-    if ($normalized === '') {
-      $normalized = 'meta';
-    }
-    return 'meta-' . strtolower($normalized);
   };
 
   $categorySelected = $findSelectedItems($categoriesWhitelist, $categorySelectedIds);
@@ -338,114 +314,6 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
                 <input type="hidden" name="remove_thumbnail" id="remove-thumbnail" value="0" data-thumbnail-remove-input>
                 <input class="form-control d-none" type="file" name="thumbnail" id="thumbnail-file-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,image/*,application/pdf" data-thumbnail-file-input>
                 <div class="form-text mt-2">Vybraný soubor se uloží do <code>uploads/Y/m/posts/</code> a lze jej přetáhnout přímo do otevřeného modálu.</div>
-              </div>
-            </div>
-          <?php endif; ?>
-
-          <?php if ($metaGroups !== []): ?>
-            <div class="card shadow-sm">
-              <div class="card-header fw-semibold">Metadata</div>
-              <div class="card-body">
-                <?php foreach ($metaGroups as $groupName => $fields): ?>
-                  <?php if ($fields === []): continue; endif; ?>
-                  <?php if ($groupName !== ''): ?>
-                    <div class="fw-semibold text-uppercase small text-secondary mb-3"><?= $h($groupName) ?></div>
-                  <?php endif; ?>
-                  <?php foreach ($fields as $metaKey => $definition): ?>
-                    <?php
-                      $fieldId = $metaFieldId((string)$metaKey);
-                      $fieldName = 'meta[' . $metaKey . ']';
-                      $metaType = isset($definition['type']) ? (string)$definition['type'] : 'string';
-                      $metaLabel = isset($definition['label']) ? (string)$definition['label'] : $metaKey;
-                      $metaDescription = isset($definition['description']) ? trim((string)$definition['description']) : '';
-                      $metaOptions = is_array($definition['options'] ?? null) ? $definition['options'] : [];
-                      $metaRequired = !empty($definition['required']);
-                      $currentValue = $metaVals[$metaKey] ?? ($definition['default'] ?? null);
-                      $errorKey = 'meta[' . $metaKey . ']';
-                    ?>
-                    <div class="mb-3">
-                      <?php if ($metaType === 'bool'): ?>
-                        <input type="hidden" name="<?= $h($fieldName) ?>" value="0">
-                        <div class="form-check form-switch">
-                          <?php $checkedAttr = $currentValue ? 'checked' : ''; ?>
-                          <input
-                            class="form-check-input"
-                            type="checkbox"
-                            id="<?= $h($fieldId) ?>"
-                            name="<?= $h($fieldName) ?>"
-                            value="1"
-                            <?= $checkedAttr ?>
-                          >
-                          <label class="form-check-label" for="<?= $h($fieldId) ?>"><?= $h($metaLabel) ?></label>
-                        </div>
-                        <?php if ($metaDescription !== ''): ?>
-                          <div class="form-text text-secondary"><?= $h($metaDescription) ?></div>
-                        <?php endif; ?>
-                        <div class="invalid-feedback" data-error-for="<?= $h($errorKey) ?>" hidden></div>
-                      <?php else: ?>
-                        <label class="form-label" for="<?= $h($fieldId) ?>"><?= $h($metaLabel) ?></label>
-                        <?php if ($metaOptions !== []): ?>
-                          <select
-                            class="form-select"
-                            id="<?= $h($fieldId) ?>"
-                            name="<?= $h($fieldName) ?>"
-                            <?= $metaRequired ? 'required' : '' ?>
-                          >
-                            <?php foreach ($metaOptions as $optionValue => $optionLabel): ?>
-                              <?php $selectedAttr = (string)$currentValue === (string)$optionValue ? 'selected' : ''; ?>
-                              <option value="<?= $h((string)$optionValue) ?>" <?= $selectedAttr ?>><?= $h((string)$optionLabel) ?></option>
-                            <?php endforeach; ?>
-                          </select>
-                        <?php elseif ($metaType === 'text' || $metaType === 'json'): ?>
-                          <?php
-                            $textValue = '';
-                            if ($metaType === 'json') {
-                              if ($currentValue !== null && $currentValue !== '') {
-                                $encoded = json_encode($currentValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-                                if ($encoded === false) {
-                                  $encoded = is_string($currentValue) ? $currentValue : '';
-                                }
-                                $textValue = $encoded;
-                              }
-                            } else {
-                              $textValue = is_string($currentValue) ? $currentValue : (is_scalar($currentValue) ? (string)$currentValue : '');
-                            }
-                          ?>
-                          <textarea
-                            class="form-control"
-                            id="<?= $h($fieldId) ?>"
-                            name="<?= $h($fieldName) ?>"
-                            rows="4"
-                            <?= $metaRequired ? 'required' : '' ?>
-                          ><?= $h($textValue) ?></textarea>
-                        <?php else: ?>
-                          <?php
-                            $inputType = $metaType === 'int' ? 'number' : ($metaType === 'float' ? 'number' : 'text');
-                            $stepAttr = $metaType === 'float' ? ' step="any"' : ($metaType === 'int' ? ' step="1"' : '');
-                            $valueAttr = '';
-                            if ($currentValue !== null && $currentValue !== '') {
-                              $valueAttr = is_scalar($currentValue)
-                                ? (string)$currentValue
-                                : (is_array($currentValue) ? json_encode($currentValue, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '');
-                            }
-                          ?>
-                          <input
-                            class="form-control"
-                            type="<?= $h($inputType) ?>"
-                            id="<?= $h($fieldId) ?>"
-                            name="<?= $h($fieldName) ?>"
-                            value="<?= $h($valueAttr) ?>"
-                            <?= $metaRequired ? 'required' : '' ?><?= $stepAttr ?>
-                          >
-                        <?php endif; ?>
-                        <?php if ($metaType !== 'bool' && $metaDescription !== ''): ?>
-                          <div class="form-text text-secondary"><?= $h($metaDescription) ?></div>
-                        <?php endif; ?>
-                        <div class="invalid-feedback" data-error-for="<?= $h($errorKey) ?>" hidden></div>
-                      <?php endif; ?>
-                    </div>
-                  <?php endforeach; ?>
-                <?php endforeach; ?>
               </div>
             </div>
           <?php endif; ?>
