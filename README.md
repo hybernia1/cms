@@ -8,6 +8,12 @@ Tento projekt obsahuje produkčně použitelný instalační proces a kompletní
 - Podpora dvou primárních typů obsahu (`post` a `page`) včetně práce se stavem (`draft`/`publish`), automatického generování slugů a sledování časových metadat.
 - Rychlé ukládání konceptů přímo z dashboardu a přehled posledních konceptů pro snadný návrat k rozpracované práci.
 
+## Veřejné výstupy
+
+- Automaticky generovaná sitemap na `/sitemap.xml` (nebo `/index.php?r=sitemap`), která agreguje publikované příspěvky napříč post typy a související termy. Výstup respektuje nastavení permalinků, obsahuje poslední datum změny a je cachovaný (výchozí TTL 10 minut, cache se invaliduje po změně nebo smazání obsahu).【F:inc/Class/Front/Support/SitemapBuilder.php†L19-L220】【F:inc/Class/Admin/Domain/Services/PostsService.php†L60-L147】【F:inc/Class/Admin/Http/Controllers/PostsController.php†L430-L1391】
+- RSS feed (`/feed` nebo `/index.php?r=feed`) publikující nejnovější příspěvky veřejných post typů. Každá položka obsahuje název, permalink, popis i plný obsah ve `<content:encoded>` a zdroj se identifikuje pomocí údajů z nastavení webu.【F:inc/Class/Front/Support/FeedBuilder.php†L17-L203】【F:inc/Class/Admin/Utils/LinkGenerator.php†L198-L228】
+- Konfigurace viditelnosti je součástí registrace post typů (`public`, `sitemap`, `feed`) a lze ji dále upravit pomocí filtrů `add_filter('sitemap.post_types', …)` nebo `add_filter('feed.post_types', …)`. Stejný mechanismus umožňuje doplňovat vlastní URL před finálním renderem sitemap i feedu.【F:inc/functions/post-types.php†L6-L46】【F:inc/Class/Front/Data/PostProvider.php†L103-L218】【F:inc/Class/Front/Support/Hooks.php†L7-L66】
+
 ### Taxonomie a navigace
 - Kategorie a štítky řešené jako termy s hromadným přiřazením k příspěvkům a filtrováním.
 - Správa menu přes `NavigationController`, včetně definice vlastních položek a podporou více menu.
