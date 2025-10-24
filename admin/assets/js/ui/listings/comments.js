@@ -235,43 +235,21 @@ function createCommentsListingController(container) {
     }
   }
 
-  function shouldHandleAnchor(anchor) {
-    if (!anchor || (anchor.target && anchor.target !== '_self')) {
-      return false;
-    }
-    if (!container.contains(anchor)) {
-      return false;
-    }
-    if (anchor.closest('[data-comments-pagination]')) {
-      return true;
-    }
-    var toolbar = anchor.closest('[data-comments-toolbar]');
-    if (!toolbar) {
-      return false;
-    }
-    if (anchor.closest('nav')) {
-      return true;
-    }
-    var form = anchor.closest('form');
-    if (form && form.getAttribute('role') === 'search') {
-      return true;
-    }
-    return false;
-  }
-
   function handleClick(event) {
     var anchor = event.target && event.target.closest ? event.target.closest('a') : null;
-    if (!shouldHandleAnchor(anchor)) {
+    if (!anchor || !container.contains(anchor)) {
       return;
     }
-    event.preventDefault();
-    if (event.stopPropagation) {
-      event.stopPropagation();
+    if (anchor.closest('[data-comments-pagination]')) {
+      event.preventDefault();
+      if (event.stopPropagation) {
+        event.stopPropagation();
+      }
+      if (event.stopImmediatePropagation) {
+        event.stopImmediatePropagation();
+      }
+      handleRequest(anchor.href);
     }
-    if (event.stopImmediatePropagation) {
-      event.stopImmediatePropagation();
-    }
-    handleRequest(anchor.href);
   }
 
   function bindSearchForm() {
