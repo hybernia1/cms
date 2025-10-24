@@ -4,11 +4,10 @@ declare(strict_types=1);
 namespace Cms\Front\Http;
 
 use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
-use Cms\Admin\Domain\Repositories\TermsRepository;
-use Cms\Admin\Domain\Repositories\UsersRepository;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Passwords;
+use Cms\Admin\Domain\Repositories\UsersRepository;
 use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Utils\LinkGenerator;
@@ -19,9 +18,6 @@ use Cms\Front\Data\MenuProvider;
 use Cms\Front\Data\PostProvider;
 use Cms\Front\Data\TermProvider;
 use Cms\Front\Support\SeoMeta;
-use Cms\Front\Support\FeedBuilder;
-use Cms\Front\Support\SimpleCache;
-use Cms\Front\Support\SitemapBuilder;
 use Cms\Front\View\ThemeViewEngine;
 use Core\Database\Init as DB;
 use Throwable;
@@ -41,9 +37,6 @@ final class Router
     private MailService $mail;
     private TemplateManager $templates;
     private AuthService $auth;
-    private SimpleCache $cache;
-    private SitemapBuilder $sitemap;
-    private FeedBuilder $feed;
 
     public function __construct(
         ThemeViewEngine $view,
@@ -56,10 +49,7 @@ final class Router
         ?UsersRepository $users = null,
         ?MailService $mail = null,
         ?TemplateManager $templates = null,
-        ?AuthService $auth = null,
-        ?SimpleCache $cache = null,
-        ?SitemapBuilder $sitemap = null,
-        ?FeedBuilder $feed = null
+        ?AuthService $auth = null
     ) {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
@@ -76,9 +66,6 @@ final class Router
         $this->mail = $mail ?? new MailService($this->settings);
         $this->templates = $templates ?? new TemplateManager();
         $this->auth = $auth ?? new AuthService();
-        $this->cache = $cache ?? new SimpleCache();
-        $this->sitemap = $sitemap ?? new SitemapBuilder($this->posts, new TermsRepository(), $this->settings, $this->links, $this->cache);
-        $this->feed = $feed ?? new FeedBuilder($this->posts, $this->settings, $this->links, $this->cache);
 
         $this->shareCommonViewData();
     }
@@ -180,19 +167,6 @@ final class Router
     {
         $result = $this->resolve();
         http_response_code($result->status);
-        if ($result->contentType !== null) {
-            header('Content-Type: ' . $result->contentType);
-        }
-
-        foreach ($result->headers as $name => $value) {
-            header($name . ': ' . $value);
-        }
-
-        if ($result->rawBody !== null) {
-            echo $result->rawBody;
-            return;
-        }
-
         $this->view->renderWithLayout($result->layout, $result->template, $result->data);
     }
 
@@ -289,8 +263,6 @@ final class Router
             'category' => $this->handleTerm((string)($params['slug'] ?? ''), 'category'),
             'tag' => $this->handleTerm((string)($params['slug'] ?? ''), 'tag'),
             'search' => $this->handleSearch((string)($params['query'] ?? ($params['s'] ?? ''))),
-            'sitemap' => $this->handleSitemap(),
-            'feed' => $this->handleFeed(),
             'register' => $this->handleRegister(),
             'lost' => $this->handleLost(),
             'reset' => $this->handleReset((string)($params['token'] ?? ''), (int)($params['id'] ?? 0)),
@@ -305,13 +277,6 @@ final class Router
     {
         $route = isset($_GET['r']) ? (string)$_GET['r'] : null;
         if ($route !== null && $route !== '') {
-            $normalized = strtolower($route);
-            if (in_array($normalized, ['sitemap', 'sitemap.xml'], true)) {
-                return ['name' => 'sitemap', 'params' => []];
-            }
-            if (in_array($normalized, ['feed', 'rss'], true)) {
-                return ['name' => 'feed', 'params' => []];
-            }
             $params = $_GET;
             unset($params['r']);
             $mapped = $this->mapPostRouteFromSlug($route, $params);
@@ -340,13 +305,6 @@ final class Router
     {
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
         $path = $this->trimBase($path);
-        $normalizedPath = strtolower(trim($path, '/'));
-        if ($normalizedPath === 'sitemap' || $normalizedPath === 'sitemap.xml') {
-            return ['name' => 'sitemap', 'params' => []];
-        }
-        if ($normalizedPath === 'feed' || $normalizedPath === 'rss') {
-            return ['name' => 'feed', 'params' => []];
-        }
         if ($path === '' || $path === 'index.php') {
             return ['name' => 'home', 'params' => []];
         }
@@ -389,12 +347,6 @@ final class Router
                     $query = $_GET['s'] ?? ($_GET['q'] ?? '');
                 }
                 return ['name' => 'search', 'params' => ['query' => (string)rawurldecode((string)$query)]];
-            }
-            if ($first === 'feed' || $first === 'rss') {
-                return ['name' => 'feed', 'params' => []];
-            }
-            if ($first === 'sitemap' || $first === 'sitemap.xml') {
-                return ['name' => 'sitemap', 'params' => []];
             }
             if ($first === 'register') {
                 return ['name' => 'register', 'params' => []];
@@ -871,34 +823,6 @@ final class Router
             'posts' => $posts,
             'meta' => $meta->toArray(),
         ]);
-    }
-
-    private function handleSitemap(): RouteResult
-    {
-        try {
-            $xml = $this->sitemap->build();
-        } catch (Throwable $exception) {
-            error_log('Failed to generate sitemap: ' . $exception->getMessage());
-            $xml = '<?xml version="1.0" encoding="UTF-8"?><error>Unable to generate sitemap.</error>';
-
-            return RouteResult::raw($xml, 'application/xml; charset=utf-8', 500);
-        }
-
-        return RouteResult::raw($xml, 'application/xml; charset=utf-8');
-    }
-
-    private function handleFeed(): RouteResult
-    {
-        try {
-            $xml = $this->feed->build();
-        } catch (Throwable $exception) {
-            error_log('Failed to generate feed: ' . $exception->getMessage());
-            $xml = '<?xml version="1.0" encoding="UTF-8"?><error>Unable to generate feed.</error>';
-
-            return RouteResult::raw($xml, 'application/rss+xml; charset=utf-8', 500);
-        }
-
-        return RouteResult::raw($xml, 'application/rss+xml; charset=utf-8');
     }
 
     private function handleRegister(): RouteResult

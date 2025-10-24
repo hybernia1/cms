@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Cms\Front\Data;
 
-use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
@@ -96,18 +95,7 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select([
-                    'p.id',
-                    'p.title',
-                    'p.slug',
-                    'p.content',
-                    'p.type',
-                    'p.published_at',
-                    'p.created_at',
-                    'p.updated_at',
-                    'p.author_id',
-                    'u.name AS author_name',
-                ])
+                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.type', '=', $type)
                 ->where('p.status', '=', 'publish')
@@ -151,18 +139,7 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select([
-                    'p.id',
-                    'p.title',
-                    'p.slug',
-                    'p.content',
-                    'p.type',
-                    'p.published_at',
-                    'p.created_at',
-                    'p.updated_at',
-                    'p.author_id',
-                    'u.name AS author_name',
-                ])
+                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->join('post_terms pt', 'pt.post_id', '=', 'p.id')
                 ->join('terms t', 't.id', '=', 'pt.term_id')
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
@@ -178,83 +155,6 @@ final class PostProvider
                 ->get() ?? [];
         } catch (Throwable $e) {
             error_log('Failed to load posts for term: ' . $e->getMessage());
-            $this->cache[$key] = [];
-            return [];
-        }
-
-        $posts = [];
-        foreach ($rows as $row) {
-            $posts[] = $this->mapPost($row);
-        }
-
-        $this->cache[$key] = $posts;
-
-        return $posts;
-    }
-
-    /**
-     * @param array<int,string>|null $types
-     * @return array<int,array<string,mixed>>
-     */
-    public function publishedAcrossTypes(?array $types = null, int $limit = 50, int $offset = 0, bool $includeContent = false): array
-    {
-        $normalizedTypes = $this->normalizeTypes($types);
-        if ($normalizedTypes === []) {
-            return [];
-        }
-
-        $limit = max(1, $limit);
-        $offset = max(0, $offset);
-
-        $signature = json_encode([
-            'types' => $normalizedTypes,
-            'limit' => $limit,
-            'offset' => $offset,
-            'content' => $includeContent,
-        ]);
-        $key = 'published:' . md5($signature ?: microtime());
-        if (isset($this->cache[$key])) {
-            /** @var array<int,array<string,mixed>> $cached */
-            $cached = $this->cache[$key];
-            return $cached;
-        }
-
-        $now = $this->now();
-
-        $columns = [
-            'p.id',
-            'p.title',
-            'p.slug',
-            'p.type',
-            'p.published_at',
-            'p.created_at',
-            'p.updated_at',
-            'p.author_id',
-            'p.comments_allowed',
-            'u.name AS author_name',
-        ];
-        if ($includeContent) {
-            $columns[] = 'p.content';
-        }
-
-        try {
-            $rows = DB::query()
-                ->table('posts', 'p')
-                ->select($columns)
-                ->leftJoin('users u', 'u.id', '=', 'p.author_id')
-                ->whereIn('p.type', $normalizedTypes)
-                ->where('p.status', '=', 'publish')
-                ->where(static function ($q) use ($now): void {
-                    $q->where('p.published_at', '<=', $now)
-                        ->whereNull('p.published_at', 'OR');
-                })
-                ->orderBy('COALESCE(p.published_at, p.created_at)', 'DESC')
-                ->orderBy('p.id', 'DESC')
-                ->offset($offset)
-                ->limit($limit)
-                ->get() ?? [];
-        } catch (Throwable $exception) {
-            error_log('Failed to load published posts: ' . $exception->getMessage());
             $this->cache[$key] = [];
             return [];
         }
@@ -292,18 +192,7 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select([
-                    'p.id',
-                    'p.title',
-                    'p.slug',
-                    'p.content',
-                    'p.type',
-                    'p.published_at',
-                    'p.created_at',
-                    'p.updated_at',
-                    'p.author_id',
-                    'u.name AS author_name',
-                ])
+                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.status', '=', 'publish')
                 ->where(static function ($q) use ($now): void {
@@ -359,8 +248,6 @@ final class PostProvider
 
         $publishedRaw = isset($row['published_at']) ? (string)$row['published_at'] : '';
         [$publishedDisplay, $publishedIso] = $this->normalizeDate($publishedRaw);
-        $updatedRaw = isset($row['updated_at']) ? (string)$row['updated_at'] : '';
-        $createdRaw = isset($row['created_at']) ? (string)$row['created_at'] : '';
 
         $authorId = isset($row['author_id']) ? (int)$row['author_id'] : 0;
         $authorId = $authorId > 0 ? $authorId : null;
@@ -378,8 +265,6 @@ final class PostProvider
             'published_at' => $publishedDisplay,
             'published_at_iso' => $publishedIso,
             'published_at_raw' => $publishedRaw,
-            'updated_at_raw' => $updatedRaw,
-            'created_at_raw' => $createdRaw,
             'permalink' => $permalink,
             'comments_allowed' => $commentsAllowed,
         ];
@@ -411,45 +296,6 @@ final class PostProvider
             $dateTime->format($format),
             $dateTime->format(DATE_ATOM),
         ];
-    }
-
-    /**
-     * @param array<int,string>|null $types
-     * @return array<int,string>
-     */
-    private function normalizeTypes(?array $types): array
-    {
-        $registered = PostTypeRegistry::all();
-        if ($types === null) {
-            $keys = array_keys($registered);
-            if ($keys !== []) {
-                return array_values(array_map('strval', $keys));
-            }
-
-            return ['post'];
-        }
-
-        $normalized = [];
-        foreach ($types as $type) {
-            $candidate = trim((string)$type);
-            if ($candidate === '') {
-                continue;
-            }
-
-            if ($registered === [] || array_key_exists($candidate, $registered)) {
-                $normalized[$candidate] = $candidate;
-            }
-        }
-
-        if ($normalized === [] && $registered !== []) {
-            return array_values(array_map('strval', array_keys($registered)));
-        }
-
-        if ($normalized === []) {
-            return ['post'];
-        }
-
-        return array_values($normalized);
     }
 
     private function excerptFromContent(string $content, int $limit = 200): string

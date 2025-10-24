@@ -10,7 +10,6 @@ use Cms\Admin\Domain\Repositories\MediaRepository;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\Slugger;
 use Core\Validation\Validator;
-use function cms_front_cache_invalidate;
 
 final class PostsService
 {
@@ -79,9 +78,6 @@ final class PostsService
             }
         }
 
-        cms_front_cache_invalidate('sitemap');
-        cms_front_cache_invalidate('feed');
-
         return $id;
     }
 
@@ -133,13 +129,7 @@ final class PostsService
         if ($upd === []) return 0;
 
         $upd['updated_at'] = DateTimeFactory::nowString();
-        $affected = $this->posts->update($id, $upd);
-        if ($affected > 0) {
-            cms_front_cache_invalidate('sitemap');
-            cms_front_cache_invalidate('feed');
-        }
-
-        return $affected;
+        return $this->posts->update($id, $upd);
     }
 
     /**
