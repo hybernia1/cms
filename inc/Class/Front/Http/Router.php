@@ -24,6 +24,8 @@ use Throwable;
 
 final class Router
 {
+    private const SHARED_NOTIFICATION_KEY = '_front_notification';
+
     private ThemeViewEngine $view;
     private PostProvider $posts;
     private TermProvider $terms;
@@ -65,9 +67,100 @@ final class Router
         $this->templates = $templates ?? new TemplateManager();
         $this->auth = $auth ?? new AuthService();
 
+        $this->shareCommonViewData();
+    }
+
+    private function shareCommonViewData(): void
+    {
         $this->view->share([
             'navigation' => $this->menus->menusByLocation(),
+            'notifications' => $this->takeSharedNotifications(),
         ]);
+    }
+
+    /**
+     * @return array<int,array{type:string,message:string}>
+     */
+    private function takeSharedNotifications(): array
+    {
+        if (!isset($_SESSION[self::SHARED_NOTIFICATION_KEY])) {
+            return [];
+        }
+
+        $raw = $_SESSION[self::SHARED_NOTIFICATION_KEY];
+        unset($_SESSION[self::SHARED_NOTIFICATION_KEY]);
+
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $notifications = [];
+
+        if ($raw === []) {
+            return $notifications;
+        }
+
+        $isList = true;
+        $expectedKey = 0;
+        foreach (array_keys($raw) as $key) {
+            if (!is_int($key) || $key !== $expectedKey) {
+                $isList = false;
+                break;
+            }
+            $expectedKey++;
+        }
+
+        if ($isList) {
+            foreach ($raw as $item) {
+                $normalized = $this->normalizeNotification($item);
+                if ($normalized !== null) {
+                    $notifications[] = $normalized;
+                }
+            }
+        } else {
+            $normalized = $this->normalizeNotification($raw);
+            if ($normalized !== null) {
+                $notifications[] = $normalized;
+            }
+        }
+
+        return $notifications;
+    }
+
+    /**
+     * @param mixed $candidate
+     * @return array{type:string,message:string}|null
+     */
+    private function normalizeNotification($candidate): ?array
+    {
+        if (!is_array($candidate)) {
+            return null;
+        }
+
+        $message = (string)($candidate['message'] ?? ($candidate['msg'] ?? ''));
+        $type = strtolower((string)($candidate['type'] ?? ''));
+
+        if ($message === '') {
+            return null;
+        }
+
+        if ($type === '') {
+            $type = 'info';
+        }
+
+        if ($type === 'error') {
+            $type = 'danger';
+        }
+
+        $allowed = ['info', 'success', 'warning', 'danger'];
+        if (!in_array($type, $allowed, true)) {
+            $type = 'info';
+        }
+
+        return [
+            'type' => $type,
+            'message' => $message,
+        ];
     }
 
     public function dispatch(): void
