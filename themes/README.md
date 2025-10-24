@@ -32,5 +32,7 @@ View engine do šablon automaticky předává tyto proměnné:
 * `$meta` – metadata aktuální stránky (`title`, `description`, `canonical`).
 * `$theme['asset']($relPath)` – closure vracející URL k souborům tématu.
 
-Pokud šablona chybí, systém automaticky sáhne po vestavěných fallback souborech v
-`inc/resources/templates/simple`.
+Pokud šablona chybí, renderer vyhodí výjimku (např. `RuntimeException`). Doporučený
+postup je doplnit vlastní šablonu do aktivního tématu nebo v administraci přepnout
+na jiné téma, které požadovaný template obsahuje. Během vývoje můžete pro rychlou
+diagnostiku zapnout logování chyb v `config.php` (pole `debug`).

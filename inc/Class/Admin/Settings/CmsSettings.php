@@ -106,7 +106,11 @@ final class CmsSettings
 
     public function siteTitle(): string   { return (string)(self::row()['site_title'] ?? ''); }
     public function siteEmail(): string   { return (string)(self::row()['site_email'] ?? ''); }
-    public function themeSlug(): string   { return (string)(self::row()['theme_slug'] ?? 'classic'); }
+    public function themeSlug(): string
+    {
+        $slug = (string)(self::row()['theme_slug'] ?? '');
+        return trim($slug);
+    }
     public function siteUrl(): string
     {
         $raw = trim((string)(self::row()['site_url'] ?? ''));

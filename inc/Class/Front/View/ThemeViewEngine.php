@@ -48,20 +48,24 @@ final class ThemeViewEngine
 
     public function setTheme(string $slug): void
     {
-        $slug = $slug !== '' ? $slug : 'classic';
-        $this->themeSlug = $slug;
+        $trimmed = trim($slug);
+        if ($trimmed === '') {
+            throw MissingThemeException::forEmptySlug($this->baseDir . '/themes');
+        }
+
+        $this->themeSlug = $trimmed;
         $this->missingTemplate = false;
         $this->missingTemplateError = null;
 
-        $themePath = $this->baseDir . '/themes/' . $slug . '/templates';
+        $themePath = $this->baseDir . '/themes/' . $trimmed . '/templates';
         if (!is_dir($themePath)) {
-            throw MissingThemeException::forSlug($slug, $themePath);
+            throw MissingThemeException::forSlug($trimmed, $themePath);
         }
 
         $this->engine->setBasePaths([$themePath]);
-        $this->loadThemeManifest($slug);
+        $this->loadThemeManifest($trimmed);
         $this->shareThemeContext();
-        $this->loadThemeFunctions($slug);
+        $this->loadThemeFunctions($trimmed);
     }
 
     public function share(array $data): void

@@ -35,21 +35,25 @@ final class ThemeMenuLocator
      */
     public function locationsForTheme(string $slug): array
     {
-        $slug = trim($slug) !== '' ? trim($slug) : 'classic';
-        if (isset(self::$cache[$slug])) {
-            return self::$cache[$slug];
+        $trimmedSlug = trim($slug);
+        if ($trimmedSlug === '') {
+            return $this->fallbackLocations();
+        }
+
+        if (isset(self::$cache[$trimmedSlug])) {
+            return self::$cache[$trimmedSlug];
         }
 
         MenuLocations::reset();
 
-        foreach ($this->menusFromManifest($slug) as $location => $info) {
+        foreach ($this->menusFromManifest($trimmedSlug) as $location => $info) {
             MenuLocations::register($location, [
                 'label' => $info['label'],
                 'description' => $info['description'],
             ]);
         }
 
-        $functions = $this->themesDir . '/' . $slug . '/functions.php';
+        $functions = $this->themesDir . '/' . $trimmedSlug . '/functions.php';
         if (is_file($functions)) {
             try {
                 require_once $functions;
@@ -60,11 +64,29 @@ final class ThemeMenuLocator
 
         $registered = MenuLocations::all();
         if ($registered === []) {
-            MenuLocations::register('primary', 'Primary menu', 'Výchozí umístění navigace');
-            $registered = MenuLocations::all();
+            $registered = $this->fallbackLocations();
         }
 
-        self::$cache[$slug] = $registered;
+        self::$cache[$trimmedSlug] = $registered;
+        return $registered;
+    }
+
+    /**
+     * @return array<string,array{label:string,description:?string}>
+     */
+    private function fallbackLocations(): array
+    {
+        $cacheKey = '__default__';
+        if (isset(self::$cache[$cacheKey])) {
+            return self::$cache[$cacheKey];
+        }
+
+        MenuLocations::reset();
+        MenuLocations::register('primary', 'Primary menu', 'Výchozí umístění navigace');
+
+        $registered = MenuLocations::all();
+        self::$cache[$cacheKey] = $registered;
+
         return $registered;
     }
 
