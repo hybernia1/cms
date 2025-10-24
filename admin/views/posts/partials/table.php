@@ -6,6 +6,7 @@ declare(strict_types=1);
  * @var string $csrf
  * @var string $type
  * @var \Cms\Admin\Utils\LinkGenerator|null $urls
+ * @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig
  */
 
 $items = is_array($items ?? null) ? $items : [];
@@ -19,7 +20,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
   <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
       <tr>
-        <th style="width:36px"><input class="form-check-input" type="checkbox" id="select-all"></th>
+        <th style="width:36px"><input class="form-check-input" type="checkbox" id="<?= $h($bulkConfig->selectAllId()) ?>"></th>
         <th>Název</th>
         <th style="width:200px">Vytvořeno</th>
         <th style="width:140px" class="text-end">Akce</th>
@@ -39,7 +40,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
           }
         ?>
         <tr data-post-row data-post-id="<?= $h((string)$it['id']) ?>" data-post-status="<?= $isPublished ? 'publish' : 'draft' ?>">
-          <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku" form="posts-bulk-form"></td>
+          <td><input class="form-check-input row-check" type="checkbox" name="ids[]" value="<?= $h((string)$it['id']) ?>" aria-label="Vybrat položku" form="<?= $h($bulkConfig->formId()) ?>"></td>
           <td>
             <div class="admin-table-stack">
               <?php if ($frontUrl !== ''): ?>

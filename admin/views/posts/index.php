@@ -13,8 +13,9 @@ declare(strict_types=1);
 /** @var \Cms\Admin\Utils\LinkGenerator $urls */
 /** @var array<string,int> $statusCounts */
 /** @var callable $buildUrl */
+/** @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts,$buildUrl) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$type,$types,$urls,$statusCounts,$buildUrl,$bulkConfig) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $currentUrl = (string)($_SERVER['REQUEST_URI'] ?? '');
 ?>
@@ -34,46 +35,30 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       ]); ?>
     </div>
 
-    <?php $this->render('parts/listing/bulk-form', [
-      'formId'       => 'posts-bulk-form',
-      'action'       => 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'bulk', 'type' => $type]),
-      'csrf'         => $csrf,
-      'selectAll'    => '#select-all',
-      'rowSelector'  => '.row-check',
-      'actionSelect' => '#bulk-action-select',
-      'applyButton'  => '#bulk-apply',
-      'counter'      => '#bulk-selection-counter',
-    ]); ?>
+    <?php $this->render('parts/listing/bulk-form', $bulkConfig->formParams()); ?>
 
     <div class="card">
-      <?php $this->render('parts/listing/bulk-header', [
-        'formId'         => 'posts-bulk-form',
-        'actionSelectId' => 'bulk-action-select',
-        'applyButtonId'  => 'bulk-apply',
-        'options'        => [
-          ['value' => 'publish', 'label' => 'Publikovat'],
-          ['value' => 'draft',   'label' => 'Přepnout na koncept'],
-          ['value' => 'delete',  'label' => 'Smazat'],
-        ],
-        'counterId'      => 'bulk-selection-counter',
-        'applyIcon'      => 'bi bi-arrow-repeat',
-      ]); ?>
+      <?php $this->render('parts/listing/bulk-header', $bulkConfig->headerParams([
+        ['value' => 'publish', 'label' => 'Publikovat'],
+        ['value' => 'draft',   'label' => 'Přepnout na koncept'],
+        ['value' => 'delete',  'label' => 'Smazat'],
+      ], 'bi bi-arrow-repeat')); ?>
       <div data-posts-table>
         <?php $this->render('posts/partials/table', [
           'items' => $items,
           'csrf'  => $csrf,
           'type'  => $type,
           'urls'  => $urls,
+          'bulkConfig' => $bulkConfig,
         ]); ?>
       </div>
     </div>
 
-    <div data-posts-pagination>
-      <?php $this->render('posts/partials/pagination', [
-        'pagination' => $pagination,
-        'buildUrl'   => $buildUrl,
-      ]); ?>
-    </div>
+    <?php $this->render('parts/listing/pagination-block', [
+      'pagination'        => $pagination,
+      'buildUrl'          => $buildUrl,
+      'wrapperAttributes' => ['data-posts-pagination' => ''],
+    ]); ?>
   </div>
 
 <?php

@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** @var string $type */
 /** @var \Cms\Admin\Utils\LinkGenerator $urls */
 /** @var string $csrf */
+/** @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig */
 
 $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
@@ -11,7 +12,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
   <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
       <tr>
-        <th style="width:36px"><input class="form-check-input" type="checkbox" id="terms-select-all" aria-label="Vybrat vše"></th>
+        <th style="width:36px"><input class="form-check-input" type="checkbox" id="<?= $h($bulkConfig->selectAllId()) ?>" aria-label="Vybrat vše"></th>
         <th>Název</th>
         <th style="width:160px" class="text-end">Akce</th>
       </tr>
@@ -27,7 +28,7 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
         ?>
         <tr data-terms-row data-term-id="<?= $h((string)$id) ?>" data-term-type="<?= $h($itemType) ?>">
           <td>
-            <input class="form-check-input term-row-check" type="checkbox" name="ids[]" value="<?= $h((string)$id) ?>" aria-label="Vybrat term" form="terms-bulk-form">
+            <input class="form-check-input term-row-check" type="checkbox" name="ids[]" value="<?= $h((string)$id) ?>" aria-label="Vybrat term" form="<?= $h($bulkConfig->formId()) ?>">
           </td>
           <td>
             <?php if ($frontUrl !== ''): ?>

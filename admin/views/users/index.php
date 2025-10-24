@@ -10,9 +10,10 @@ declare(strict_types=1);
 /** @var callable $buildUrl */
 /** @var string $csrf */
 /** @var string $currentUrl */
+/** @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig */
 
 $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function() use ($items,$pagination,$searchQuery,
-$buildUrl,$csrf,$currentUser,$currentUrl) {
+$buildUrl,$csrf,$currentUser,$currentUrl,$bulkConfig) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $currentUserId = (int)($currentUser['id'] ?? 0);
 ?>
@@ -44,37 +45,17 @@ $buildUrl,$csrf,$currentUser,$currentUrl) {
       ]);
     ?>
 
-    <?php $this->render('parts/listing/bulk-form', [
-      'formId'       => 'users-bulk-form',
-      'action'       => 'admin.php?r=users&a=bulk',
-      'csrf'         => $csrf,
-      'selectAll'    => '#users-select-all',
-      'rowSelector'  => '.user-row-check',
-      'actionSelect' => '#users-bulk-select',
-      'applyButton'  => '#users-bulk-apply',
-      'counter'      => '#users-bulk-counter',
-      'hidden'       => [
-        'q'    => $searchQuery,
-        'page' => (string)($pagination['page'] ?? 1),
-      ],
-    ]); ?>
+    <?php $this->render('parts/listing/bulk-form', $bulkConfig->formParams()); ?>
 
     <div class="card">
-      <?php $this->render('parts/listing/bulk-header', [
-        'formId'         => 'users-bulk-form',
-        'actionSelectId' => 'users-bulk-select',
-        'applyButtonId'  => 'users-bulk-apply',
-        'options'        => [
-          ['value' => 'delete', 'label' => 'Smazat'],
-        ],
-        'counterId'      => 'users-bulk-counter',
-        'applyIcon'      => 'bi bi-trash',
-      ]); ?>
+      <?php $this->render('parts/listing/bulk-header', $bulkConfig->headerParams([
+        ['value' => 'delete', 'label' => 'Smazat'],
+      ], 'bi bi-trash')); ?>
       <div class="table-responsive">
         <table class="table table-sm table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th style="width:36px"><input class="form-check-input" type="checkbox" id="users-select-all" aria-label="Vybrat všechny"></th>
+              <th style="width:36px"><input class="form-check-input" type="checkbox" id="<?= $h($bulkConfig->selectAllId()) ?>" aria-label="Vybrat všechny"></th>
               <th>Jméno</th>
               <th style="width:200px">Role</th>
               <th style="width:120px" class="text-center">Stav</th>
@@ -88,6 +69,7 @@ $buildUrl,$csrf,$currentUser,$currentUrl) {
             'searchQuery'   => $searchQuery,
             'csrf'          => $csrf,
             'currentUserId' => $currentUserId,
+            'bulkConfig'    => $bulkConfig,
           ]); ?>
         </table>
       </div>
@@ -101,9 +83,10 @@ $buildUrl,$csrf,$currentUser,$currentUrl) {
       'currentUserId' => $currentUserId,
     ]); ?>
 
-    <?php $this->render('users/partials/pagination', [
-      'pagination' => $pagination,
-      'buildUrl'   => $buildUrl,
+    <?php $this->render('parts/listing/pagination-block', [
+      'pagination'        => $pagination,
+      'buildUrl'          => $buildUrl,
+      'wrapperAttributes' => ['data-users-pagination' => ''],
     ]); ?>
   </div>
 <?php
