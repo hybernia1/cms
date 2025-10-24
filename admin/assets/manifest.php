@@ -12,7 +12,7 @@ return [
     'js' => [
         ['src' => 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js', 'defer' => true],
         ['src' => 'admin/assets/editor/tags/tags.js', 'defer' => true],
-        ['src' => 'admin/assets/editor/content/editor.js', 'defer' => true],
+        ['src' => 'admin/assets/editor/content/main.js', 'type' => 'module'],
         ['src' => 'admin/assets/js/main.js', 'type' => 'module'],
     ],
 ];
