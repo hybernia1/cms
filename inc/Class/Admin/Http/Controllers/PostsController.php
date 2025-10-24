@@ -14,7 +14,6 @@ use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\Slugger;
 use Core\Database\Init as DB;
-use function cms_front_cache_invalidate;
 final class PostsController extends BaseAdminController
 {
     /**
@@ -513,9 +512,6 @@ final class PostsController extends BaseAdminController
         } catch (\Throwable $e) {
             $this->respondListingAction($type, false, 'danger', $e->getMessage(), [], null, 500);
         }
-
-        cms_front_cache_invalidate('sitemap');
-        cms_front_cache_invalidate('feed');
 
         $count = count($affected);
         $this->respondListingAction(
@@ -1391,9 +1387,6 @@ final class PostsController extends BaseAdminController
         } catch (\Throwable $e) {
             $this->respondListingAction($type, false, 'danger', $e->getMessage(), [], null, 500);
         }
-
-        cms_front_cache_invalidate('sitemap');
-        cms_front_cache_invalidate('feed');
 
         $this->respondListingAction($type, true, 'success', 'Příspěvek byl odstraněn.', [$id], 'deleted');
     }

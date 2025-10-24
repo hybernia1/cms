@@ -14,10 +14,7 @@ use InvalidArgumentException;
  *     edit: string,
  *     label: string,
  *     icon: string,
- *     supports: array<int,string>,
- *     public: bool,
- *     sitemap: bool,
- *     feed: bool
+ *     supports: array<int,string>
  * }
  */
 final class PostTypeRegistry
@@ -54,9 +51,6 @@ final class PostTypeRegistry
             'label'    => $label,
             'icon'     => 'bi-file-earmark',
             'supports' => [],
-            'public'   => true,
-            'sitemap'  => null,
-            'feed'     => null,
         ];
 
         /**
@@ -75,18 +69,6 @@ final class PostTypeRegistry
 
         $config['slug'] = self::normalizeSlug($config['slug'] ?? null, $type);
         $supports = self::normalizeSupports($config['supports']);
-        $isPublic = array_key_exists('public', $config) ? (bool)$config['public'] : true;
-        $config['public'] = $isPublic;
-        if (array_key_exists('sitemap', $config) && $config['sitemap'] !== null) {
-            $config['sitemap'] = (bool)$config['sitemap'];
-        } else {
-            $config['sitemap'] = $isPublic;
-        }
-        if (array_key_exists('feed', $config) && $config['feed'] !== null) {
-            $config['feed'] = (bool)$config['feed'];
-        } else {
-            $config['feed'] = $type === 'post';
-        }
 
         $previousSlug = self::$types[$type]['slug'] ?? null;
         if ($previousSlug !== null && $previousSlug !== $config['slug']) {
@@ -111,9 +93,6 @@ final class PostTypeRegistry
             'label'    => (string)$config['label'],
             'icon'     => (string)$config['icon'],
             'supports' => $supports,
-            'public'   => $config['public'],
-            'sitemap'  => (bool)$config['sitemap'],
-            'feed'     => (bool)$config['feed'],
         ];
 
         self::$typesBySlug[$config['slug']] = $type;
@@ -177,39 +156,6 @@ final class PostTypeRegistry
         }
 
         return array_values($normalized);
-    }
-
-    /**
-     * @return array<int,string>
-     */
-    public static function taxonomiesForType(string $type): array
-    {
-        $config = self::$types[$type] ?? null;
-        if ($config === null) {
-            return [];
-        }
-
-        $taxonomies = [];
-        foreach ($config['supports'] as $feature) {
-            if (!is_string($feature) || $feature === '') {
-                continue;
-            }
-
-            if ($feature === 'terms') {
-                $taxonomies['category'] = 'category';
-                $taxonomies['tag'] = 'tag';
-                continue;
-            }
-
-            if (str_starts_with($feature, 'terms:')) {
-                $taxonomy = substr($feature, strlen('terms:'));
-                if ($taxonomy !== '') {
-                    $taxonomies[$taxonomy] = $taxonomy;
-                }
-            }
-        }
-
-        return array_values($taxonomies);
     }
 
     private static function normalizeSlug(mixed $slug, string $type): string
