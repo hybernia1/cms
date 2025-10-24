@@ -19,6 +19,63 @@ function initStatusControls(form) {
   const statusMap = statusLabel
     ? parseJsonAttribute(statusLabel, 'data-status-labels', {})
     : {};
+  const toggles = [].slice.call(form.querySelectorAll('[data-status-toggle]'));
+
+  const labelForValue = (value) => {
+    if (!value) {
+      return '';
+    }
+    if (statusMap && Object.prototype.hasOwnProperty.call(statusMap, value)) {
+      return statusMap[value];
+    }
+    return value;
+  };
+
+  const updateToggleLabel = (toggle, value) => {
+    if (!toggle) {
+      return;
+    }
+    const wrapper = toggle.closest('[data-status-toggle-wrapper]');
+    if (!wrapper) {
+      return;
+    }
+    const labelEl = wrapper.querySelector('[data-status-toggle-label]');
+    if (!labelEl) {
+      return;
+    }
+    const draftValue = toggle.getAttribute('data-status-toggle-draft') || 'draft';
+    const publishValue = toggle.getAttribute('data-status-toggle-publish') || 'publish';
+    const draftLabel = labelEl.getAttribute('data-label-draft') || '';
+    const publishLabel = labelEl.getAttribute('data-label-publish') || '';
+    const isPublish = value === publishValue;
+    const text = isPublish
+      ? (publishLabel || labelForValue(publishValue))
+      : (draftLabel || labelForValue(draftValue));
+    labelEl.textContent = text;
+  };
+
+  const applyStatus = (value) => {
+    if (!value) {
+      return;
+    }
+    if (statusInput) {
+      statusInput.value = value;
+    }
+    if (statusLabel) {
+      const label = labelForValue(value);
+      if (label) {
+        statusLabel.textContent = label;
+      }
+    }
+    toggles.forEach((toggle) => {
+      if (!toggle) {
+        return;
+      }
+      const publishValue = toggle.getAttribute('data-status-toggle-publish') || 'publish';
+      toggle.checked = value === publishValue;
+      updateToggleLabel(toggle, value);
+    });
+  };
 
   const buttons = [].slice.call(form.querySelectorAll('[data-status-value]'));
   buttons.forEach((button) => {
@@ -31,19 +88,36 @@ function initStatusControls(form) {
     button.dataset.postStatusBound = '1';
     button.addEventListener('click', () => {
       const value = button.getAttribute('data-status-value') || '';
-      if (statusInput) {
-        statusInput.value = value;
-      }
-      if (statusLabel) {
-        const label = statusMap && Object.prototype.hasOwnProperty.call(statusMap, value)
-          ? statusMap[value]
-          : value;
-        if (label) {
-          statusLabel.textContent = label;
-        }
-      }
+      applyStatus(value);
     });
   });
+
+  toggles.forEach((toggle) => {
+    if (!toggle) {
+      return;
+    }
+    if (toggle.dataset.statusToggleBound === '1') {
+      return;
+    }
+    toggle.dataset.statusToggleBound = '1';
+    const draftValue = toggle.getAttribute('data-status-toggle-draft') || 'draft';
+    const publishValue = toggle.getAttribute('data-status-toggle-publish') || 'publish';
+    toggle.addEventListener('change', () => {
+      const nextValue = toggle.checked ? publishValue : draftValue;
+      applyStatus(nextValue);
+    });
+  });
+
+  const initialValue = statusInput ? statusInput.value : '';
+  if (initialValue) {
+    applyStatus(initialValue);
+  } else if (toggles.length > 0) {
+    const firstToggle = toggles[0];
+    const publishValue = firstToggle.getAttribute('data-status-toggle-publish') || 'publish';
+    const draftValue = firstToggle.getAttribute('data-status-toggle-draft') || 'draft';
+    const derivedValue = firstToggle.checked ? publishValue : draftValue;
+    applyStatus(derivedValue);
+  }
 }
 
 function initThumbnailPicker(form) {

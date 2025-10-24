@@ -544,6 +544,22 @@ final class PostsController extends BaseAdminController
         $types = $this->typeConfig();
         $typeConfig = $this->currentTypeConfig($type);
 
+        $deleteUrl = 'admin.php?' . http_build_query([
+            'r' => 'posts',
+            'a' => 'delete',
+            'type' => $type,
+        ]);
+        $deleteCsrf = $this->token();
+        $publicUrl = null;
+
+        if ($row) {
+            $slug = trim((string)($row['slug'] ?? ''));
+            if ($slug !== '') {
+                $links = new LinkGenerator();
+                $publicUrl = $links->postOfType($type, $slug);
+            }
+        }
+
         $this->renderAdmin('posts/edit', [
             'pageTitle'      => $typeConfig[$id ? 'edit' : 'create'],
             'nav'            => AdminNavigation::build('posts:' . $type),
@@ -554,6 +570,9 @@ final class PostsController extends BaseAdminController
             'types'          => $types,
             'typeConfig'     => $typeConfig,
             'attachedMedia'  => $this->attachedMediaIds($id),
+            'publicUrl'      => $publicUrl,
+            'deleteUrl'      => $deleteUrl,
+            'deleteCsrf'     => $deleteCsrf,
         ]);
     }
 
