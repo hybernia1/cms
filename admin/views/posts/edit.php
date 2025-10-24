@@ -12,8 +12,11 @@ declare(strict_types=1);
 /** @var array $types */
 /** @var array<int> $attachedMedia */
 /** @var array{supports:array<int,string>} $typeConfig */
+/** @var string|null $publicUrl */
+/** @var string|null $deleteUrl */
+/** @var string|null $deleteCsrf */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types,$typeConfig) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($post,$csrf,$terms,$selected,$type,$types,$typeConfig,$publicUrl,$deleteUrl,$deleteCsrf) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
   $isEdit = (bool)$post;
   $typeCfg = $types[$type] ?? ['create'=>'Nový příspěvek','edit'=>'Upravit příspěvek','label'=>strtoupper($type)];
@@ -27,6 +30,10 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
   $currentStatus = $isEdit ? (string)($post['status'] ?? 'draft') : 'draft';
   $statusLabels = ['draft' => 'Koncept', 'publish' => 'Publikováno'];
   $currentStatusLabel = $statusLabels[$currentStatus] ?? ucfirst($currentStatus);
+  $statusVisibilityLabels = [
+    'draft' => 'Koncept (neveřejné)',
+    'publish' => 'Publikováno (viditelné)',
+  ];
   $supports = is_array($typeConfig['supports'] ?? null) ? $typeConfig['supports'] : [];
   $supportsFeature = static fn(array $supports, string $feature): bool => in_array($feature, $supports, true);
   $supportsTaxonomy = static function (array $supports, string $taxonomy) use ($supportsFeature): bool {
@@ -104,6 +111,11 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       ];
     }
   }
+
+  $deleteAction = is_string($deleteUrl ?? null) ? trim((string)$deleteUrl) : '';
+  $deleteToken = is_string($deleteCsrf ?? null) && $deleteCsrf !== '' ? (string)$deleteCsrf : $csrf;
+  $publicLink = is_string($publicUrl ?? null) && trim((string)$publicUrl) !== '' ? trim((string)$publicUrl) : null;
+  $hasSlug = $isEdit && trim((string)($post['slug'] ?? '')) !== '';
 ?>
   <div data-post-editor-root>
     <form
@@ -178,11 +190,44 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
                 <div class="text-secondary small mb-1">Aktuální stav</div>
                 <div id="status-current-label" class="fw-semibold text-capitalize" data-status-labels='<?= $encodeJson($statusLabels) ?>' data-post-status-label><?= $h($currentStatusLabel) ?></div>
               </div>
+              <div class="mb-4" data-status-toggle-wrapper>
+                <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                  <div>
+                    <div class="text-secondary small mb-1">Viditelnost po uložení</div>
+                    <?php $visibilityLabel = $statusVisibilityLabels[$currentStatus] ?? $currentStatusLabel; ?>
+                    <div id="post-status-visibility-label" class="fw-semibold" data-status-toggle-label data-label-draft="<?= $h($statusVisibilityLabels['draft']) ?>" data-label-publish="<?= $h($statusVisibilityLabels['publish']) ?>"><?= $h($visibilityLabel) ?></div>
+                  </div>
+                  <div class="form-check form-switch m-0">
+                    <input class="form-check-input" type="checkbox" role="switch" id="post-status-toggle" data-status-toggle data-status-toggle-draft="draft" data-status-toggle-publish="publish" aria-describedby="post-status-visibility-label" <?= $currentStatus === 'publish' ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="post-status-toggle">Publikovat</label>
+                  </div>
+                </div>
+              </div>
               <div class="text-secondary small" data-autosave-status aria-live="polite"></div>
             </div>
-            <div class="card-footer d-flex flex-wrap gap-2">
-              <button class="btn btn-outline-secondary btn-sm" type="submit" data-status-value="draft">Uložit koncept</button>
-              <button class="btn btn-primary btn-sm" type="submit" data-status-value="publish">Publikovat</button>
+            <div class="card-footer">
+              <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                <button class="btn btn-primary btn-sm" type="submit">Uložit změny</button>
+                <div class="d-flex flex-wrap gap-2 ms-auto">
+                  <?php if ($isEdit): ?>
+                    <?php if ($publicLink && $hasSlug): ?>
+                      <a class="btn btn-outline-secondary btn-sm" href="<?= $h($publicLink) ?>" target="_blank" rel="noopener">Otevřít článek</a>
+                    <?php else: ?>
+                      <span class="d-inline-flex" data-bs-toggle="tooltip" data-bs-title="<?= $h('Nejprve nastav slug.') ?>" tabindex="0">
+                        <span class="btn btn-outline-secondary btn-sm disabled" aria-disabled="true">Otevřít článek</span>
+                      </span>
+                    <?php endif; ?>
+                    <?php if ($deleteAction !== ''): ?>
+                      <button
+                        class="btn btn-outline-danger btn-sm"
+                        type="button"
+                        data-post-delete-trigger
+                        data-post-delete-form="post-delete-form"
+                      >Smazat</button>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -288,6 +333,24 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       </div>
     </div>
     </form>
+
+    <?php if ($isEdit && $deleteAction !== ''): ?>
+      <form
+        id="post-delete-form"
+        class="d-none"
+        method="post"
+        action="<?= $h($deleteAction) ?>"
+        data-ajax
+        data-post-delete-form
+        data-confirm-modal="Opravdu smazat tento příspěvek?"
+        data-confirm-modal-title="Smazat příspěvek"
+        data-confirm-modal-confirm-label="Smazat"
+        data-confirm-modal-cancel-label="Zrušit"
+      >
+        <input type="hidden" name="csrf" value="<?= $h($deleteToken) ?>">
+        <input type="hidden" name="id" value="<?= $h((string)($post['id'] ?? '')) ?>">
+      </form>
+    <?php endif; ?>
 
 
     <?php if ($thumbnailSupported): ?>
