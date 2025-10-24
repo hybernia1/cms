@@ -31,7 +31,7 @@ final class ThemesController extends BaseAdminController
     private function activeSlug(): string
     {
         $slug = DB::query()->table('settings')->select(['theme_slug'])->where('id','=',1)->value('theme_slug');
-        return $slug ?: 'classic';
+        return trim((string)$slug);
     }
 
     private function listThemes(): array
