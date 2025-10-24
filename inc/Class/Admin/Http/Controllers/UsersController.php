@@ -10,6 +10,7 @@ use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
+use Cms\Admin\View\Listing\BulkConfig;
 use Throwable;
 
 final class UsersController extends BaseAdminController
@@ -47,6 +48,8 @@ final class UsersController extends BaseAdminController
             'searchQuery' => $listing['searchQuery'],
             'buildUrl'    => $listing['buildUrl'],
             'currentUrl'  => $listing['currentUrl'],
+            'csrf'        => $listing['csrf'],
+            'bulkConfig'  => $listing['bulkConfig'],
         ]);
     }
 
@@ -535,6 +538,21 @@ final class UsersController extends BaseAdminController
         ]);
 
         $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
+        $csrf = $this->token();
+        $bulkConfig = new BulkConfig(
+            formId: 'users-bulk-form',
+            action: 'admin.php?r=users&a=bulk',
+            csrf: $csrf,
+            selectAllId: 'users-select-all',
+            rowSelector: '.user-row-check',
+            actionSelectId: 'users-bulk-select',
+            applyButtonId: 'users-bulk-apply',
+            counterId: 'users-bulk-counter',
+            hidden: [
+                'q'    => $q,
+                'page' => (string)($pagination['page'] ?? 1),
+            ],
+        );
 
         return [
             'items'       => $items,
@@ -542,6 +560,8 @@ final class UsersController extends BaseAdminController
             'searchQuery' => $q,
             'buildUrl'    => $buildUrl,
             'currentUrl'  => $this->listUrl($q, (int)($pagination['page'] ?? 1)),
+            'csrf'        => $csrf,
+            'bulkConfig'  => $bulkConfig,
         ];
     }
 
@@ -561,19 +581,24 @@ final class UsersController extends BaseAdminController
             'pagination'     => $listing['pagination'],
             'searchQuery'    => $listing['searchQuery'],
             'buildUrl'       => $listing['buildUrl'],
-            'csrf'           => $this->token(),
+            'csrf'           => $listing['csrf'],
             'currentUserId'  => (int)($this->auth->user()['id'] ?? 0),
+            'bulkConfig'     => $listing['bulkConfig'],
         ];
 
         $payload = [
             'success'      => true,
             'pagination'   => $listing['pagination'],
             'searchQuery'  => $listing['searchQuery'],
-            'csrf'         => $this->token(),
+            'csrf'         => $listing['csrf'],
             'partials'     => [
                 '[data-users-table-body]' => $this->renderPartial('users/partials/table-body', $partialData),
                 '[data-users-modals]'     => $this->renderPartial('users/partials/modals', $partialData),
-                '[data-users-pagination]' => $this->renderPartial('users/partials/pagination', $partialData),
+                '[data-users-pagination]' => $this->renderPartial('parts/listing/pagination-block', [
+                    'pagination'        => $listing['pagination'],
+                    'buildUrl'          => $listing['buildUrl'],
+                    'wrapperAttributes' => ['data-users-pagination' => ''],
+                ]),
             ],
             'listing'      => [
                 'url'         => $listing['currentUrl'],

@@ -9,6 +9,7 @@ use Core\Database\Init as DB;
 use Cms\Admin\Utils\Slugger;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\LinkGenerator;
+use Cms\Admin\View\Listing\BulkConfig;
 
 final class TermsController extends BaseAdminController
 {
@@ -106,6 +107,17 @@ final class TermsController extends BaseAdminController
         $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
         $typeConfig = $this->typeConfig();
         $urls = new LinkGenerator();
+        $csrf = $this->token();
+        $bulkConfig = new BulkConfig(
+            formId: 'terms-bulk-form',
+            action: 'admin.php?' . http_build_query(['r' => 'terms', 'a' => 'bulk', 'type' => $type]),
+            csrf: $csrf,
+            selectAllId: 'terms-select-all',
+            rowSelector: '.term-row-check',
+            actionSelectId: 'terms-bulk-action',
+            applyButtonId: 'terms-bulk-apply',
+            counterId: 'terms-bulk-counter',
+        );
 
         if ($this->wantsJsonIndex()) {
             $payload = [
@@ -113,7 +125,7 @@ final class TermsController extends BaseAdminController
                 'type'       => $type,
                 'filters'    => $filters,
                 'pagination' => $pagination,
-                'csrf'       => $this->token(),
+                'csrf'       => $csrf,
                 'items'      => $this->serializeTerms($items, $urls),
                 'partials'   => [
                     'toolbar'    => $this->renderPartial('terms/partials/toolbar', [
@@ -126,11 +138,13 @@ final class TermsController extends BaseAdminController
                         'items' => $items,
                         'type'  => $type,
                         'urls'  => $urls,
-                        'csrf'  => $this->token(),
+                        'csrf'  => $csrf,
+                        'bulkConfig' => $bulkConfig,
                     ]),
-                    'pagination' => $this->renderPartial('terms/partials/pagination', [
-                        'pagination' => $pagination,
-                        'buildUrl'   => $buildUrl,
+                    'pagination' => $this->renderPartial('parts/listing/pagination-block', [
+                        'pagination'        => $pagination,
+                        'buildUrl'          => $buildUrl,
+                        'wrapperAttributes' => ['data-terms-pagination' => ''],
                     ]),
                 ],
             ];
@@ -148,6 +162,8 @@ final class TermsController extends BaseAdminController
             'types'      => $typeConfig,
             'urls'       => $urls,
             'buildUrl'   => $buildUrl,
+            'csrf'       => $csrf,
+            'bulkConfig' => $bulkConfig,
         ]);
     }
 
