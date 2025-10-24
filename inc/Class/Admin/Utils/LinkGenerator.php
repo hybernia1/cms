@@ -308,6 +308,16 @@ final class LinkGenerator
         return $this->pretty ? $this->prettyPath('comment') : $this->fallback('comment');
     }
 
+    public function sitemap(): string
+    {
+        return $this->pretty ? $this->prettyPath('sitemap.xml') : $this->fallback('sitemap');
+    }
+
+    public function feed(): string
+    {
+        return $this->pretty ? $this->prettyPath('feed') : $this->fallback('feed');
+    }
+
     public function prettyUrlsEnabled(): bool
     {
         return $this->pretty;

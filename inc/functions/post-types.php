@@ -6,6 +6,9 @@ use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 if (!function_exists('register_post_type')) {
     /**
      * @param array<string,mixed> $args
+     *        $args['public']  bool  Whether the type is publicly queryable (default true)
+     *        $args['sitemap'] bool  Include in sitemap generation (default follows public)
+     *        $args['feed']    bool  Include in RSS feed (default true for "post")
      */
     function register_post_type(string $type, array $args): void
     {
@@ -41,4 +44,5 @@ register_post_type('page', [
     'label'    => 'Stránka',
     'icon'     => 'bi-file-earmark-richtext',
     'supports' => ['thumbnail', 'comments'],
+    'feed'     => false,
 ]);
