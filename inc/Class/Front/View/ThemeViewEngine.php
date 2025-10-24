@@ -7,6 +7,7 @@ use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\View\ViewEngine;
+use Throwable;
 
 final class ThemeViewEngine
 {
@@ -14,7 +15,6 @@ final class ThemeViewEngine
     private CmsSettings $settings;
     private LinkGenerator $links;
     private string $themeSlug;
-    private string $fallbackSlug;
     private string $baseDir;
     /** @var array<string,mixed> */
     private array $themeInfo = [];
@@ -25,12 +25,13 @@ final class ThemeViewEngine
     private string $dateFormat;
     private string $timeFormat;
     private string $dateTimeFormat;
+    private bool $missingTemplate = false;
+    private ?string $missingTemplateError = null;
 
-    public function __construct(?CmsSettings $settings = null, ?LinkGenerator $links = null, string $fallbackSlug = 'classic')
+    public function __construct(?CmsSettings $settings = null, ?LinkGenerator $links = null)
     {
         $this->settings = $settings ?? new CmsSettings();
         $this->links = $links ?? new LinkGenerator();
-        $this->fallbackSlug = $fallbackSlug;
         $this->baseDir = defined('BASE_DIR') ? BASE_DIR : __DIR__ . '/../../../..';
 
         $this->dateFormat = $this->settings->dateFormat() ?: 'Y-m-d';
@@ -49,32 +50,15 @@ final class ThemeViewEngine
     {
         $slug = $slug !== '' ? $slug : 'classic';
         $this->themeSlug = $slug;
+        $this->missingTemplate = false;
+        $this->missingTemplateError = null;
 
-        $paths = [];
         $themePath = $this->baseDir . '/themes/' . $slug . '/templates';
-        if (is_dir($themePath)) {
-            $paths[] = $themePath;
-        } else {
-            error_log("Theme '{$slug}' is missing templates directory: {$themePath}");
+        if (!is_dir($themePath)) {
+            throw MissingThemeException::forSlug($slug, $themePath);
         }
 
-        if ($this->fallbackSlug !== $slug) {
-            $fallbackPath = $this->baseDir . '/themes/' . $this->fallbackSlug . '/templates';
-            if (is_dir($fallbackPath)) {
-                $paths[] = $fallbackPath;
-            }
-        }
-
-        $builtin = $this->baseDir . '/inc/resources/templates/simple';
-        if (is_dir($builtin)) {
-            $paths[] = $builtin;
-        }
-
-        if ($paths === []) {
-            throw new \RuntimeException('No template directories available for front-end rendering.');
-        }
-
-        $this->engine->setBasePaths($paths);
+        $this->engine->setBasePaths([$themePath]);
         $this->loadThemeManifest($slug);
         $this->shareThemeContext();
         $this->loadThemeFunctions($slug);
@@ -88,21 +72,31 @@ final class ThemeViewEngine
     public function render(string $template, array $data = []): void
     {
         $payload = $this->prepareData($data);
-        $this->engine->render($template, $payload);
+        try {
+            $this->engine->render($template, $payload);
+        } catch (Throwable $exception) {
+            $this->markMissingTemplate($exception);
+            throw $exception;
+        }
     }
 
     public function renderWithLayout(?string $layout, string $template, array $data = []): void
     {
         $payload = $this->prepareData($data);
 
-        if ($layout === null) {
-            $this->engine->render($template, $payload);
-            return;
-        }
+        try {
+            if ($layout === null) {
+                $this->engine->render($template, $payload);
+                return;
+            }
 
-        $this->engine->render($layout, $payload, function () use ($template, $payload): void {
-            $this->engine->render($template, $payload);
-        });
+            $this->engine->render($layout, $payload, function () use ($template, $payload): void {
+                $this->engine->render($template, $payload);
+            });
+        } catch (Throwable $exception) {
+            $this->markMissingTemplate($exception);
+            throw $exception;
+        }
     }
 
     public function themeSlug(): string
@@ -184,7 +178,16 @@ final class ThemeViewEngine
         $info = $this->themeInfo;
         $info['slug'] = $this->themeSlug;
         $info['asset'] = fn (string $file): string => $this->asset($file);
+        $info['missing_template'] = $this->missingTemplate;
+        $info['missing_template_error'] = $this->missingTemplateError;
         return $info;
+    }
+
+    private function markMissingTemplate(Throwable $exception): void
+    {
+        $this->missingTemplate = true;
+        $this->missingTemplateError = $exception->getMessage();
+        $this->shareThemeContext();
     }
 
     private function loadThemeManifest(string $slug): void
