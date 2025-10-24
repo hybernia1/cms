@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Http\Controllers;
 
+use Cms\Admin\Domain\PostMeta\PostMetaRegistry;
 use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Cms\Admin\Domain\Repositories\PostsRepository;
+use Cms\Admin\Domain\Repositories\PostMetaRepository;
 use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Domain\Services\PostsService;
 use Cms\Admin\Domain\Services\MediaService;
@@ -227,6 +229,81 @@ final class PostsController extends BaseAdminController
         }
 
         return ['byType' => $byType, 'selected' => $selected];
+    }
+
+    /**
+     * @return array<string,array<string,mixed>>
+     */
+    private function metaDefinitions(string $type): array
+    {
+        $definitions = PostMetaRegistry::forType($type);
+        $visible = [];
+        foreach ($definitions as $key => $definition) {
+            if (!($definition['show_in_admin'] ?? true)) {
+                continue;
+            }
+            $visible[$key] = $definition;
+        }
+
+        return $visible;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function metaValuesForForm(?int $postId, string $type): array
+    {
+        if ($postId !== null && $postId > 0) {
+            $repo = new PostMetaRepository();
+            $rows = $repo->forPost($postId);
+
+            return PostMetaRegistry::hydrateAll($type, $rows);
+        }
+
+        return PostMetaRegistry::defaults($type);
+    }
+
+    /**
+     * @return array{values:array<string,array{key:string,type:string,value:mixed,storage:?string}>,errors:array<string,array<int,string>>}
+     */
+    private function collectMetaInput(string $type): array
+    {
+        $raw = $_POST['meta'] ?? [];
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+
+        return PostMetaRegistry::collectInput($type, $raw);
+    }
+
+    /**
+     * @param array<string,array{key:string,type:string,value:mixed,storage:?string}> $meta
+     */
+    private function persistPostMeta(int $postId, array $meta): void
+    {
+        if ($postId <= 0 || $meta === []) {
+            return;
+        }
+
+        $payload = [];
+        foreach ($meta as $key => $definition) {
+            $metaKey = isset($definition['key']) ? (string)$definition['key'] : (string)$key;
+            if ($metaKey === '') {
+                continue;
+            }
+            $payload[$metaKey] = [
+                'key'     => $metaKey,
+                'type'    => (string)($definition['type'] ?? 'string'),
+                'storage' => $definition['storage'] ?? null,
+            ];
+        }
+
+        if ($payload === []) {
+            return;
+        }
+
+        $repo = new PostMetaRepository();
+        $repo->saveMany($postId, $payload);
     }
 
     /**
@@ -490,6 +567,10 @@ final class PostsController extends BaseAdminController
                         ->delete()
                         ->whereIn('post_id', $targetIds)
                         ->execute();
+                    DB::query()->table('post_meta')
+                        ->delete()
+                        ->whereIn('post_id', $targetIds)
+                        ->execute();
                     DB::query()->table('post_media')
                         ->delete()
                         ->whereIn('post_id', $targetIds)
@@ -560,6 +641,9 @@ final class PostsController extends BaseAdminController
             }
         }
 
+        $metaDefinitions = $this->metaDefinitions($type);
+        $metaValues = $this->metaValuesForForm($id > 0 ? $id : null, $type);
+
         $this->renderAdmin('posts/edit', [
             'pageTitle'      => $typeConfig[$id ? 'edit' : 'create'],
             'nav'            => AdminNavigation::build('posts:' . $type),
@@ -573,6 +657,8 @@ final class PostsController extends BaseAdminController
             'publicUrl'      => $publicUrl,
             'deleteUrl'      => $deleteUrl,
             'deleteCsrf'     => $deleteCsrf,
+            'metaDefinitions' => $metaDefinitions,
+            'metaValues'      => $metaValues,
         ]);
     }
 
@@ -615,6 +701,12 @@ final class PostsController extends BaseAdminController
         }
         if (!in_array($status, ['draft', 'publish'], true)) {
             $validationErrors['form'][] = 'Neplatný stav.';
+        }
+
+        $metaResult = $this->collectMetaInput($type);
+        $metaPrepared = $metaResult['values'];
+        if ($metaResult['errors'] !== []) {
+            $validationErrors = array_merge($validationErrors, $metaResult['errors']);
         }
 
         if ($validationErrors !== []) {
@@ -681,6 +773,8 @@ final class PostsController extends BaseAdminController
             $postId = $svc->create($payload);
 
             $this->syncPostMedia($type, $postId, $attachedMedia);
+            $this->persistPostMeta($postId, $metaPrepared);
+            cms_cache_post_meta_type($postId, $type);
 
             $termsToSync = [];
             if ($supportsCategory) {
@@ -772,6 +866,8 @@ final class PostsController extends BaseAdminController
         $supportsCategory = $this->taxonomySupported($typeConfig, 'category');
         $supportsTag = $this->taxonomySupported($typeConfig, 'tag');
 
+        $metaPrepared = [];
+
         try {
             $user = $this->auth->user();
             if (!$user) throw new \RuntimeException('Nejste přihlášeni.');
@@ -788,6 +884,12 @@ final class PostsController extends BaseAdminController
             }
             if (!in_array($status, ['draft', 'publish'], true)) {
                 $validationErrors['form'][] = 'Neplatný stav.';
+            }
+
+            $metaResult = $this->collectMetaInput($type);
+            $metaPrepared = $metaResult['values'];
+            if ($metaResult['errors'] !== []) {
+                $validationErrors = array_merge($validationErrors, $metaResult['errors']);
             }
 
             if ($validationErrors !== []) {
@@ -856,6 +958,8 @@ final class PostsController extends BaseAdminController
             $service->update($id, $upd);
 
             $this->syncPostMedia($type, $id, $this->parseAttachedMedia((string)($_POST['attached_media'] ?? '')));
+            $this->persistPostMeta($id, $metaPrepared);
+            cms_cache_post_meta_type($id, $type);
 
             // ulož vazby termů (přepíše existující)
             $termsToSync = [];
@@ -976,6 +1080,12 @@ final class PostsController extends BaseAdminController
                 $newTagNames = $this->parseNewTerms((string)($_POST['new_tags'] ?? ''));
             }
 
+            $metaPrepared = [];
+            $metaResult = $this->collectMetaInput($requestedType);
+            if ($metaResult['errors'] === []) {
+                $metaPrepared = $metaResult['values'];
+            }
+
             if ($newCatNames !== []) {
                 $catIds = array_merge($catIds, $this->createNewTerms($newCatNames, 'category'));
             }
@@ -1009,6 +1119,13 @@ final class PostsController extends BaseAdminController
                     }
                     if (!$supportsTag) {
                         $tagIds = [];
+                    }
+
+                    $metaResult = $this->collectMetaInput($type);
+                    if ($metaResult['errors'] === []) {
+                        $metaPrepared = $metaResult['values'];
+                    } else {
+                        $metaPrepared = [];
                     }
                 }
 
@@ -1112,6 +1229,10 @@ final class PostsController extends BaseAdminController
                 $termsToSync['tag'] = $tagIds;
             }
             $this->syncTerms($type, $id, $termsToSync);
+            if ($metaPrepared !== []) {
+                $this->persistPostMeta($id, $metaPrepared);
+            }
+            cms_cache_post_meta_type($id, $type);
 
             $fresh = $repo->find($id) ?: [];
             $finalType = (string)($fresh['type'] ?? $type);
@@ -1381,6 +1502,7 @@ final class PostsController extends BaseAdminController
         try {
             // smaž vazby i post
             DB::query()->table('post_terms')->delete()->where('post_id','=', $id)->execute();
+            DB::query()->table('post_meta')->delete()->where('post_id','=', $id)->execute();
             DB::query()->table('post_media')->delete()->where('post_id','=', $id)->execute();
             DB::query()->table('comments')->delete()->where('post_id', '=', $id)->execute();
             (new PostsRepository())->delete($id);
