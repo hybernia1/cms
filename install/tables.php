@@ -15,6 +15,7 @@ return [
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
+  slug VARCHAR(190) NOT NULL,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   active TINYINT(1) NOT NULL DEFAULT 1,
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   token_expire DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL,
+  UNIQUE KEY uq_users_slug (slug),
   INDEX ix_users_active (active),
   INDEX ix_users_role (role),
   INDEX ix_users_created (created_at)
