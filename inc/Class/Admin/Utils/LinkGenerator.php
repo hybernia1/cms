@@ -14,6 +14,7 @@ final class LinkGenerator
     private string $pageBase;
     private string $categoryBase;
     private string $tagBase;
+    private string $authorBase;
     /**
      * @var array<string,string>
      */
@@ -27,6 +28,7 @@ final class LinkGenerator
         $this->pageBase = $bases['page_base'];
         $this->categoryBase = $bases['category_base'];
         $this->tagBase = $bases['tag_base'];
+        $this->authorBase = $bases['author_base'];
         $this->pretty = $this->resolvePretty($pretty);
         $this->postTypeSlugs = $this->loadPostTypeSlugs();
     }
@@ -227,6 +229,42 @@ final class LinkGenerator
         return $this->pretty
             ? $this->prettyPath($this->tagBase . '/' . $encoded)
             : $this->fallback('tag', ['slug' => $slug]);
+    }
+
+    public function user(?string $slug = null, ?int $id = null): string
+    {
+        $slug = $slug !== null ? trim($slug) : '';
+        $id = $id !== null && $id > 0 ? $id : null;
+
+        if ($this->pretty) {
+            $base = trim($this->authorBase, '/');
+            $segment = $slug !== '' ? rawurlencode($slug) : ($id !== null ? (string)$id : '');
+
+            if ($base === '') {
+                if ($segment === '') {
+                    return $this->prettyPath('');
+                }
+
+                return $this->prettyPath($segment);
+            }
+
+            $path = $base;
+            if ($segment !== '') {
+                $path .= '/' . $segment;
+            }
+
+            return $this->prettyPath($path);
+        }
+
+        $params = [];
+        if ($slug !== '') {
+            $params['slug'] = $slug;
+        }
+        if ($id !== null) {
+            $params['id'] = (string)$id;
+        }
+
+        return $this->fallback('user', $params);
     }
 
     public function admin(): string
