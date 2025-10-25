@@ -1,8 +1,9 @@
 <?php
 /** @var array<int,array<string,mixed>> $posts */
+/** @var array<string,mixed> $site */
 
-$siteTitle = theme_site('title');
-$siteTagline = theme_site('description');
+$siteTitle = (string)($site['title'] ?? 'Web');
+$siteTagline = trim((string)($site['description'] ?? ''));
 $lead = $siteTagline !== ''
     ? $siteTagline
     : 'Prohlédněte si nejnovější články, aktuality a příběhy, které na ' . $siteTitle . ' právě vznikají.';
