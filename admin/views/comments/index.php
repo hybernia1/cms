@@ -11,9 +11,8 @@ declare(strict_types=1);
 /** @var array<string,int>|null $statusCounts */
 /** @var callable $buildUrl */
 /** @var string $currentUrl */
-/** @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$statusCounts,$buildUrl,$currentUrl,$bulkConfig) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($filters,$items,$pagination,$csrf,$statusCounts,$buildUrl,$currentUrl) {
   $h = fn(string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 ?>
   <div
@@ -36,23 +35,20 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
     ]); ?>
 
     <?php $this->render('comments/partials/bulk', [
-      'filters'     => $filters,
-      'pagination'  => $pagination,
-      'csrf'        => $csrf,
-      'bulkConfig'  => $bulkConfig,
+      'filters'    => $filters,
+      'pagination' => $pagination,
+      'csrf'       => $csrf,
     ]); ?>
 
     <?php $this->render('comments/partials/table', [
-      'items'       => $items,
-      'csrf'        => $csrf,
-      'backUrl'     => $currentUrl,
-      'bulkConfig'  => $bulkConfig,
+      'items'   => $items,
+      'csrf'    => $csrf,
+      'backUrl' => $currentUrl,
     ]); ?>
 
-    <?php $this->render('parts/listing/pagination-block', [
-      'pagination'       => $pagination,
-      'buildUrl'         => $buildUrl,
-      'wrapperAttributes'=> ['data-comments-pagination' => ''],
+    <?php $this->render('comments/partials/pagination', [
+      'pagination' => $pagination,
+      'buildUrl'   => $buildUrl,
     ]); ?>
   </div>
 <?php

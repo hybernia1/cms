@@ -5,10 +5,8 @@ declare(strict_types=1);
 /** @var string $searchQuery */
 /** @var string $csrf */
 /** @var int $currentUserId */
-/** @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig */
 
 $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-$formId = $bulkConfig->formId();
 ?>
 <tbody data-users-table-body>
 <?php foreach ($items as $u):
@@ -35,7 +33,7 @@ $formId = $bulkConfig->formId();
           name="ids[]"
           value="<?= $h((string)$userId) ?>"
           aria-label="Vybrat uživatele"
-          form="<?= $h($formId) ?>"
+          form="users-bulk-form"
         >
       <?php else: ?>
         <span class="text-secondary" data-bs-toggle="tooltip" data-bs-title="<?= $h($deleteReason) ?>">
