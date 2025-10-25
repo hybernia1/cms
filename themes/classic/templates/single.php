@@ -8,6 +8,7 @@
 
 $title = (string)($post['title'] ?? '');
 $author = trim((string)($post['author'] ?? ''));
+$authorUrl = (string)($post['author_url'] ?? '');
 $published = trim((string)($post['published_at'] ?? ''));
 $publishedIso = trim((string)($post['published_at_iso'] ?? ''));
 $terms = is_array($post['terms'] ?? null) ? $post['terms'] : [];
@@ -59,7 +60,13 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
                     <span aria-hidden="true">·</span>
                 <?php endif; ?>
                 <?php if ($author !== ''): ?>
-                    <span><?= htmlspecialchars($author, ENT_QUOTES, 'UTF-8'); ?></span>
+                    <?php if ($authorUrl !== ''): ?>
+                        <a href="<?= htmlspecialchars($authorUrl, ENT_QUOTES, 'UTF-8'); ?>">
+                            <?= htmlspecialchars($author, ENT_QUOTES, 'UTF-8'); ?>
+                        </a>
+                    <?php else: ?>
+                        <span><?= htmlspecialchars($author, ENT_QUOTES, 'UTF-8'); ?></span>
+                    <?php endif; ?>
                 <?php endif; ?>
             </p>
         <?php endif; ?>

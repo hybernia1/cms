@@ -46,7 +46,7 @@ final class AuthService
         $id = $_SESSION[self::SESSION_KEY] ?? null;
         if (!$id) return null;
 
-        return DB::query()->table('users')->select(['id','name','email','role','active','created_at','updated_at'])
+        return DB::query()->table('users')->select(['id','name','email','role','active','slug','website_url','avatar_path','created_at','updated_at'])
             ->where('id', '=', (int)$id)->first();
     }
 
