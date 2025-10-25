@@ -3,20 +3,13 @@ declare(strict_types=1);
 /** @var array|null $user */
 /** @var array<int,array{key:string,label:string}> $mailTemplates */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates,$profileUrl) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates) {
   $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
   $sel = fn($a,$b)=>$a===$b?' selected':'';
 ?>
 <form class="card" method="post" action="admin.php?r=users&a=save" data-ajax data-form-helper="validation">
   <div class="card-header"><?= $user?'Upravit':'Nový' ?> uživatel</div>
   <div class="card-body">
-    <?php if ($user && !empty($profileUrl)): ?>
-      <div class="d-flex justify-content-end mb-3">
-        <a class="btn btn-outline-secondary btn-sm" href="<?= $h((string)$profileUrl) ?>" target="_blank" rel="noopener noreferrer">
-          <i class="bi bi-box-arrow-up-right me-1"></i>Veřejný profil
-        </a>
-      </div>
-    <?php endif; ?>
     <div class="alert alert-danger mb-3" data-error-for="form" hidden></div>
     <div class="row g-3">
       <div class="col-md-6">

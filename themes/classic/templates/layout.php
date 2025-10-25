@@ -56,26 +56,6 @@ if ($metaBody !== '') {
 $bodyClass = trim(implode(' ', array_unique(array_filter($bodyClasses))));
 $primaryNav = $navigation['primary']['items'] ?? [];
 $footerNav = $navigation['footer']['items'] ?? [];
-$currentUserData = isset($currentUser) && is_array($currentUser) ? $currentUser : null;
-$currentUserName = $currentUserData !== null ? trim((string)($currentUserData['name'] ?? '')) : '';
-$currentUserLinks = [];
-if ($currentUserData !== null) {
-    $profileUrl = isset($currentUserData['profile_url']) ? trim((string)$currentUserData['profile_url']) : '';
-    if ($profileUrl !== '') {
-        $currentUserLinks[] = [
-            'href' => $profileUrl,
-            'label' => 'Veřejný profil',
-        ];
-    }
-
-    $editUrl = isset($currentUserData['profile_edit_url']) ? trim((string)$currentUserData['profile_edit_url']) : '';
-    if ($editUrl !== '') {
-        $currentUserLinks[] = [
-            'href' => $editUrl,
-            'label' => 'Upravit profil',
-        ];
-    }
-}
 
 $renderMenu = static function (array $items, string $class = 'menu', int $depth = 0) use (&$renderMenu): string {
     if ($items === []) {
@@ -193,20 +173,6 @@ $renderMenu = static function (array $items, string $class = 'menu', int $depth 
             </p>
             <?php if ($siteTagline !== ''): ?>
                 <p class="site-tagline"><?= htmlspecialchars($siteTagline, ENT_QUOTES, 'UTF-8'); ?></p>
-            <?php endif; ?>
-            <?php if ($currentUserData !== null): ?>
-                <?php $greetingName = $currentUserName !== '' ? $currentUserName : 'Uživatel'; ?>
-                <div class="site-account" aria-label="Uživatelský účet">
-                    <p class="site-account__greeting">
-                        Přihlášen(a) jako <strong><?= htmlspecialchars($greetingName, ENT_QUOTES, 'UTF-8'); ?></strong>
-                    </p>
-                    <?php foreach ($currentUserLinks as $link): ?>
-                        <span class="site-account__separator" aria-hidden="true">•</span>
-                        <a class="site-account__link" href="<?= htmlspecialchars((string)$link['href'], ENT_QUOTES, 'UTF-8'); ?>">
-                            <?= htmlspecialchars((string)$link['label'], ENT_QUOTES, 'UTF-8'); ?>
-                        </a>
-                    <?php endforeach; ?>
-                </div>
             <?php endif; ?>
             <?php $primaryMenu = $renderMenu(is_array($primaryNav) ? $primaryNav : [], 'menu menu--primary'); ?>
             <?php if ($primaryMenu !== ''): ?>
