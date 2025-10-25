@@ -12,6 +12,7 @@ use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\DateTimeFactory;
+use Cms\Admin\Utils\UploadPathFactory;
 use Core\Validation\Validator;
 use Cms\Front\Data\CommentProvider;
 use Cms\Front\Data\MenuProvider;
@@ -19,6 +20,8 @@ use Cms\Front\Data\PostProvider;
 use Cms\Front\Data\TermProvider;
 use Cms\Front\Support\SeoMeta;
 use Cms\Front\View\ThemeViewEngine;
+use Core\Files\PathResolver;
+use Core\Files\Uploader;
 use Core\Database\Init as DB;
 use Throwable;
 
@@ -37,6 +40,7 @@ final class Router
     private MailService $mail;
     private TemplateManager $templates;
     private AuthService $auth;
+    private ?PathResolver $uploadPaths = null;
 
     public function __construct(
         ThemeViewEngine $view,
@@ -61,7 +65,7 @@ final class Router
         $this->menus = $menus;
         $this->settings = $settings ?? new CmsSettings();
         $this->links = $links ?? new LinkGenerator(null, $this->settings);
-        $this->comments = $comments ?? new CommentProvider($this->settings);
+        $this->comments = $comments ?? new CommentProvider($this->settings, $this->links);
         $this->users = $users ?? new UsersRepository();
         $this->mail = $mail ?? new MailService($this->settings);
         $this->templates = $templates ?? new TemplateManager();
@@ -75,7 +79,31 @@ final class Router
         $this->view->share([
             'navigation' => $this->menus->menusByLocation(),
             'notifications' => $this->takeSharedNotifications(),
+            'currentUser' => $this->currentUserContext(),
         ]);
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function currentUserContext(): ?array
+    {
+        $user = $this->auth->user();
+        if (!is_array($user)) {
+            return null;
+        }
+
+        $profile = $this->presentUserProfile($user);
+
+        return [
+            'id' => $profile['id'] ?? null,
+            'name' => $profile['name'] ?? '',
+            'profile_url' => $profile['profile_url'] ?? '',
+            'profile_edit_url' => $this->links->account(),
+            'avatar_url' => $profile['avatar_url'] ?? '',
+            'admin_url' => $this->links->admin(),
+            'logout_url' => $this->links->logout(),
+        ];
     }
 
     /**
@@ -246,6 +274,303 @@ final class Router
         return $this->links->home();
     }
 
+    /**
+     * @param array<string,mixed> $user
+     * @return array<string,mixed>
+     */
+    private function presentUserProfile(array $user): array
+    {
+        $id = isset($user['id']) ? (int)$user['id'] : 0;
+        $name = trim((string)($user['name'] ?? ''));
+        $slug = trim((string)($user['slug'] ?? ''));
+        $createdAt = isset($user['created_at']) ? (string)$user['created_at'] : '';
+        $updatedAt = isset($user['updated_at']) ? (string)$user['updated_at'] : '';
+        $websiteRaw = isset($user['website_url']) ? (string)$user['website_url'] : '';
+        $websiteNormalized = $this->normalizeWebsiteUrl($websiteRaw);
+        if ($websiteNormalized === null) {
+            $websiteNormalized = '';
+        }
+        $websiteLabel = $websiteNormalized !== '' ? $this->websiteLabel($websiteNormalized) : '';
+        $avatarPath = isset($user['avatar_path']) ? (string)$user['avatar_path'] : '';
+        $avatarUrl = $this->resolveAvatarUrl($avatarPath);
+        $avatarInitial = $this->avatarInitial($name);
+        $bio = isset($user['bio']) ? (string)$user['bio'] : '';
+        $bio = $this->sanitizeBio($bio);
+
+        $profileUrl = $this->links->user($slug !== '' ? $slug : null, $id > 0 ? $id : null);
+
+        return [
+            'id' => $id,
+            'name' => $name,
+            'slug' => $slug,
+            'created_at' => $createdAt,
+            'updated_at' => $updatedAt,
+            'profile_url' => $profileUrl,
+            'website_url' => $websiteNormalized,
+            'website_label' => $websiteLabel,
+            'avatar_path' => $avatarPath,
+            'avatar_url' => $avatarUrl,
+            'avatar_initial' => $avatarInitial,
+            'bio' => $bio,
+        ];
+    }
+
+    private function normalizeWebsiteUrl(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if (!preg_match('~^https?://~i', $trimmed)) {
+            $trimmed = 'https://' . $trimmed;
+        }
+
+        $normalized = filter_var($trimmed, FILTER_VALIDATE_URL);
+        if ($normalized === false) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    private function sanitizeBio(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $cleaned = preg_replace('~[\x00-\x08\x0B\x0C\x0E-\x1F]+~u', '', $trimmed);
+        if (!is_string($cleaned)) {
+            $cleaned = $trimmed;
+        }
+
+        return str_replace(["\r\n", "\r"], "\n", $cleaned);
+    }
+
+    private function websiteLabel(string $url): string
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (is_string($host) && $host !== '') {
+            return $host;
+        }
+
+        $stripped = preg_replace('~^https?://~i', '', $url) ?? $url;
+        return rtrim($stripped, '/');
+    }
+
+    private function avatarInitial(string $name): string
+    {
+        $trimmed = trim($name);
+        if ($trimmed === '') {
+            return '?';
+        }
+
+        if (function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+            $initial = mb_substr($trimmed, 0, 1, 'UTF-8');
+            return mb_strtoupper($initial, 'UTF-8');
+        }
+
+        $initial = substr($trimmed, 0, 1);
+        return $initial !== false ? strtoupper($initial) : '?';
+    }
+
+    private function resolveAvatarUrl(?string $relative): string
+    {
+        $path = is_string($relative) ? trim($relative) : '';
+        if ($path === '') {
+            return '';
+        }
+
+        $resolver = $this->uploads();
+        if ($resolver !== null) {
+            try {
+                return $resolver->publicUrl($path);
+            } catch (Throwable $exception) {
+                error_log('Failed to resolve avatar URL: ' . $exception->getMessage());
+            }
+        }
+
+        $normalized = ltrim($path, '/');
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (str_starts_with($normalized, 'uploads/')) {
+            return '/' . $normalized;
+        }
+
+        return '/uploads/' . $normalized;
+    }
+
+    /**
+     * @param array{name:string,type:string,tmp_name:string,error:int,size:int} $file
+     * @return array{relative:string,mime:string}
+     */
+    private function processAvatarUpload(array $file): array
+    {
+        $paths = $this->uploads();
+        if ($paths === null) {
+            throw new \RuntimeException('Nelze zapisovat do adresáře s uploady.');
+        }
+
+        $allowed = ['image/jpeg', 'image/png'];
+
+        $payload = [
+            'name' => (string)($file['name'] ?? ''),
+            'type' => (string)($file['type'] ?? ''),
+            'tmp_name' => (string)($file['tmp_name'] ?? ''),
+            'error' => (int)($file['error'] ?? UPLOAD_ERR_NO_FILE),
+            'size' => (int)($file['size'] ?? 0),
+        ];
+
+        $uploader = new Uploader($paths, $allowed, 5_000_000);
+        $result = $uploader->handle($payload, 'avatars', false);
+
+        $relative = (string)($result['relative'] ?? '');
+        $mime = strtolower((string)($result['mime'] ?? ''));
+
+        if ($relative === '') {
+            throw new \RuntimeException('Nepodařilo se uložit soubor.');
+        }
+
+        if (!in_array($mime, $allowed, true)) {
+            $this->deleteAvatar($relative);
+            throw new \RuntimeException('Nepodporovaný formát souboru.');
+        }
+
+        $this->resizeAvatar($relative, $mime);
+
+        return ['relative' => $relative, 'mime' => $mime];
+    }
+
+    private function resizeAvatar(string $relative, string $mime): void
+    {
+        $relative = trim($relative);
+        if ($relative === '') {
+            return;
+        }
+
+        $paths = $this->uploads();
+        if ($paths === null) {
+            return;
+        }
+
+        try {
+            $abs = $paths->absoluteFromRelative($relative);
+        } catch (Throwable $exception) {
+            error_log('Failed to access avatar for resize: ' . $exception->getMessage());
+            return;
+        }
+
+        if (!is_file($abs)) {
+            return;
+        }
+
+        $resource = $this->createAvatarImageResource($abs, $mime);
+        if (!$resource) {
+            return;
+        }
+
+        $width = imagesx($resource);
+        $height = imagesy($resource);
+        if ($width <= 0 || $height <= 0) {
+            imagedestroy($resource);
+            return;
+        }
+
+        $targetSize = 64;
+        $crop = min($width, $height);
+        $srcX = (int)max(0, floor(($width - $crop) / 2));
+        $srcY = (int)max(0, floor(($height - $crop) / 2));
+
+        $target = imagecreatetruecolor($targetSize, $targetSize);
+        if ($target === false) {
+            imagedestroy($resource);
+            return;
+        }
+
+        imagealphablending($target, false);
+        imagesavealpha($target, true);
+        $transparent = imagecolorallocatealpha($target, 0, 0, 0, 127);
+        imagefill($target, 0, 0, $transparent);
+
+        imagecopyresampled($target, $resource, 0, 0, $srcX, $srcY, $targetSize, $targetSize, $crop, $crop);
+
+        $normalizedMime = strtolower($mime);
+        if ($normalizedMime === 'image/png') {
+            imagepng($target, $abs);
+        } elseif (in_array($normalizedMime, ['image/jpeg', 'image/pjpeg', 'image/jpg'], true)) {
+            imagejpeg($target, $abs, 85);
+        } else {
+            imagejpeg($target, $abs, 85);
+        }
+
+        @chmod($abs, 0644);
+
+        imagedestroy($target);
+        imagedestroy($resource);
+    }
+
+    private function createAvatarImageResource(string $absPath, string $mime)
+    {
+        $normalized = strtolower($mime);
+
+        return match ($normalized) {
+            'image/png' => (function () use ($absPath) {
+                $img = @imagecreatefrompng($absPath);
+                if ($img) {
+                    imagealphablending($img, true);
+                    imagesavealpha($img, true);
+                }
+                return $img;
+            })(),
+            'image/jpeg', 'image/pjpeg', 'image/jpg' => @imagecreatefromjpeg($absPath),
+            default => null,
+        };
+    }
+
+    private function deleteAvatar(?string $relative, ?string $current = null): void
+    {
+        $path = is_string($relative) ? trim($relative) : '';
+        $keep = is_string($current) ? trim($current) : '';
+        if ($path === '' || $path === $keep) {
+            return;
+        }
+
+        $paths = $this->uploads();
+        if ($paths === null) {
+            return;
+        }
+
+        try {
+            $abs = $paths->absoluteFromRelative($path);
+        } catch (Throwable) {
+            return;
+        }
+
+        if (is_file($abs)) {
+            @unlink($abs);
+        }
+    }
+
+    private function uploads(): ?PathResolver
+    {
+        if ($this->uploadPaths !== null) {
+            return $this->uploadPaths;
+        }
+
+        try {
+            $this->uploadPaths = UploadPathFactory::forUploads();
+        } catch (Throwable $exception) {
+            error_log('Uploads path unavailable: ' . $exception->getMessage());
+            $this->uploadPaths = null;
+        }
+
+        return $this->uploadPaths;
+    }
+
     private function resolve(): RouteResult
     {
         $route = $this->detectRoute();
@@ -263,9 +588,11 @@ final class Router
             'category' => $this->handleTerm((string)($params['slug'] ?? ''), 'category'),
             'tag' => $this->handleTerm((string)($params['slug'] ?? ''), 'tag'),
             'search' => $this->handleSearch((string)($params['query'] ?? ($params['s'] ?? ''))),
+            'account' => $this->handleAccount(),
             'register' => $this->handleRegister(),
             'lost' => $this->handleLost(),
             'reset' => $this->handleReset((string)($params['token'] ?? ''), (int)($params['id'] ?? 0)),
+            'user' => $this->handleUser((string)($params['slug'] ?? ''), (int)($params['id'] ?? 0)),
             default => $this->notFound(),
         };
     }
@@ -333,6 +660,12 @@ final class Router
             }
             if ($bases['tag_base'] !== '' && $first === trim($bases['tag_base'], '/')) {
                 return ['name' => 'tag', 'params' => ['slug' => $second]];
+            }
+            if ($first === 'account') {
+                return ['name' => 'account', 'params' => []];
+            }
+            if ($bases['author_base'] !== '' && $first === trim($bases['author_base'], '/')) {
+                return ['name' => 'user', 'params' => ['slug' => $second]];
             }
             $customPost = $this->mapPrettyPostRoute($first, $second);
             if ($customPost !== null) {
@@ -869,6 +1202,299 @@ final class Router
         ]);
     }
 
+    private function handleUser(string $slug, int $id): RouteResult
+    {
+        $slug = trim($slug);
+        $id = $id > 0 ? $id : 0;
+
+        $user = null;
+        if ($slug !== '') {
+            $user = $this->users->findBySlug($slug);
+        }
+        if (!$user && $id > 0) {
+            $user = $this->users->find($id);
+        }
+
+        if (!$user) {
+            return $this->notFound();
+        }
+
+        $profile = $this->presentUserProfile($user);
+        $canonicalPath = isset($profile['profile_url']) ? (string)$profile['profile_url'] : '';
+        $canonical = $this->absoluteUrl($canonicalPath);
+        $profileSlug = isset($profile['slug']) ? (string)$profile['slug'] : '';
+
+        if ($this->links->prettyUrlsEnabled()
+            && $slug !== ''
+            && $profileSlug !== ''
+            && $slug !== $profileSlug
+            && $canonicalPath !== ''
+        ) {
+            $this->redirect($canonicalPath, 301);
+        }
+
+        $authorId = isset($profile['id']) ? (int)$profile['id'] : 0;
+        $posts = $authorId > 0 ? $this->posts->byAuthor($authorId, 20) : [];
+        $profile['post_count'] = count($posts);
+        $commentsData = $authorId > 0 ? $this->comments->publishedByUser($authorId, 20) : ['items' => [], 'total' => 0];
+        $comments = is_array($commentsData['items'] ?? null) ? $commentsData['items'] : [];
+        $profile['comment_count'] = isset($commentsData['total']) ? (int)$commentsData['total'] : count($comments);
+
+        $siteTitle = $this->settings->siteTitle();
+        $displayName = isset($profile['name']) ? trim((string)$profile['name']) : '';
+        $title = ($displayName !== '' ? $displayName : 'Autor') . ' | ' . $siteTitle;
+        $bio = isset($profile['bio']) ? trim((string)$profile['bio']) : '';
+        $descriptionSource = $bio !== ''
+            ? $bio
+            : ($displayName !== ''
+                ? sprintf('Profil autora %s na %s.', $displayName, $siteTitle)
+                : sprintf('Profil autora na %s.', $siteTitle));
+        $description = $this->limitString($descriptionSource);
+
+        if ($canonical !== '') {
+            $profile['canonical'] = $canonical;
+        }
+
+        $metaExtra = [
+            'og:type' => 'profile',
+            'twitter:card' => 'summary',
+        ];
+
+        if ($canonical !== '') {
+            $metaExtra['og:url'] = $canonical;
+        }
+
+        if ($displayName !== '') {
+            $metaExtra['og:title'] = $title;
+            $metaExtra['twitter:title'] = $title;
+        }
+
+        if ($description !== '') {
+            $metaExtra['og:description'] = $description;
+            $metaExtra['twitter:description'] = $description;
+        }
+
+        if ($profileSlug !== '') {
+            $metaExtra['profile:username'] = $profileSlug;
+        }
+
+        $avatarUrl = isset($profile['avatar_url']) ? (string)$profile['avatar_url'] : '';
+        if ($avatarUrl !== '') {
+            $metaExtra['og:image'] = $avatarUrl;
+            $metaExtra['twitter:image'] = $avatarUrl;
+        }
+
+        $websiteUrl = isset($profile['website_url']) ? (string)$profile['website_url'] : '';
+        if ($websiteUrl !== '') {
+            $metaExtra['og:see_also'] = $websiteUrl;
+        }
+
+        $meta = new SeoMeta(
+            $title,
+            $description !== '' ? $description : null,
+            $canonical,
+            $metaExtra,
+            structuredData: $this->buildAuthorStructuredData($profile, $canonical)
+        );
+
+        return new RouteResult('user', [
+            'user' => $profile,
+            'posts' => $posts,
+            'comments' => $comments,
+            'meta' => $meta->toArray(),
+        ]);
+    }
+
+    private function handleAccount(): RouteResult
+    {
+        $currentUser = $this->auth->user();
+        $siteTitle = $this->settings->siteTitle();
+        $meta = new SeoMeta('Můj profil | ' . $siteTitle, canonical: $this->links->account());
+
+        $profile = $currentUser ? $this->presentUserProfile($currentUser) : null;
+        $defaultOld = [
+            'name' => $profile['name'] ?? '',
+            'website' => $profile['website_url'] ?? '',
+            'bio' => $profile['bio'] ?? '',
+        ];
+
+        $data = [
+            'meta' => $meta->toArray(),
+            'user' => $profile,
+            'old' => $defaultOld,
+            'errors' => [],
+            'message' => null,
+            'success' => false,
+            'allowForm' => $currentUser !== null,
+            'loginUrl' => $this->links->login(),
+            'profileUrl' => $profile['profile_url'] ?? null,
+        ];
+        $status = $currentUser ? 200 : 401;
+
+        $sessionForm = $this->pullFormState('account');
+        if (is_array($sessionForm)) {
+            if (isset($sessionForm['success'])) {
+                $data['success'] = !empty($sessionForm['success']);
+            }
+            if (isset($sessionForm['message'])) {
+                $data['message'] = $sessionForm['message'];
+            }
+            if (isset($sessionForm['errors']) && is_array($sessionForm['errors'])) {
+                $data['errors'] = $sessionForm['errors'];
+            }
+            if (isset($sessionForm['old']) && is_array($sessionForm['old'])) {
+                $data['old'] = array_replace($data['old'], $sessionForm['old']);
+            }
+            if (isset($sessionForm['allowForm'])) {
+                $data['allowForm'] = !empty($sessionForm['allowForm']);
+            }
+            if (isset($sessionForm['status'])) {
+                $status = (int)$sessionForm['status'];
+            }
+        }
+
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if ($method !== 'POST') {
+            if (!$currentUser) {
+                $data['message'] = 'Pro úpravu profilu se přihlaste.';
+            }
+            $data['csrf'] = $this->csrfToken();
+            return new RouteResult('account', $data, $status);
+        }
+
+        if (!$currentUser) {
+            $data['message'] = 'Pro úpravu profilu se přihlaste.';
+            $data['allowForm'] = false;
+            $status = 401;
+            $this->storeFormState('account', $data, $status);
+            $this->redirect($this->links->account());
+        }
+
+        $token = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+        if (!$this->verifyCsrf($token)) {
+            $data['message'] = 'Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.';
+            $data['errors']['general'][] = 'Ověření formuláře selhalo.';
+            $status = 419;
+            $this->storeFormState('account', $data, $status);
+            $this->redirect($this->links->account());
+        }
+
+        $input = [
+            'name' => trim((string)($_POST['name'] ?? '')),
+            'website' => trim((string)($_POST['website'] ?? '')),
+            'bio' => trim((string)($_POST['bio'] ?? '')),
+        ];
+
+        $data['old']['name'] = $input['name'];
+        $data['old']['website'] = $input['website'];
+        $data['old']['bio'] = $input['bio'];
+
+        $errors = [];
+        if ($input['name'] === '') {
+            $errors['name'][] = 'Zadejte jméno.';
+        }
+
+        $websiteNormalized = '';
+        if ($input['website'] !== '') {
+            $normalized = $this->normalizeWebsiteUrl($input['website']);
+            if ($normalized === null) {
+                $errors['website'][] = 'Zadejte platnou URL adresu.';
+            } else {
+                if (strlen($normalized) > 255) {
+                    $errors['website'][] = 'URL je příliš dlouhá.';
+                }
+                $websiteNormalized = $normalized;
+                $data['old']['website'] = $websiteNormalized;
+            }
+        }
+
+        $bioNormalized = '';
+        if ($input['bio'] !== '') {
+            $bioNormalized = $this->sanitizeBio($input['bio']);
+            if ($bioNormalized !== '') {
+                $length = function_exists('mb_strlen')
+                    ? mb_strlen($bioNormalized, 'UTF-8')
+                    : strlen($bioNormalized);
+                if ($length > 600) {
+                    $errors['bio'][] = 'Krátké představení může mít maximálně 600 znaků.';
+                }
+                $data['old']['bio'] = $bioNormalized;
+            } else {
+                $data['old']['bio'] = '';
+            }
+        }
+
+        $avatarUpload = null;
+        if (isset($_FILES['avatar']) && is_array($_FILES['avatar'])) {
+            $fileError = (int)($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($fileError !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $avatarUpload = $this->processAvatarUpload($_FILES['avatar']);
+                } catch (Throwable $exception) {
+                    error_log('Avatar upload failed: ' . $exception->getMessage());
+                    $errors['avatar'][] = 'Nahrání avataru se nezdařilo. Nahrajte prosím soubor JPEG nebo PNG.';
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            if ($avatarUpload !== null) {
+                $this->deleteAvatar($avatarUpload['relative']);
+            }
+            $data['errors'] = $errors;
+            $data['message'] = 'Zkontrolujte zvýrazněná pole.';
+            $status = 422;
+            $this->storeFormState('account', $data, $status);
+            $this->redirect($this->links->account());
+        }
+
+        $update = [
+            'name' => $input['name'],
+            'updated_at' => DateTimeFactory::nowString(),
+            'website_url' => $websiteNormalized !== '' ? $websiteNormalized : null,
+        ];
+        if ($bioNormalized !== '') {
+            $update['bio'] = $bioNormalized;
+        } else {
+            $update['bio'] = null;
+        }
+        if ($avatarUpload !== null) {
+            $update['avatar_path'] = $avatarUpload['relative'];
+        }
+
+        try {
+            $this->users->update((int)$currentUser['id'], $update);
+        } catch (Throwable $exception) {
+            error_log('Profile update failed: ' . $exception->getMessage());
+            if ($avatarUpload !== null) {
+                $this->deleteAvatar($avatarUpload['relative']);
+            }
+            $data['message'] = 'Profil se nepodařilo uložit. Zkuste to prosím znovu.';
+            $data['errors'] = ['form' => ['Profil se nepodařilo uložit.']];
+            $status = 500;
+            $this->storeFormState('account', $data, $status);
+            $this->redirect($this->links->account());
+        }
+
+        if ($avatarUpload !== null) {
+            $this->deleteAvatar((string)($currentUser['avatar_path'] ?? ''), $avatarUpload['relative']);
+        }
+
+        $data['success'] = true;
+        $data['message'] = 'Profil byl úspěšně aktualizován.';
+        $data['errors'] = [];
+        $data['old'] = [
+            'name' => $update['name'],
+            'website' => $websiteNormalized !== '' ? $websiteNormalized : '',
+            'bio' => $bioNormalized !== '' ? $bioNormalized : '',
+        ];
+        $data['allowForm'] = true;
+        $status = 200;
+
+        $this->storeFormState('account', $data, $status);
+        $this->redirect($this->links->account());
+    }
+
     private function handleRegister(): RouteResult
     {
         $allowed = $this->settings->registrationAllowed();
@@ -1316,6 +1942,49 @@ final class Router
      * @param array<string,mixed> $content
      * @return list<array<string,mixed>>
      */
+    private function buildAuthorStructuredData(array $user, string $canonical): array
+    {
+        $siteName = $this->settings->siteTitle();
+        $siteUrl = $this->absoluteUrl($this->settings->siteUrl());
+
+        $data = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Person',
+            'name' => (string)($user['name'] ?? ''),
+            'url' => $canonical,
+        ];
+
+        $memberSince = isset($user['created_at']) ? (string)$user['created_at'] : '';
+        if ($memberSince !== '') {
+            $data['memberSince'] = $memberSince;
+        }
+
+        if ($siteName !== '') {
+            $data['worksFor'] = [
+                '@type' => 'Organization',
+                'name' => $siteName,
+                'url' => $siteUrl !== '' ? $siteUrl : $canonical,
+            ];
+        }
+
+        $avatarUrl = isset($user['avatar_url']) ? (string)$user['avatar_url'] : '';
+        if ($avatarUrl !== '') {
+            $data['image'] = $avatarUrl;
+        }
+
+        $websiteUrl = isset($user['website_url']) ? (string)$user['website_url'] : '';
+        if ($websiteUrl !== '') {
+            $data['sameAs'] = [$websiteUrl];
+        }
+
+        $bio = isset($user['bio']) ? trim((string)$user['bio']) : '';
+        if ($bio !== '') {
+            $data['description'] = $this->limitString($bio);
+        }
+
+        return $this->cleanStructuredDataList([$data]);
+    }
+
     private function buildPostStructuredData(array $content, string $canonical, string $schemaType): array
     {
         $siteName = $this->settings->siteTitle();
@@ -1356,9 +2025,20 @@ final class Router
             ];
 
             $authorName = trim((string)($content['author'] ?? ''));
-            $data['author'] = $authorName !== ''
-                ? ['@type' => 'Person', 'name' => $authorName]
-                : ['@type' => 'Organization', 'name' => $siteName];
+            $authorUrl = isset($content['author_url']) ? $this->absoluteUrl((string)$content['author_url']) : '';
+            if ($authorName !== '') {
+                $authorData = ['@type' => 'Person', 'name' => $authorName];
+                if ($authorUrl !== '') {
+                    $authorData['url'] = $authorUrl;
+                }
+                $data['author'] = $authorData;
+            } else {
+                $organization = ['@type' => 'Organization', 'name' => $siteName];
+                if ($authorUrl !== '') {
+                    $organization['url'] = $authorUrl;
+                }
+                $data['author'] = $organization;
+            }
 
             $publisher = [
                 '@type' => 'Organization',

@@ -94,9 +94,22 @@ final class ThemeViewEngine
                 return;
             }
 
-            $this->engine->render($layout, $payload, function () use ($template, $payload): void {
-                $this->engine->render($template, $payload);
-            });
+            $bufferLevel = ob_get_level();
+            ob_start();
+            try {
+                $this->engine->render($layout, $payload, function () use ($template, $payload): void {
+                    $this->engine->render($template, $payload);
+                });
+            } catch (Throwable $exception) {
+                while (ob_get_level() > $bufferLevel) {
+                    ob_end_clean();
+                }
+                throw $exception;
+            }
+
+            $html = ob_get_clean();
+            $html = is_string($html) ? $html : '';
+            echo $this->injectUserBar($html, $payload);
         } catch (Throwable $exception) {
             $this->markMissingTemplate($exception);
             throw $exception;
@@ -474,6 +487,394 @@ final class ThemeViewEngine
 
         $absolute = $this->absoluteUrl($value);
         return $absolute !== '' ? $absolute : $value;
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function injectUserBar(string $html, array $payload): string
+    {
+        if (str_contains($html, 'cms-userbar')) {
+            return $html;
+        }
+
+        $bar = $this->buildUserBar($payload);
+        if ($bar === '') {
+            return $html;
+        }
+
+        $html = $this->injectUserBarStyles($html);
+        $html = $this->appendBodyClass($html, 'cms-has-userbar');
+
+        return $this->insertAfterOpeningBody($html, $bar);
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function buildUserBar(array $payload): string
+    {
+        $currentUser = isset($payload['currentUser']) && is_array($payload['currentUser'])
+            ? $payload['currentUser']
+            : null;
+
+        $notificationsRaw = $payload['notifications'] ?? [];
+        $notifications = [];
+        if (is_array($notificationsRaw)) {
+            foreach ($notificationsRaw as $notice) {
+                if (!is_array($notice)) {
+                    continue;
+                }
+                $message = trim((string)($notice['message'] ?? ''));
+                if ($message === '') {
+                    continue;
+                }
+                $type = strtolower((string)($notice['type'] ?? 'info'));
+                if (!in_array($type, ['info', 'success', 'warning', 'danger'], true)) {
+                    $type = 'info';
+                }
+                $notifications[] = [
+                    'type' => $type,
+                    'message' => $message,
+                ];
+            }
+        }
+
+        $links = $payload['links'] ?? null;
+        $linkGenerator = $links instanceof LinkGenerator ? $links : $this->links;
+
+        $loginUrl = trim($linkGenerator->login());
+        $registerUrl = trim($linkGenerator->register());
+        $accountUrl = trim($linkGenerator->account());
+        $adminUrl = trim($linkGenerator->admin());
+
+        $profileUrl = '';
+        $editUrl = $accountUrl;
+        $avatarUrl = '';
+        $displayName = 'Uživatel';
+        $initial = '?';
+
+        if ($currentUser !== null) {
+            $displayName = trim((string)($currentUser['name'] ?? 'Uživatel')) ?: 'Uživatel';
+            $profileUrl = isset($currentUser['profile_url']) ? trim((string)$currentUser['profile_url']) : '';
+            $editCandidate = isset($currentUser['profile_edit_url']) ? trim((string)$currentUser['profile_edit_url']) : '';
+            if ($editCandidate !== '') {
+                $editUrl = $editCandidate;
+            }
+            $adminCandidate = isset($currentUser['admin_url']) ? trim((string)$currentUser['admin_url']) : '';
+            if ($adminCandidate !== '') {
+                $adminUrl = $adminCandidate;
+            }
+            $avatarUrl = isset($currentUser['avatar_url']) ? trim((string)$currentUser['avatar_url']) : '';
+            $initial = $this->userBarInitial($displayName);
+        }
+
+        $registrationAllowed = $this->settings->registrationAllowed();
+
+        ob_start();
+        ?>
+        <div class="cms-userbar" role="region" aria-label="Uživatelská lišta">
+            <div class="cms-userbar__inner">
+                <div class="cms-userbar__profile">
+                    <?php if ($currentUser !== null): ?>
+                        <div class="cms-userbar__avatar" aria-hidden="true">
+                            <?php if ($avatarUrl !== ''): ?>
+                                <img src="<?= htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" width="36" height="36">
+                            <?php else: ?>
+                                <span><?= htmlspecialchars($initial, ENT_QUOTES, 'UTF-8'); ?></span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                    <div class="cms-userbar__meta">
+                        <?php if ($currentUser !== null): ?>
+                            <span class="cms-userbar__greeting">Přihlášen(a)</span>
+                            <span class="cms-userbar__name"><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></span>
+                        <?php else: ?>
+                            <span class="cms-userbar__greeting">Nepřihlášeno</span>
+                            <span class="cms-userbar__name">Návštěvník</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="cms-userbar__actions" role="navigation" aria-label="Rychlé odkazy">
+                    <?php if ($currentUser !== null): ?>
+                        <?php if ($profileUrl !== ''): ?>
+                            <a class="cms-userbar__action" href="<?= htmlspecialchars($profileUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Veřejný profil</a>
+                        <?php endif; ?>
+                        <?php if ($editUrl !== ''): ?>
+                            <a class="cms-userbar__action" href="<?= htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8'); ?>">Upravit profil</a>
+                        <?php endif; ?>
+                        <?php if ($adminUrl !== ''): ?>
+                            <a class="cms-userbar__action" href="<?= htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Administrace</a>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <?php if ($loginUrl !== ''): ?>
+                            <a class="cms-userbar__action" href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">Přihlásit se</a>
+                        <?php endif; ?>
+                        <?php if ($registrationAllowed && $registerUrl !== ''): ?>
+                            <a class="cms-userbar__action" href="<?= htmlspecialchars($registerUrl, ENT_QUOTES, 'UTF-8'); ?>">Registrace</a>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php if ($notifications !== []): ?>
+                <div class="cms-userbar__notices" role="status" aria-live="polite">
+                    <?php foreach ($notifications as $notice): ?>
+                        <div class="cms-userbar__notice cms-userbar__notice--<?= htmlspecialchars($notice['type'], ENT_QUOTES, 'UTF-8'); ?>">
+                            <?= htmlspecialchars($notice['message'], ENT_QUOTES, 'UTF-8'); ?>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+        $output = ob_get_clean();
+
+        return is_string($output) ? trim($output) : '';
+    }
+
+    private function userBarInitial(string $name): string
+    {
+        $trimmed = trim($name);
+        if ($trimmed === '') {
+            return '?';
+        }
+
+        if (function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+            $initial = mb_substr($trimmed, 0, 1, 'UTF-8');
+            return mb_strtoupper($initial, 'UTF-8');
+        }
+
+        $initial = substr($trimmed, 0, 1);
+        return $initial !== false ? strtoupper($initial) : '?';
+    }
+
+    private function injectUserBarStyles(string $html): string
+    {
+        if (str_contains($html, 'cms-userbar__styles')) {
+            return $html;
+        }
+
+        $styles = <<<'CSS'
+<style id="cms-userbar__styles">
+    body.cms-has-userbar {
+        scroll-padding-top: 4rem;
+    }
+    .cms-userbar {
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        width: 100%;
+        background: #111827;
+        color: #f9fafb;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 0.95rem;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+    }
+    .cms-userbar a {
+        color: inherit;
+        text-decoration: none;
+    }
+    .cms-userbar__inner {
+        margin: 0 auto;
+        padding: 0.6rem 1rem;
+        max-width: 1200px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1.5rem;
+    }
+    .cms-userbar__profile {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+    .cms-userbar__avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        background: rgba(248, 250, 252, 0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.12);
+    }
+    .cms-userbar__avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+    .cms-userbar__avatar span {
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+    .cms-userbar__meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1rem;
+    }
+    .cms-userbar__greeting {
+        font-size: 0.75rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(248, 250, 252, 0.7);
+    }
+    .cms-userbar__name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #f9fafb;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 240px;
+    }
+    .cms-userbar__actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 0.5rem;
+    }
+    .cms-userbar__action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.35rem 0.85rem;
+        border-radius: 999px;
+        background: rgba(248, 250, 252, 0.14);
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .cms-userbar__action:hover,
+    .cms-userbar__action:focus {
+        background: rgba(248, 250, 252, 0.24);
+    }
+    .cms-userbar__action:focus-visible {
+        outline: 2px solid rgba(248, 250, 252, 0.95);
+        outline-offset: 2px;
+    }
+    .cms-userbar__notices {
+        margin: 0 auto;
+        padding: 0.45rem 1rem 0.75rem;
+        max-width: 1200px;
+        display: grid;
+        gap: 0.5rem;
+    }
+    .cms-userbar__notice {
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        box-shadow: inset 0 0 0 1px rgba(248, 250, 252, 0.18);
+    }
+    .cms-userbar__notice--success {
+        background: rgba(16, 185, 129, 0.22);
+        border: 1px solid rgba(16, 185, 129, 0.45);
+    }
+    .cms-userbar__notice--info {
+        background: rgba(59, 130, 246, 0.18);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+    .cms-userbar__notice--warning {
+        background: rgba(250, 204, 21, 0.28);
+        border: 1px solid rgba(250, 204, 21, 0.45);
+        color: #111827;
+    }
+    .cms-userbar__notice--danger {
+        background: rgba(239, 68, 68, 0.22);
+        border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+    @media (max-width: 768px) {
+        .cms-userbar__inner {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.9rem;
+        }
+        .cms-userbar__actions {
+            justify-content: flex-start;
+        }
+        .cms-userbar__name {
+            max-width: 100%;
+        }
+    }
+</style>
+CSS;
+
+        $styles = trim($styles) . "\n";
+
+        $pos = stripos($html, '</head>');
+        if ($pos !== false) {
+            return substr_replace($html, $styles . '</head>', $pos, 7);
+        }
+
+        return $styles . $html;
+    }
+
+    private function appendBodyClass(string $html, string $class): string
+    {
+        $normalized = preg_replace('~[^a-z0-9\-]~i', '', $class);
+        if ($normalized === null || $normalized === '') {
+            return $html;
+        }
+
+        $bodyStart = stripos($html, '<body');
+        if ($bodyStart === false) {
+            return $html;
+        }
+
+        $tagEnd = strpos($html, '>', $bodyStart);
+        if ($tagEnd === false) {
+            return $html;
+        }
+
+        $bodyTag = substr($html, $bodyStart, $tagEnd - $bodyStart + 1);
+
+        $classPos = stripos($bodyTag, 'class=');
+        if ($classPos !== false) {
+            $quote = $bodyTag[$classPos + 6] ?? '';
+            if ($quote === '"' || $quote === "'") {
+                $valueStart = $classPos + 7;
+                $valueEnd = strpos($bodyTag, $quote, $valueStart);
+                if ($valueEnd !== false) {
+                    $existing = substr($bodyTag, $valueStart, $valueEnd - $valueStart);
+                    $parts = preg_split('/\s+/', $existing) ?: [];
+                    if (!in_array($normalized, $parts, true)) {
+                        $parts[] = $normalized;
+                        $updated = implode(' ', array_filter($parts));
+                        $bodyTag = substr($bodyTag, 0, $valueStart) . $updated . substr($bodyTag, $valueEnd);
+                    }
+
+                    return substr($html, 0, $bodyStart) . $bodyTag . substr($html, $tagEnd + 1);
+                }
+            }
+        }
+
+        $replacement = substr($bodyTag, 0, 5) . ' class="' . $normalized . '"' . substr($bodyTag, 5);
+        return substr($html, 0, $bodyStart) . $replacement . substr($html, $tagEnd + 1);
+    }
+
+    private function insertAfterOpeningBody(string $html, string $insertion): string
+    {
+        if ($insertion === '') {
+            return $html;
+        }
+
+        $bodyStart = stripos($html, '<body');
+        if ($bodyStart === false) {
+            return $insertion . $html;
+        }
+
+        $tagEnd = strpos($html, '>', $bodyStart);
+        if ($tagEnd === false) {
+            return $html;
+        }
+
+        $prefix = substr($html, 0, $tagEnd + 1);
+        $suffix = substr($html, $tagEnd + 1);
+
+        return $prefix . "\n" . $insertion . $suffix;
     }
 
     private function absoluteUrl(string $value): string
