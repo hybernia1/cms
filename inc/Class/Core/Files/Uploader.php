@@ -31,12 +31,13 @@ final class Uploader
     /**
      * @param array{ name:string, type:string, tmp_name:string, error:int, size:int } $file
      * @param ?string $subdir Relativní podsložka uvnitř uploads (např. 'avatars')
+     * @param bool    $useDateSubdir Když true, vytvoří YYYY/MM strukturu; jinak ukládá přímo do baseDir
      * @return array{
      *   relative:string, url:string, name:string, size:int, mime:string,
      *   width?:int, height?:int
      * }
      */
-    public function handle(array $file, ?string $subdir = null): array
+    public function handle(array $file, ?string $subdir = null, bool $useDateSubdir = true): array
     {
         $this->assertNoUploadError((int)($file['error'] ?? UPLOAD_ERR_NO_FILE));
 
@@ -51,8 +52,10 @@ final class Uploader
             throw new \RuntimeException('File size out of allowed range.');
         }
 
-        // cílový adresář: uploads/Y/m[/subdir]
-        $targetDir = $this->paths->yearMonthPath();
+        // cílový adresář: uploads/[Y/m][/subdir]
+        $targetDir = $useDateSubdir
+            ? $this->paths->yearMonthPath()
+            : $this->paths->baseDir();
         if ($subdir) {
             $subdir   = trim($subdir, '/\\');
             $targetDir .= '/' . $subdir;
