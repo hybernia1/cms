@@ -3,7 +3,6 @@
 
 $title = (string)($page['title'] ?? '');
 $author = trim((string)($page['author'] ?? ''));
-$authorUrl = (string)($page['author_url'] ?? '');
 $published = trim((string)($page['published_at'] ?? ''));
 $publishedIso = trim((string)($page['published_at_iso'] ?? ''));
 $thumbnail = is_array($page['thumbnail'] ?? null) ? $page['thumbnail'] : null;
@@ -30,13 +29,7 @@ $thumbnailHeight = isset($thumbnailMeta['height']) ? (int)$thumbnailMeta['height
                     <span aria-hidden="true">·</span>
                 <?php endif; ?>
                 <?php if ($author !== ''): ?>
-                    <?php if ($authorUrl !== ''): ?>
-                        <a href="<?= htmlspecialchars($authorUrl, ENT_QUOTES, 'UTF-8'); ?>">
-                            <?= htmlspecialchars($author, ENT_QUOTES, 'UTF-8'); ?>
-                        </a>
-                    <?php else: ?>
-                        <span><?= htmlspecialchars($author, ENT_QUOTES, 'UTF-8'); ?></span>
-                    <?php endif; ?>
+                    <span><?= htmlspecialchars($author, ENT_QUOTES, 'UTF-8'); ?></span>
                 <?php endif; ?>
             </p>
         <?php endif; ?>

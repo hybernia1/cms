@@ -14,7 +14,6 @@ declare(strict_types=1);
  */
 
 use Core\Database\Init as DB;
-use Cms\Admin\Domain\Services\UserSlugService;
 
 session_start();
 $BASE = dirname(__DIR__);           // root projektu
@@ -183,12 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 3) {
 
         $hash = password_hash($pass, PASSWORD_DEFAULT);
 
-        $slugService = new UserSlugService();
-        $slug = $slugService->generate($name);
-
         DB::query()->table('users')->insert([
             'name'          => $name,
-            'slug'          => $slug,
             'email'         => $email,
             'password_hash' => $hash,
             'active'        => 1,
