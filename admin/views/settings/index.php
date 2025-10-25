@@ -40,7 +40,13 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             <input class="form-control" id="site_email" name="site_email" value="<?= $h((string)($settings['site_email'] ?? '')) ?>" type="email" placeholder="admin@example.com">
             <div class="invalid-feedback" data-error-for="site_email" hidden></div>
           </div>
-          <div class="col-md-6">
+        </div>
+      </div>
+
+      <div class="mb-4 border-top pt-4">
+        <h2 class="h6 text-uppercase text-secondary fw-semibold mb-3">Grafika webu</h2>
+        <div class="row g-3">
+          <div class="col-lg-4 col-md-6">
             <label class="form-label" for="site_favicon">Favicon</label>
             <?php if ($hasFavicon): ?>
               <div class="d-flex align-items-center gap-2 mb-2">
@@ -57,6 +63,12 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             <?php endif; ?>
             <div class="form-text">Podporované formáty: ICO, PNG, SVG, JPEG, WebP, AVIF nebo GIF. Maximální velikost 2&nbsp;MB.</div>
             <div class="invalid-feedback" data-error-for="favicon" hidden></div>
+          </div>
+          <div class="col-lg-8">
+            <div class="alert alert-secondary h-100 mb-0">
+              <p class="mb-1">Sem brzy přibydou další možnosti pro grafiku webu – například logo či aplikace.</p>
+              <p class="mb-0 text-secondary small">Favicon se ukládá ve složce <code>uploads/web</code> a zůstává tak nezávislá na datu nahrání.</p>
+            </div>
           </div>
         </div>
       </div>

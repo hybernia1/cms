@@ -397,7 +397,7 @@ final class SettingsController extends BaseAdminController
             try {
                 $uploadPaths = $this->uploadPaths();
                 $uploader = new Uploader($uploadPaths, $this->faviconMimeWhitelist(), 2000000);
-                $faviconUpload = $uploader->handle($_FILES['favicon'], 'settings');
+                $faviconUpload = $uploader->handle($_FILES['favicon'], 'web', false);
             } catch (\Throwable) {
                 $errors['favicon'][] = 'Soubor se nepodařilo nahrát. Zkontrolujte formát a velikost.';
             }
