@@ -4,8 +4,8 @@ declare(strict_types=1);
 /** @var array $nav */
 /** @var array|null $currentUser */
 /** @var array|null $flash */
-/** @var array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string} $permalinks */
-/** @var array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string} $defaults */
+/** @var array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string,author_base:string} $permalinks */
+/** @var array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string,author_base:string} $defaults */
 /** @var string $csrf */
 
 $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash'), function () use ($permalinks,$defaults,$csrf) {
@@ -20,6 +20,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
     $pageSlug = 'kontakt';
     $tagSlug = 'zajimavosti';
     $categorySlug = 'novinky';
+    $authorSlug = 'jan-novak';
 
     $postPretty = $prettyUrls->post($exampleSlug);
     $postFallback = $fallbackUrls->post($exampleSlug);
@@ -30,10 +31,14 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
     $categoryPretty = $prettyUrls->category($categorySlug);
     $categoryFallback = $fallbackUrls->category($categorySlug);
 
+    $authorPretty = $prettyUrls->user($authorSlug);
+    $authorFallback = $fallbackUrls->user($authorSlug, 42);
+
     $currentPost = $seoEnabled ? $postPretty : $postFallback;
     $currentPage = $seoEnabled ? $pagePretty : $pageFallback;
     $currentTag = $seoEnabled ? $tagPretty : $tagFallback;
     $currentCategory = $seoEnabled ? $categoryPretty : $categoryFallback;
+    $currentAuthor = $seoEnabled ? $authorPretty : $authorFallback;
 ?>
   <form class="card" method="post" action="admin.php?r=settings&a=permalinks" data-ajax data-form-helper="validation">
     <div class="card-body">
@@ -82,6 +87,12 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             <div class="form-text">Výchozí: <?= $h($defaults['tag_base']) ?></div>
             <div class="invalid-feedback" data-error-for="tag_base" hidden></div>
           </div>
+          <div class="col-md-6 col-lg-3">
+            <label class="form-label" for="author_base">Autoři</label>
+            <input class="form-control" id="author_base" name="author_base" value="<?= $h($permalinks['author_base']) ?>" pattern="[a-z0-9\-]+" required>
+            <div class="form-text">Výchozí: <?= $h($defaults['author_base']) ?></div>
+            <div class="invalid-feedback" data-error-for="author_base" hidden></div>
+          </div>
         </div>
         <div class="form-text mt-2">Používejte pouze malá písmena, čísla a pomlčky. Změna adresy může ovlivnit SEO – po úpravě aktualizujte odkazy v menu i obsahu.</div>
         <div class="alert alert-secondary mt-3 mb-0">
@@ -91,6 +102,7 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
             <li>Stránka: <code><?= $h($currentPage) ?></code></li>
             <li>Kategorie: <code><?= $h($currentCategory) ?></code></li>
             <li>Štítek: <code><?= $h($currentTag) ?></code></li>
+            <li>Autor: <code><?= $h($currentAuthor) ?></code></li>
           </ul>
         </div>
       </div>
