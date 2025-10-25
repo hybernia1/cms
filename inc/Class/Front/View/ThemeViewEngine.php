@@ -518,6 +518,10 @@ final class ThemeViewEngine
             ? $payload['currentUser']
             : null;
 
+        if ($currentUser === null) {
+            return '';
+        }
+
         $notificationsRaw = $payload['notifications'] ?? [];
         $notifications = [];
         if (is_array($notificationsRaw)) {
@@ -543,8 +547,6 @@ final class ThemeViewEngine
         $links = $payload['links'] ?? null;
         $linkGenerator = $links instanceof LinkGenerator ? $links : $this->links;
 
-        $loginUrl = trim($linkGenerator->login());
-        $registerUrl = trim($linkGenerator->register());
         $accountUrl = trim($linkGenerator->account());
         $adminUrl = trim($linkGenerator->admin());
 
@@ -554,65 +556,45 @@ final class ThemeViewEngine
         $displayName = 'Uživatel';
         $initial = '?';
 
-        if ($currentUser !== null) {
-            $displayName = trim((string)($currentUser['name'] ?? 'Uživatel')) ?: 'Uživatel';
-            $profileUrl = isset($currentUser['profile_url']) ? trim((string)$currentUser['profile_url']) : '';
-            $editCandidate = isset($currentUser['profile_edit_url']) ? trim((string)$currentUser['profile_edit_url']) : '';
-            if ($editCandidate !== '') {
-                $editUrl = $editCandidate;
-            }
-            $adminCandidate = isset($currentUser['admin_url']) ? trim((string)$currentUser['admin_url']) : '';
-            if ($adminCandidate !== '') {
-                $adminUrl = $adminCandidate;
-            }
-            $avatarUrl = isset($currentUser['avatar_url']) ? trim((string)$currentUser['avatar_url']) : '';
-            $initial = $this->userBarInitial($displayName);
+        $displayName = trim((string)($currentUser['name'] ?? 'Uživatel')) ?: 'Uživatel';
+        $profileUrl = isset($currentUser['profile_url']) ? trim((string)$currentUser['profile_url']) : '';
+        $editCandidate = isset($currentUser['profile_edit_url']) ? trim((string)$currentUser['profile_edit_url']) : '';
+        if ($editCandidate !== '') {
+            $editUrl = $editCandidate;
         }
-
-        $registrationAllowed = $this->settings->registrationAllowed();
+        $adminCandidate = isset($currentUser['admin_url']) ? trim((string)$currentUser['admin_url']) : '';
+        if ($adminCandidate !== '') {
+            $adminUrl = $adminCandidate;
+        }
+        $avatarUrl = isset($currentUser['avatar_url']) ? trim((string)$currentUser['avatar_url']) : '';
+        $initial = $this->userBarInitial($displayName);
 
         ob_start();
         ?>
         <div class="cms-userbar" role="region" aria-label="Uživatelská lišta">
             <div class="cms-userbar__inner">
                 <div class="cms-userbar__profile">
-                    <?php if ($currentUser !== null): ?>
-                        <div class="cms-userbar__avatar" aria-hidden="true">
-                            <?php if ($avatarUrl !== ''): ?>
-                                <img src="<?= htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" width="36" height="36">
-                            <?php else: ?>
-                                <span><?= htmlspecialchars($initial, ENT_QUOTES, 'UTF-8'); ?></span>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
-                    <div class="cms-userbar__meta">
-                        <?php if ($currentUser !== null): ?>
-                            <span class="cms-userbar__greeting">Přihlášen(a)</span>
-                            <span class="cms-userbar__name"><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></span>
+                    <div class="cms-userbar__avatar" aria-hidden="true">
+                        <?php if ($avatarUrl !== ''): ?>
+                            <img src="<?= htmlspecialchars($avatarUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="" width="36" height="36">
                         <?php else: ?>
-                            <span class="cms-userbar__greeting">Nepřihlášeno</span>
-                            <span class="cms-userbar__name">Návštěvník</span>
+                            <span><?= htmlspecialchars($initial, ENT_QUOTES, 'UTF-8'); ?></span>
                         <?php endif; ?>
+                    </div>
+                    <div class="cms-userbar__meta">
+                        <span class="cms-userbar__greeting">Přihlášen(a)</span>
+                        <span class="cms-userbar__name"><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8'); ?></span>
                     </div>
                 </div>
                 <div class="cms-userbar__actions" role="navigation" aria-label="Rychlé odkazy">
-                    <?php if ($currentUser !== null): ?>
-                        <?php if ($profileUrl !== ''): ?>
-                            <a class="cms-userbar__action" href="<?= htmlspecialchars($profileUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Veřejný profil</a>
-                        <?php endif; ?>
-                        <?php if ($editUrl !== ''): ?>
-                            <a class="cms-userbar__action" href="<?= htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8'); ?>">Upravit profil</a>
-                        <?php endif; ?>
-                        <?php if ($adminUrl !== ''): ?>
-                            <a class="cms-userbar__action" href="<?= htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Administrace</a>
-                        <?php endif; ?>
-                    <?php else: ?>
-                        <?php if ($loginUrl !== ''): ?>
-                            <a class="cms-userbar__action" href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8'); ?>">Přihlásit se</a>
-                        <?php endif; ?>
-                        <?php if ($registrationAllowed && $registerUrl !== ''): ?>
-                            <a class="cms-userbar__action" href="<?= htmlspecialchars($registerUrl, ENT_QUOTES, 'UTF-8'); ?>">Registrace</a>
-                        <?php endif; ?>
+                    <?php if ($profileUrl !== ''): ?>
+                        <a class="cms-userbar__action" href="<?= htmlspecialchars($profileUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Veřejný profil</a>
+                    <?php endif; ?>
+                    <?php if ($editUrl !== ''): ?>
+                        <a class="cms-userbar__action" href="<?= htmlspecialchars($editUrl, ENT_QUOTES, 'UTF-8'); ?>">Upravit profil</a>
+                    <?php endif; ?>
+                    <?php if ($adminUrl !== ''): ?>
+                        <a class="cms-userbar__action" href="<?= htmlspecialchars($adminUrl, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Administrace</a>
                     <?php endif; ?>
                 </div>
             </div>
