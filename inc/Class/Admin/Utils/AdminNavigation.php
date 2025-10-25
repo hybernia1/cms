@@ -5,6 +5,7 @@ namespace Cms\Admin\Utils;
 
 use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Core\Plugins\PluginRegistry;
+use Core\Widgets\WidgetRegistry;
 
 /**
  * Central builder for admin navigation.
@@ -35,6 +36,16 @@ final class AdminNavigation
                 'label' => $plugin['name'],
                 'href'  => 'admin.php?r=plugins&plugin=' . urlencode($plugin['slug']),
                 'icon'  => 'bi-plug',
+            ];
+        }
+
+        $widgetChildren = [];
+        foreach (WidgetRegistry::all() as $widget) {
+            $widgetChildren[] = [
+                'key'   => 'widgets:' . $widget['id'],
+                'label' => $widget['name'],
+                'href'  => 'admin.php?r=widgets&widget=' . urlencode($widget['id']),
+                'icon'  => 'bi-grid',
             ];
         }
 
@@ -86,6 +97,15 @@ final class AdminNavigation
             'icon'      => 'bi-plug',
             'section'   => true,
             'children'  => $pluginChildren,
+        ];
+
+        $items[] = [
+            'key'       => 'widgets',
+            'label'     => 'Widgety',
+            'href'      => 'admin.php?r=widgets',
+            'icon'      => 'bi-grid',
+            'section'   => true,
+            'children'  => $widgetChildren,
         ];
 
         $items[] = [

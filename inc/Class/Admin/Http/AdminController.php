@@ -15,6 +15,7 @@ use Cms\Admin\Http\Controllers\PostsController;
 use Cms\Admin\Http\Controllers\SettingsController;
 use Cms\Admin\Http\Controllers\TermsController;
 use Cms\Admin\Http\Controllers\ThemesController;
+use Cms\Admin\Http\Controllers\WidgetsController;
 use Cms\Admin\Http\Controllers\UsersController;
 use Cms\Admin\Http\Support\ControllerHelpers;
 use Cms\Admin\Settings\CmsSettings;
@@ -40,6 +41,7 @@ final class AdminController
         'themes'     => ThemesController::class,
         'navigation' => NavigationController::class,
         'plugins'    => PluginsController::class,
+        'widgets'    => WidgetsController::class,
         'settings'   => SettingsController::class,
         'migrations' => MigrationsController::class,
         'users'      => UsersController::class,

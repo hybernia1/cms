@@ -41,8 +41,14 @@ final class PluginRegistry
         $adminUrl = isset($args['admin_url']) && $args['admin_url'] !== ''
             ? (string)$args['admin_url']
             : null;
-        $active = array_key_exists('active', $args) ? (bool)$args['active'] : true;
+        $baseActive = array_key_exists('active', $args) ? (bool)$args['active'] : true;
         $meta = is_array($args['meta'] ?? null) ? $args['meta'] : [];
+
+        $settings = PluginSettingsStore::get($slug);
+        $active = PluginSettingsStore::has($slug) ? $settings['active'] : $baseActive;
+        if ($settings['options'] !== []) {
+            $meta = array_merge($meta, $settings['options']);
+        }
 
         self::$plugins[$slug] = [
             'slug'        => $slug,
@@ -108,6 +114,29 @@ final class PluginRegistry
     {
         $plugin = self::get($slug);
         return $plugin ? $plugin['active'] : false;
+    }
+
+    /**
+     * Apply updated settings to runtime registry without reloading plugin files.
+     *
+     * @param array<string,mixed> $options
+     */
+    public static function applySettings(string $slug, bool $active, array $options = []): void
+    {
+        $normalized = self::normalizeSlug($slug);
+        if (!isset(self::$plugins[$normalized])) {
+            return;
+        }
+
+        self::$plugins[$normalized]['active'] = $active;
+
+        if (!isset(self::$plugins[$normalized]['meta']) || !is_array(self::$plugins[$normalized]['meta'])) {
+            self::$plugins[$normalized]['meta'] = [];
+        }
+
+        if ($options !== []) {
+            self::$plugins[$normalized]['meta'] = array_merge(self::$plugins[$normalized]['meta'], $options);
+        }
     }
 
     private static function humanize(string $slug): string

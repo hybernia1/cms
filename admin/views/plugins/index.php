@@ -26,15 +26,23 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                 <?php foreach ($plugins as $plugin): ?>
                     <?php
                         $isSelected = $selected && $selected['slug'] === $plugin['slug'];
+                        $isActive = !empty($plugin['active']);
                         $configured = !empty($plugin['meta']['configured']);
-                        $badgeClass = $configured ? 'text-bg-success-subtle text-success-emphasis border border-success-subtle' : 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle';
-                        $badgeLabel = $configured ? 'Nastaveno' : 'Vyžaduje nastavení';
+                        $statusClass = $isActive
+                            ? 'text-bg-success-subtle text-success-emphasis border border-success-subtle'
+                            : 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle';
+                        $statusLabel = $isActive ? 'Aktivní' : 'Neaktivní';
                     ?>
                     <a href="admin.php?r=plugins&amp;plugin=<?= $h($plugin['slug']); ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center<?= $isSelected ? ' active' : ''; ?>">
                         <span><?= $h($plugin['name']); ?></span>
-                        <span class="badge <?= $badgeClass; ?>" title="<?= $configured ? 'Plugin má nastavené potřebné údaje.' : 'Plugin může vyžadovat dodatečné nastavení.'; ?>">
-                            <?= $badgeLabel; ?>
-                        </span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge <?= $statusClass; ?>"><?= $statusLabel; ?></span>
+                            <?php if (!$configured): ?>
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Plugin může vyžadovat dodatečné nastavení.">
+                                    Vyžaduje nastavení
+                                </span>
+                            <?php endif; ?>
+                        </div>
                     </a>
                 <?php endforeach; ?>
                 <?php if ($plugins === []): ?>
@@ -48,6 +56,7 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
     <div class="col-lg-8">
         <?php if ($selected): ?>
             <?php
+                $isActive = !empty($selected['active']);
                 $configured = !empty($selected['meta']['configured']);
                 $measurementId = (string)($selected['meta']['measurement_id'] ?? '');
                 $hint = (string)($selected['meta']['configuration_hint'] ?? '');
@@ -56,6 +65,7 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                 $author = (string)($selected['author'] ?? '');
                 $homepage = isset($selected['homepage']) ? (string)$selected['homepage'] : '';
                 $adminUrl = isset($selected['admin_url']) ? (string)$selected['admin_url'] : '';
+                $formId = 'plugin-settings-' . preg_replace('/[^a-z0-9\-]/', '-', $selected['slug']);
             ?>
             <div class="card shadow-sm">
                 <div class="card-header d-flex align-items-center gap-2">
@@ -63,11 +73,12 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                     <?php if ($version !== ''): ?>
                         <span class="badge text-bg-light border">v<?= $h($version); ?></span>
                     <?php endif; ?>
-                    <?php if ($configured): ?>
-                        <span class="badge text-bg-success-subtle text-success-emphasis border border-success-subtle">Aktivní</span>
-                    <?php else: ?>
-                        <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Čeká na konfiguraci</span>
-                    <?php endif; ?>
+                    <span class="badge <?= $isActive ? 'text-bg-success-subtle text-success-emphasis border border-success-subtle' : 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle'; ?>">
+                        <?= $isActive ? 'Aktivní' : 'Deaktivováno'; ?>
+                    </span>
+                    <span class="badge <?= $configured ? 'text-bg-success-subtle text-success-emphasis border border-success-subtle' : 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle'; ?>">
+                        <?= $configured ? 'Konfigurováno' : 'Vyžaduje nastavení'; ?>
+                    </span>
                 </div>
                 <div class="card-body">
                     <?php if ($description !== ''): ?>
@@ -78,6 +89,10 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                         <dt class="col-sm-4">Autor</dt>
                         <dd class="col-sm-8">
                             <?= $author !== '' ? $h($author) : '<span class="text-muted">Neuveden</span>'; ?>
+                        </dd>
+                        <dt class="col-sm-4">Stav pluginu</dt>
+                        <dd class="col-sm-8">
+                            <?= $isActive ? 'Aktivní' : 'Deaktivováno'; ?>
                         </dd>
                         <dt class="col-sm-4">Stav konfigurace</dt>
                         <dd class="col-sm-8">
@@ -96,6 +111,35 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                             <dd class="col-sm-8"><a href="<?= $h($adminUrl); ?>">Otevřít stránku pluginu</a></dd>
                         <?php endif; ?>
                     </dl>
+
+                    <hr class="my-4">
+
+                    <form id="<?= $h($formId); ?>" method="post" action="admin.php?r=plugins&amp;a=update" class="vstack gap-3">
+                        <input type="hidden" name="csrf" value="<?= $h((string)($csrf ?? '')); ?>">
+                        <input type="hidden" name="plugin" value="<?= $h($selected['slug']); ?>">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="<?= $h($formId); ?>-active" name="active" value="1"<?= $isActive ? ' checked' : ''; ?>>
+                            <label class="form-check-label" for="<?= $h($formId); ?>-active">Plugin je aktivní</label>
+                        </div>
+
+                        <?php if ($selected['slug'] === 'google-analytics'): ?>
+                            <?php
+                                $inputId = $formId . '-measurement-id';
+                            ?>
+                            <div>
+                                <label class="form-label" for="<?= $h($inputId); ?>">Měřicí ID Google Analytics</label>
+                                <input type="text" class="form-control" id="<?= $h($inputId); ?>" name="measurement_id" value="<?= $h($measurementId); ?>" placeholder="např. G-XXXXXXXXXX">
+                                <div class="form-text">Pokud pole ponecháte prázdné, použije se hodnota z proměnné <code>CMS_GA_MEASUREMENT_ID</code> (pokud je nastavena).</div>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">Uložit změny</button>
+                            <?php if (!$isActive): ?>
+                                <span class="text-muted align-self-center">Plugin je aktuálně deaktivován.</span>
+                            <?php endif; ?>
+                        </div>
+                    </form>
                 </div>
                 <?php if ($hint !== ''): ?>
                     <div class="card-footer text-muted small">
