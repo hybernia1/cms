@@ -49,7 +49,14 @@ final class PostProvider
         try {
             $row = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.*', 'u.name AS author_name'])
+                ->select([
+                    'p.*',
+                    'u.name AS author_name',
+                    'm.url AS thumbnail_url',
+                    'm.meta AS thumbnail_meta',
+                    'm.mime AS thumbnail_mime',
+                ])
+                ->leftJoin('media m', 'm.id', '=', 'p.thumbnail_id')
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.slug', '=', $slug)
                 ->where('p.type', '=', $type)
@@ -95,7 +102,21 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
+                ->select([
+                    'p.id',
+                    'p.title',
+                    'p.slug',
+                    'p.content',
+                    'p.type',
+                    'p.published_at',
+                    'p.author_id',
+                    'p.thumbnail_id',
+                    'u.name AS author_name',
+                    'm.url AS thumbnail_url',
+                    'm.meta AS thumbnail_meta',
+                    'm.mime AS thumbnail_mime',
+                ])
+                ->leftJoin('media m', 'm.id', '=', 'p.thumbnail_id')
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.type', '=', $type)
                 ->where('p.status', '=', 'publish')
@@ -139,10 +160,24 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
+                ->select([
+                    'p.id',
+                    'p.title',
+                    'p.slug',
+                    'p.content',
+                    'p.type',
+                    'p.published_at',
+                    'p.author_id',
+                    'p.thumbnail_id',
+                    'u.name AS author_name',
+                    'm.url AS thumbnail_url',
+                    'm.meta AS thumbnail_meta',
+                    'm.mime AS thumbnail_mime',
+                ])
                 ->join('post_terms pt', 'pt.post_id', '=', 'p.id')
                 ->join('terms t', 't.id', '=', 'pt.term_id')
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
+                ->leftJoin('media m', 'm.id', '=', 'p.thumbnail_id')
                 ->where('t.slug', '=', $slug)
                 ->where('t.type', '=', $termType)
                 ->where('p.status', '=', 'publish')
@@ -192,7 +227,21 @@ final class PostProvider
         try {
             $rows = DB::query()
                 ->table('posts', 'p')
-                ->select(['p.id','p.title','p.slug','p.content','p.type','p.published_at','p.author_id','u.name AS author_name'])
+                ->select([
+                    'p.id',
+                    'p.title',
+                    'p.slug',
+                    'p.content',
+                    'p.type',
+                    'p.published_at',
+                    'p.author_id',
+                    'p.thumbnail_id',
+                    'u.name AS author_name',
+                    'm.url AS thumbnail_url',
+                    'm.meta AS thumbnail_meta',
+                    'm.mime AS thumbnail_mime',
+                ])
+                ->leftJoin('media m', 'm.id', '=', 'p.thumbnail_id')
                 ->leftJoin('users u', 'u.id', '=', 'p.author_id')
                 ->where('p.status', '=', 'publish')
                 ->where(static function ($q) use ($now): void {
@@ -253,6 +302,22 @@ final class PostProvider
         $authorId = $authorId > 0 ? $authorId : null;
         $authorName = trim((string)($row['author_name'] ?? ''));
 
+        $thumbnailId = isset($row['thumbnail_id']) ? (int)$row['thumbnail_id'] : 0;
+        $thumbnailUrl = (string)($row['thumbnail_url'] ?? '');
+        $thumbnailMime = (string)($row['thumbnail_mime'] ?? '');
+        $thumbnailMeta = $this->normalizeThumbnailMeta($row['thumbnail_meta'] ?? null);
+        $thumbnail = null;
+        if ($thumbnailId > 0 && $thumbnailUrl !== '') {
+            $thumbnail = [
+                'id' => $thumbnailId,
+                'url' => $thumbnailUrl,
+                'mime' => $thumbnailMime,
+            ];
+            if ($thumbnailMeta !== []) {
+                $thumbnail['meta'] = $thumbnailMeta;
+            }
+        }
+
         return [
             'id' => $id,
             'title' => (string)($row['title'] ?? ''),
@@ -267,12 +332,43 @@ final class PostProvider
             'published_at_raw' => $publishedRaw,
             'permalink' => $permalink,
             'comments_allowed' => $commentsAllowed,
+            'thumbnail_id' => $thumbnailId > 0 ? $thumbnailId : null,
+            'thumbnail_url' => $thumbnail !== null ? $thumbnailUrl : '',
+            'thumbnail_meta' => $thumbnail !== null ? $thumbnailMeta : [],
+            'thumbnail' => $thumbnail,
         ];
     }
 
     private function now(): string
     {
         return DateTimeFactory::nowString();
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<string,mixed>
+     */
+    private function normalizeThumbnailMeta($value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (!is_string($value)) {
+            return [];
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        return $decoded;
     }
 
     /**
