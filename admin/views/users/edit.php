@@ -3,13 +3,20 @@ declare(strict_types=1);
 /** @var array|null $user */
 /** @var array<int,array{key:string,label:string}> $mailTemplates */
 
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), function() use ($user,$csrf,$mailTemplates,$profileUrl) {
   $h = fn($s)=>htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');
   $sel = fn($a,$b)=>$a===$b?' selected':'';
 ?>
 <form class="card" method="post" action="admin.php?r=users&a=save" data-ajax data-form-helper="validation">
   <div class="card-header"><?= $user?'Upravit':'Nový' ?> uživatel</div>
   <div class="card-body">
+    <?php if ($user && !empty($profileUrl)): ?>
+      <div class="d-flex justify-content-end mb-3">
+        <a class="btn btn-outline-secondary btn-sm" href="<?= $h((string)$profileUrl) ?>" target="_blank" rel="noopener noreferrer">
+          <i class="bi bi-box-arrow-up-right me-1"></i>Veřejný profil
+        </a>
+      </div>
+    <?php endif; ?>
     <div class="alert alert-danger mb-3" data-error-for="form" hidden></div>
     <div class="row g-3">
       <div class="col-md-6">
@@ -40,6 +47,18 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser'), fu
         <label class="form-label" for="user-password">Heslo (nechte prázdné pro beze změny)</label>
         <input class="form-control" type="password" id="user-password" name="password">
         <div class="invalid-feedback" data-error-for="password" hidden></div>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="user-website">Web</label>
+        <input class="form-control" id="user-website" name="website_url" type="url" value="<?= $h((string)($user['website_url'] ?? '')) ?>" placeholder="https://example.com">
+        <div class="invalid-feedback" data-error-for="website_url" hidden></div>
+        <div class="form-text">Volitelné. Pokud není zadáno, nebude se zobrazovat odkaz na web.</div>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="user-bio">Krátké bio</label>
+        <textarea class="form-control" id="user-bio" name="bio" rows="4" maxlength="600"><?= $h((string)($user['bio'] ?? '')) ?></textarea>
+        <div class="invalid-feedback" data-error-for="bio" hidden></div>
+        <div class="form-text">Maximálně 600 znaků. Text se zobrazí na veřejném profilu uživatele.</div>
       </div>
     </div>
   </div>

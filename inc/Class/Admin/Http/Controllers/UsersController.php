@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin\Http\Controllers;
 
 use Core\Database\Init as DB;
+use Cms\Admin\Domain\Services\UserSlugService;
 use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Settings\CmsSettings;
@@ -55,6 +56,13 @@ final class UsersController extends BaseAdminController
         $id = (int)($_GET['id'] ?? 0);
         $user = $id ? DB::query()->table('users')->select(['*'])->where('id','=', $id)->first() : null;
 
+        $profileUrl = null;
+        if (is_array($user)) {
+            $links = new LinkGenerator();
+            $slug = isset($user['slug']) ? (string)$user['slug'] : '';
+            $profileUrl = $links->user($slug !== '' ? $slug : null, $id > 0 ? $id : null);
+        }
+
         $templateManager = new TemplateManager();
         $settings = new CmsSettings();
         $mailTemplates = [];
@@ -82,6 +90,7 @@ final class UsersController extends BaseAdminController
             'pageTitle'     => $id ? 'Upravit uživatele' : 'Nový uživatel',
             'nav'           => AdminNavigation::build('users'),
             'user'          => $user,
+            'profileUrl'    => $profileUrl,
             'mailTemplates' => $mailTemplates,
         ]);
     }
@@ -95,6 +104,8 @@ final class UsersController extends BaseAdminController
         $role   = (string)($_POST['role'] ?? 'user');
         $active = (int)($_POST['active'] ?? 1);
         $pass   = trim((string)($_POST['password'] ?? ''));
+        $website = trim((string)($_POST['website_url'] ?? ''));
+        $bioInput = trim((string)($_POST['bio'] ?? ''));
 
         $errors = [];
         if ($name === '') {
@@ -102,6 +113,29 @@ final class UsersController extends BaseAdminController
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors['email'][] = 'Zadejte platný e-mail.';
+        }
+        $websiteNormalized = '';
+        if ($website !== '') {
+            $normalizedWebsite = $this->normalizeWebsiteUrl($website);
+            if ($normalizedWebsite === null) {
+                $errors['website_url'][] = 'Zadejte platnou URL adresu.';
+            } else {
+                if (strlen($normalizedWebsite) > 255) {
+                    $errors['website_url'][] = 'URL je příliš dlouhá.';
+                }
+                $websiteNormalized = $normalizedWebsite;
+            }
+        }
+
+        $bioNormalized = '';
+        if ($bioInput !== '') {
+            $bioNormalized = $this->sanitizeBio($bioInput);
+            if ($bioNormalized !== '') {
+                $length = function_exists('mb_strlen') ? mb_strlen($bioNormalized, 'UTF-8') : strlen($bioNormalized);
+                if ($length > 600) {
+                    $errors['bio'][] = 'Bio může mít maximálně 600 znaků.';
+                }
+            }
         }
         if ($errors !== []) {
             $this->respondValidationErrors($errors, 'Zadejte platné jméno a e-mail.', 'admin.php?r=users&a=edit' . ($id ? '&id=' . $id : ''));
@@ -123,12 +157,18 @@ final class UsersController extends BaseAdminController
             ], 'Tento e-mail už používá jiný účet.', 'admin.php?r=users&a=edit' . ($id ? '&id=' . $id : ''));
         }
 
+        $slugService = new UserSlugService();
+        $slug = $slugService->generate($name, $id > 0 ? $id : null);
+
         $data = [
             'name'       => $name,
+            'slug'       => $slug,
             'email'      => $email,
             'role'       => in_array($role, ['admin','user'], true) ? $role : 'user',
             'active'     => $active,
             'updated_at' => DateTimeFactory::nowString(),
+            'website_url' => $websiteNormalized !== '' ? $websiteNormalized : null,
+            'bio'        => $bioNormalized !== '' ? $bioNormalized : null,
         ];
         if ($pass !== '') {
             $data['password_hash'] = password_hash($pass, PASSWORD_DEFAULT);
@@ -514,7 +554,7 @@ final class UsersController extends BaseAdminController
      */
     private function prepareListing(string $q, int $page): array
     {
-        $builder = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.role','u.active','u.created_at']);
+        $builder = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.slug','u.role','u.active','u.created_at']);
         if ($q !== '') {
             $like = "%{$q}%";
             $builder->where(function($w) use($like){
@@ -534,7 +574,7 @@ final class UsersController extends BaseAdminController
             'page' => $resolvedPage,
         ]);
 
-        $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
+        $items = $this->attachProfileLinks($this->normalizeCreatedAt($paginated['items'] ?? []));
 
         return [
             'items'       => $items,
@@ -657,6 +697,40 @@ final class UsersController extends BaseAdminController
         return null;
     }
 
+    private function normalizeWebsiteUrl(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if (!preg_match('~^https?://~i', $trimmed)) {
+            $trimmed = 'https://' . $trimmed;
+        }
+
+        $normalized = filter_var($trimmed, FILTER_VALIDATE_URL);
+        if ($normalized === false) {
+            return null;
+        }
+
+        return $normalized;
+    }
+
+    private function sanitizeBio(string $value): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $cleaned = preg_replace('~[\x00-\x08\x0B\x0C\x0E-\x1F]+~u', '', $trimmed);
+        if (!is_string($cleaned)) {
+            $cleaned = $trimmed;
+        }
+
+        return str_replace(["\r\n", "\r"], "\n", $cleaned);
+    }
+
     private function renderPartial(string $template, array $data): string
     {
         ob_start();
@@ -676,7 +750,7 @@ final class UsersController extends BaseAdminController
         }
 
         $row = DB::query()->table('users','u')
-            ->select(['u.id','u.name','u.email','u.role','u.active','u.created_at'])
+            ->select(['u.id','u.name','u.email','u.slug','u.role','u.active','u.created_at'])
             ->where('u.id','=', $id)
             ->first();
 
@@ -684,7 +758,33 @@ final class UsersController extends BaseAdminController
             return null;
         }
 
-        $normalized = $this->normalizeCreatedAt([$row]);
+        $normalized = $this->attachProfileLinks($this->normalizeCreatedAt([$row]));
         return $normalized[0] ?? null;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function attachProfileLinks(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $links = new LinkGenerator();
+
+        foreach ($rows as &$row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $slug = isset($row['slug']) ? trim((string)$row['slug']) : '';
+            $id = isset($row['id']) ? (int)$row['id'] : 0;
+            $row['profile_url'] = $links->user($slug !== '' ? $slug : null, $id > 0 ? $id : null);
+        }
+        unset($row);
+
+        return $rows;
     }
 }

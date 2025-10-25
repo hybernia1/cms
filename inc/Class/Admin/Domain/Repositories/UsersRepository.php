@@ -17,6 +17,31 @@ final class UsersRepository
         return DB::query()->table('users')->select(['*'])->where('email','=',$email)->first();
     }
 
+    public function findBySlug(string $slug): ?array
+    {
+        $normalized = trim($slug);
+        if ($normalized === '') {
+            return null;
+        }
+
+        return DB::query()->table('users')->select(['*'])->where('slug','=', $normalized)->first();
+    }
+
+    public function slugExists(string $slug, ?int $excludeId = null): bool
+    {
+        $normalized = trim($slug);
+        if ($normalized === '') {
+            return false;
+        }
+
+        $query = DB::query()->table('users')->select(['id'])->where('slug','=', $normalized);
+        if ($excludeId !== null && $excludeId > 0) {
+            $query->where('id','!=',$excludeId);
+        }
+
+        return (bool)$query->first();
+    }
+
     public function findByResetToken(int $userId, string $token): ?array
     {
         return DB::query()->table('users')->select(['id','name','email','token','token_expire'])
@@ -37,7 +62,7 @@ final class UsersRepository
 
     public function paginate(array $filters = [], int $page = 1, int $perPage = 20): array
     {
-        $q = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.active','u.role','u.created_at']);
+        $q = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.slug','u.active','u.role','u.created_at']);
         if (isset($filters['active'])) $q->where('u.active','=', (int)$filters['active']);
         if (!empty($filters['role'])) $q->where('u.role','=', (string)$filters['role']);
         if (!empty($filters['q'])) {

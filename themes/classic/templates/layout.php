@@ -56,7 +56,6 @@ if ($metaBody !== '') {
 $bodyClass = trim(implode(' ', array_unique(array_filter($bodyClasses))));
 $primaryNav = $navigation['primary']['items'] ?? [];
 $footerNav = $navigation['footer']['items'] ?? [];
-
 $renderMenu = static function (array $items, string $class = 'menu', int $depth = 0) use (&$renderMenu): string {
     if ($items === []) {
         return '';
