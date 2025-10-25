@@ -5,6 +5,7 @@ use Cms\Admin\Http\AdminController;
 use Cms\Admin\Http\AdminAuthController;
 use Cms\Admin\Auth\AuthService;
 use Cms\Admin\Auth\Authorization;
+use Cms\Admin\Domain\Services\QuickDraftService;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\View\ViewEngine;
 use Core\Database\SchemaChecker;
@@ -63,8 +64,11 @@ if (!Authorization::isAdmin($user)) {
     exit;
 }
 
+$quickDraftService = new QuickDraftService(auth: $auth);
+
 $controller = new AdminController(
     baseViewsPath: __DIR__ . '/admin/views',
+    quickDraftService: $quickDraftService,
     schemaChecker: $schemaChecker
 );
 $controller->handle($route, $action);
