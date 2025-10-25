@@ -246,30 +246,6 @@ final class Router
         return $this->links->home();
     }
 
-    /**
-     * @param array<string,mixed> $user
-     * @return array<string,mixed>
-     */
-    private function presentUserProfile(array $user): array
-    {
-        $id = isset($user['id']) ? (int)$user['id'] : 0;
-        $name = trim((string)($user['name'] ?? ''));
-        $slug = trim((string)($user['slug'] ?? ''));
-        $createdAt = isset($user['created_at']) ? (string)$user['created_at'] : '';
-        $updatedAt = isset($user['updated_at']) ? (string)$user['updated_at'] : '';
-
-        $profileUrl = $this->links->user($slug !== '' ? $slug : null, $id > 0 ? $id : null);
-
-        return [
-            'id' => $id,
-            'name' => $name,
-            'slug' => $slug,
-            'created_at' => $createdAt,
-            'updated_at' => $updatedAt,
-            'profile_url' => $profileUrl,
-        ];
-    }
-
     private function resolve(): RouteResult
     {
         $route = $this->detectRoute();
@@ -290,7 +266,6 @@ final class Router
             'register' => $this->handleRegister(),
             'lost' => $this->handleLost(),
             'reset' => $this->handleReset((string)($params['token'] ?? ''), (int)($params['id'] ?? 0)),
-            'user' => $this->handleUser((string)($params['slug'] ?? ''), (int)($params['id'] ?? 0)),
             default => $this->notFound(),
         };
     }
@@ -358,9 +333,6 @@ final class Router
             }
             if ($bases['tag_base'] !== '' && $first === trim($bases['tag_base'], '/')) {
                 return ['name' => 'tag', 'params' => ['slug' => $second]];
-            }
-            if ($bases['author_base'] !== '' && $first === trim($bases['author_base'], '/')) {
-                return ['name' => 'user', 'params' => ['slug' => $second]];
             }
             $customPost = $this->mapPrettyPostRoute($first, $second);
             if ($customPost !== null) {
@@ -897,67 +869,6 @@ final class Router
         ]);
     }
 
-    private function handleUser(string $slug, int $id): RouteResult
-    {
-        $slug = trim($slug);
-        $id = $id > 0 ? $id : 0;
-
-        $user = null;
-        if ($slug !== '') {
-            $user = $this->users->findBySlug($slug);
-        }
-        if (!$user && $id > 0) {
-            $user = $this->users->find($id);
-        }
-
-        if (!$user) {
-            return $this->notFound();
-        }
-
-        $profile = $this->presentUserProfile($user);
-        $canonicalPath = isset($profile['profile_url']) ? (string)$profile['profile_url'] : '';
-        $canonical = $this->absoluteUrl($canonicalPath);
-        $profileSlug = isset($profile['slug']) ? (string)$profile['slug'] : '';
-
-        if ($this->links->prettyUrlsEnabled()
-            && $slug !== ''
-            && $profileSlug !== ''
-            && $slug !== $profileSlug
-            && $canonicalPath !== ''
-        ) {
-            $this->redirect($canonicalPath, 301);
-        }
-
-        $authorId = isset($profile['id']) ? (int)$profile['id'] : 0;
-        $posts = $authorId > 0 ? $this->posts->byAuthor($authorId, 20) : [];
-        $profile['post_count'] = count($posts);
-
-        if ($canonical !== '') {
-            $profile['canonical'] = $canonical;
-        }
-
-        $siteTitle = $this->settings->siteTitle();
-        $displayName = isset($profile['name']) ? trim((string)$profile['name']) : '';
-        $title = ($displayName !== '' ? $displayName : 'Autor') . ' | ' . $siteTitle;
-        $descriptionSource = $displayName !== ''
-            ? sprintf('Profil autora %s na %s.', $displayName, $siteTitle)
-            : sprintf('Profil autora na %s.', $siteTitle);
-        $description = $this->limitString($descriptionSource);
-
-        $meta = new SeoMeta(
-            $title,
-            $description !== '' ? $description : null,
-            $canonical,
-            structuredData: $this->buildAuthorStructuredData($profile, $canonical)
-        );
-
-        return new RouteResult('user', [
-            'user' => $profile,
-            'posts' => $posts,
-            'meta' => $meta->toArray(),
-        ]);
-    }
-
     private function handleRegister(): RouteResult
     {
         $allowed = $this->settings->registrationAllowed();
@@ -1405,34 +1316,6 @@ final class Router
      * @param array<string,mixed> $content
      * @return list<array<string,mixed>>
      */
-    private function buildAuthorStructuredData(array $user, string $canonical): array
-    {
-        $siteName = $this->settings->siteTitle();
-        $siteUrl = $this->absoluteUrl($this->settings->siteUrl());
-
-        $data = [
-            '@context' => 'https://schema.org',
-            '@type' => 'Person',
-            'name' => (string)($user['name'] ?? ''),
-            'url' => $canonical,
-        ];
-
-        $memberSince = isset($user['created_at']) ? (string)$user['created_at'] : '';
-        if ($memberSince !== '') {
-            $data['memberSince'] = $memberSince;
-        }
-
-        if ($siteName !== '') {
-            $data['worksFor'] = [
-                '@type' => 'Organization',
-                'name' => $siteName,
-                'url' => $siteUrl !== '' ? $siteUrl : $canonical,
-            ];
-        }
-
-        return $this->cleanStructuredDataList([$data]);
-    }
-
     private function buildPostStructuredData(array $content, string $canonical, string $schemaType): array
     {
         $siteName = $this->settings->siteTitle();
@@ -1473,20 +1356,9 @@ final class Router
             ];
 
             $authorName = trim((string)($content['author'] ?? ''));
-            $authorUrl = isset($content['author_url']) ? $this->absoluteUrl((string)$content['author_url']) : '';
-            if ($authorName !== '') {
-                $authorData = ['@type' => 'Person', 'name' => $authorName];
-                if ($authorUrl !== '') {
-                    $authorData['url'] = $authorUrl;
-                }
-                $data['author'] = $authorData;
-            } else {
-                $organization = ['@type' => 'Organization', 'name' => $siteName];
-                if ($authorUrl !== '') {
-                    $organization['url'] = $authorUrl;
-                }
-                $data['author'] = $organization;
-            }
+            $data['author'] = $authorName !== ''
+                ? ['@type' => 'Person', 'name' => $authorName]
+                : ['@type' => 'Organization', 'name' => $siteName];
 
             $publisher = [
                 '@type' => 'Organization',

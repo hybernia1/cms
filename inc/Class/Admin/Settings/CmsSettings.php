@@ -233,7 +233,7 @@ final class CmsSettings
     }
 
     /**
-     * @return array{post_base:string,page_base:string,tag_base:string,category_base:string,author_base:string}
+     * @return array{post_base:string,page_base:string,tag_base:string,category_base:string}
      */
     public function permalinkBases(): array
     {
@@ -244,7 +244,6 @@ final class CmsSettings
             'page_base'     => $permalinks['page_base'],
             'tag_base'      => $permalinks['tag_base'],
             'category_base' => $permalinks['category_base'],
-            'author_base'   => $permalinks['author_base'],
         ];
     }
 
