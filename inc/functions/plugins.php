@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Core\Plugins\PluginRegistry;
+use Core\Plugins\PluginSettingsStore;
 
 function cms_plugins_dir(): string
 {
@@ -45,4 +46,32 @@ function cms_bootstrap_plugins(): void
 function cms_has_plugins(): bool
 {
     return PluginRegistry::all() !== [];
+}
+
+/**
+ * @return array{active:bool,options:array<string,mixed>}
+ */
+function cms_plugin_settings(string $slug): array
+{
+    return PluginSettingsStore::get($slug);
+}
+
+function cms_plugin_option(string $slug, string $key, mixed $default = null): mixed
+{
+    $settings = PluginSettingsStore::get($slug);
+    if (array_key_exists($key, $settings['options'])) {
+        return $settings['options'][$key];
+    }
+
+    return $default;
+}
+
+function cms_plugin_is_active(string $slug): bool
+{
+    $plugin = PluginRegistry::get($slug);
+    if ($plugin !== null) {
+        return !empty($plugin['active']);
+    }
+
+    return !empty(PluginSettingsStore::get($slug)['active']);
 }

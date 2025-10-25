@@ -35,6 +35,12 @@ final class WidgetRegistry
         $render = $args['render'] ?? null;
         $meta = is_array($args['meta'] ?? null) ? $args['meta'] : [];
 
+        $settings = WidgetSettingsStore::get($id);
+        $active = WidgetSettingsStore::has($id) ? $settings['active'] : true;
+        if ($settings['options'] !== []) {
+            $meta = array_merge($meta, $settings['options']);
+        }
+
         if (!is_callable($render)) {
             throw new InvalidArgumentException('Widget render callback must be callable.');
         }
@@ -46,6 +52,7 @@ final class WidgetRegistry
             'areas'       => $areas,
             'render'      => $render,
             'meta'        => $meta,
+            'active'      => $active,
         ];
     }
 
@@ -56,7 +63,8 @@ final class WidgetRegistry
      *     description: string,
      *     areas: list<string>,
      *     render: callable,
-     *     meta: array<string,mixed>
+     *     meta: array<string,mixed>,
+     *     active: bool
      * }>
      */
     public static function all(): array
@@ -64,6 +72,23 @@ final class WidgetRegistry
         $widgets = array_values(self::$widgets);
         usort($widgets, static fn (array $a, array $b): int => strcasecmp($a['name'], $b['name']));
         return $widgets;
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     name: string,
+     *     description: string,
+     *     areas: list<string>,
+     *     render: callable,
+     *     meta: array<string,mixed>,
+     *     active: bool
+     * }|null
+     */
+    public static function get(string $id): ?array
+    {
+        $normalized = self::normalizeId($id);
+        return self::$widgets[$normalized] ?? null;
     }
 
     /**
@@ -82,7 +107,8 @@ final class WidgetRegistry
         $filtered = [];
 
         foreach (self::$widgets as $widget) {
-            if (in_array($normalized, $widget['areas'], true)) {
+            $active = !empty($widget['active']);
+            if ($active && in_array($normalized, $widget['areas'], true)) {
                 $filtered[] = $widget;
             }
         }
@@ -97,7 +123,7 @@ final class WidgetRegistry
         $normalized = self::normalizeArea($area);
 
         foreach (self::$widgets as $widget) {
-            if (in_array($normalized, $widget['areas'], true)) {
+            if (!empty($widget['active']) && in_array($normalized, $widget['areas'], true)) {
                 return true;
             }
         }
@@ -114,6 +140,10 @@ final class WidgetRegistry
 
         $output = [];
         foreach ($widgets as $widget) {
+            if (empty($widget['active'])) {
+                continue;
+            }
+
             try {
                 $html = $widget['render']($context, $widget);
             } catch (Throwable $exception) {
@@ -134,6 +164,27 @@ final class WidgetRegistry
         }
 
         return implode("\n", $output);
+    }
+
+    /**
+     * @param array<string,mixed> $options
+     */
+    public static function applySettings(string $id, bool $active, array $options = []): void
+    {
+        $normalized = self::normalizeId($id);
+        if (!isset(self::$widgets[$normalized])) {
+            return;
+        }
+
+        self::$widgets[$normalized]['meta'] = is_array(self::$widgets[$normalized]['meta'])
+            ? self::$widgets[$normalized]['meta']
+            : [];
+
+        self::$widgets[$normalized]['active'] = $active;
+
+        if ($options !== []) {
+            self::$widgets[$normalized]['meta'] = array_merge(self::$widgets[$normalized]['meta'], $options);
+        }
     }
 
     private static function wrapWidget(array $widget, string $body): string

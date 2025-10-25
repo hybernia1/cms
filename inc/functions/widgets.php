@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use Core\Widgets\WidgetRegistry;
+use Core\Widgets\WidgetSettingsStore;
 
 function cms_widgets_dir(): string
 {
@@ -54,4 +55,32 @@ function cms_render_widget_area(string $area, array $context = []): void
 function cms_has_widgets(string $area): bool
 {
     return WidgetRegistry::hasArea($area);
+}
+
+/**
+ * @return array{active:bool,options:array<string,mixed>}
+ */
+function cms_widget_settings(string $id): array
+{
+    return WidgetSettingsStore::get($id);
+}
+
+function cms_widget_option(string $id, string $key, mixed $default = null): mixed
+{
+    $settings = WidgetSettingsStore::get($id);
+    if (array_key_exists($key, $settings['options'])) {
+        return $settings['options'][$key];
+    }
+
+    return $default;
+}
+
+function cms_widget_is_active(string $id): bool
+{
+    $widget = WidgetRegistry::get($id);
+    if ($widget !== null) {
+        return !empty($widget['active']);
+    }
+
+    return !empty(WidgetSettingsStore::get($id)['active']);
 }

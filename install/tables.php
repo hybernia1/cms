@@ -137,6 +137,36 @@ CREATE TABLE IF NOT EXISTS settings (
 SQL
 ,
 
+/** PLUGIN SETTINGS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS plugin_settings (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  slug VARCHAR(190) NOT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  options JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_plugin_settings_slug (slug),
+  INDEX ix_plugin_settings_active (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** WIDGET SETTINGS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS widget_settings (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  widget_id VARCHAR(190) NOT NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  options JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_widget_settings_id (widget_id),
+  INDEX ix_widget_settings_active (active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
 /** NAVIGATION MENUS */
 <<<SQL
 CREATE TABLE IF NOT EXISTS navigation_menus (
