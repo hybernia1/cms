@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin\Utils;
 
 use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
+use Core\Plugins\PluginRegistry;
 
 /**
  * Central builder for admin navigation.
@@ -24,6 +25,16 @@ final class AdminNavigation
                 'label' => $config['nav'],
                 'href'  => 'admin.php?r=posts&type=' . urlencode((string)$type),
                 'icon'  => $config['icon'] ?? 'bi-file-earmark',
+            ];
+        }
+
+        $pluginChildren = [];
+        foreach (PluginRegistry::all() as $plugin) {
+            $pluginChildren[] = [
+                'key'   => 'plugins:' . $plugin['slug'],
+                'label' => $plugin['name'],
+                'href'  => 'admin.php?r=plugins&plugin=' . urlencode($plugin['slug']),
+                'icon'  => 'bi-plug',
             ];
         }
 
@@ -66,19 +77,29 @@ final class AdminNavigation
                     ['key' => 'navigation', 'label' => 'Navigace', 'href' => 'admin.php?r=navigation', 'icon' => 'bi-list-ul'],
                 ],
             ],
-            [
-                'key'       => 'settings',
-                'label'     => 'Nastavení',
-                'href'      => null,
-                'icon'      => 'bi-gear',
-                'section'   => true,
-                'children'  => [
-                    ['key' => 'settings:general',    'label' => 'Obecné',   'href' => 'admin.php?r=settings',    'icon' => 'bi-sliders'],
-                    ['key' => 'settings:graphics',   'label' => 'Grafika webu', 'href' => 'admin.php?r=settings&a=graphics', 'icon' => 'bi-image'],
-                    ['key' => 'settings:permalinks','label' => 'Trvalé odkazy', 'href' => 'admin.php?r=settings&a=permalinks', 'icon' => 'bi-link-45deg'],
-                    ['key' => 'settings:mail',       'label' => 'E-mail',   'href' => 'admin.php?r=settings&a=mail', 'icon' => 'bi-envelope'],
-                    ['key' => 'settings:migrations', 'label' => 'Migrace',  'href' => 'admin.php?r=migrations', 'icon' => 'bi-arrow-repeat'],
-                ],
+        ];
+
+        $items[] = [
+            'key'       => 'plugins',
+            'label'     => 'Pluginy',
+            'href'      => 'admin.php?r=plugins',
+            'icon'      => 'bi-plug',
+            'section'   => true,
+            'children'  => $pluginChildren,
+        ];
+
+        $items[] = [
+            'key'       => 'settings',
+            'label'     => 'Nastavení',
+            'href'      => null,
+            'icon'      => 'bi-gear',
+            'section'   => true,
+            'children'  => [
+                ['key' => 'settings:general',    'label' => 'Obecné',   'href' => 'admin.php?r=settings',    'icon' => 'bi-sliders'],
+                ['key' => 'settings:graphics',   'label' => 'Grafika webu', 'href' => 'admin.php?r=settings&a=graphics', 'icon' => 'bi-image'],
+                ['key' => 'settings:permalinks','label' => 'Trvalé odkazy', 'href' => 'admin.php?r=settings&a=permalinks', 'icon' => 'bi-link-45deg'],
+                ['key' => 'settings:mail',       'label' => 'E-mail',   'href' => 'admin.php?r=settings&a=mail', 'icon' => 'bi-envelope'],
+                ['key' => 'settings:migrations', 'label' => 'Migrace',  'href' => 'admin.php?r=migrations', 'icon' => 'bi-arrow-repeat'],
             ],
         ];
 

@@ -13,6 +13,8 @@ declare(strict_types=1);
 const BASE_DIR      = __DIR__;
 const CLASS_DIR     = __DIR__ . '/inc/Class';
 const FUNCTIONS_DIR = __DIR__ . '/inc/functions';
+const PLUGINS_DIR   = __DIR__ . '/plugins';
+const WIDGETS_DIR   = __DIR__ . '/widgets';
 
 /**
  * @var array<string,string>
@@ -70,6 +72,14 @@ if (is_dir(FUNCTIONS_DIR)) {
     foreach ($functionFiles as $file) {
         require_once $file;
     }
+}
+
+if (function_exists('cms_bootstrap_plugins')) {
+    cms_bootstrap_plugins();
+}
+
+if (function_exists('cms_bootstrap_widgets')) {
+    cms_bootstrap_widgets();
 }
 
 // ---------------------------------------------------------

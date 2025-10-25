@@ -159,6 +159,7 @@ $renderMenu = static function (array $items, string $class = 'menu', int $depth 
     <?php if ($paletteCss !== []): ?>
         <style>:root { <?= htmlspecialchars(implode(';', $paletteCss), ENT_QUOTES, 'UTF-8'); ?>; }</style>
     <?php endif; ?>
+    <?php if (function_exists('cms_do_action')) { cms_do_action('cms_front_head'); } ?>
 </head>
 <body class="<?= htmlspecialchars($bodyClass, ENT_QUOTES, 'UTF-8'); ?>">
 <a class="skip-link" href="#main">Přejít k obsahu</a>
@@ -181,9 +182,20 @@ $renderMenu = static function (array $items, string $class = 'menu', int $depth 
             <?php endif; ?>
         </div>
     </header>
-    <main class="site-main" id="main">
-        <?php $content(); ?>
-    </main>
+    <?php
+        $sidebarHtml = function_exists('cms_widget_area') ? trim(cms_widget_area('sidebar', ['links' => $links])) : '';
+        $hasSidebar = $sidebarHtml !== '';
+    ?>
+    <div class="site-content<?= $hasSidebar ? ' site-content--with-sidebar' : ''; ?>">
+        <main class="site-main" id="main">
+            <?php $content(); ?>
+        </main>
+        <?php if ($hasSidebar): ?>
+            <aside class="site-sidebar" aria-label="Doplňkové informace">
+                <?= $sidebarHtml; ?>
+            </aside>
+        <?php endif; ?>
+    </div>
     <footer class="site-footer">
         <div class="footer-inner">
             <p>&copy; <?= date('Y'); ?> <?= htmlspecialchars($siteTitle, ENT_QUOTES, 'UTF-8'); ?>. Vytvořeno s důrazem na klasický vzhled.</p>
@@ -196,5 +208,6 @@ $renderMenu = static function (array $items, string $class = 'menu', int $depth 
         </div>
     </footer>
 </div>
+<?php if (function_exists('cms_do_action')) { cms_do_action('cms_front_footer'); } ?>
 </body>
 </html>
