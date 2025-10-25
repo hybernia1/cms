@@ -326,7 +326,6 @@ final class SettingsController extends BaseAdminController
             'page_base'     => (string)($_POST['page_base'] ?? ''),
             'tag_base'      => (string)($_POST['tag_base'] ?? ''),
             'category_base' => (string)($_POST['category_base'] ?? ''),
-            'author_base'   => (string)($_POST['author_base'] ?? ''),
         ];
 
         $errors = $this->validatePermalinkInput($input);
@@ -757,7 +756,7 @@ final class SettingsController extends BaseAdminController
     }
 
     /**
-     * @param array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string,author_base:string} $input
+     * @param array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string} $input
      * @return array<string,array<int,string>>
      */
     private function validatePermalinkInput(array $input): array
@@ -768,7 +767,6 @@ final class SettingsController extends BaseAdminController
             'page_base'     => 'Zadejte slug pro stránky.',
             'category_base' => 'Zadejte slug pro kategorie.',
             'tag_base'      => 'Zadejte slug pro štítky.',
-            'author_base'   => 'Zadejte slug pro autory.',
         ];
 
         foreach ($fields as $field => $emptyMessage) {

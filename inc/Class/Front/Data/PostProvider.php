@@ -53,7 +53,6 @@ final class PostProvider
                 ->select([
                     'p.*',
                     'u.name AS author_name',
-                    'u.slug AS author_slug',
                     'm.url AS thumbnail_url',
                     'm.meta AS thumbnail_meta',
                     'm.mime AS thumbnail_mime',
@@ -115,7 +114,6 @@ final class PostProvider
                     'p.author_id',
                     'p.thumbnail_id',
                     'u.name AS author_name',
-                    'u.slug AS author_slug',
                     'm.url AS thumbnail_url',
                     'm.meta AS thumbnail_meta',
                     'm.mime AS thumbnail_mime',
@@ -133,70 +131,6 @@ final class PostProvider
                 ->get() ?? [];
         } catch (Throwable $e) {
             error_log('Failed to load latest posts: ' . $e->getMessage());
-            $this->cache[$key] = [];
-            return [];
-        }
-
-        $posts = [];
-        foreach ($rows as $row) {
-            $posts[] = $this->mapPost($row);
-        }
-
-        $this->cache[$key] = $posts;
-
-        return $posts;
-    }
-
-    /**
-     * @return array<int,array<string,mixed>>
-     */
-    public function byAuthor(int $authorId, int $limit = 20): array
-    {
-        if ($authorId <= 0) {
-            return [];
-        }
-
-        $key = 'author:' . $authorId . ':' . $limit;
-        if (isset($this->cache[$key])) {
-            /** @var array<int,array<string,mixed>> $cached */
-            $cached = $this->cache[$key];
-            return $cached;
-        }
-
-        $now = $this->now();
-
-        try {
-            $rows = DB::query()
-                ->table('posts', 'p')
-                ->select([
-                    'p.id',
-                    'p.title',
-                    'p.slug',
-                    'p.content',
-                    'p.type',
-                    'p.published_at',
-                    'p.updated_at',
-                    'p.author_id',
-                    'p.thumbnail_id',
-                    'u.name AS author_name',
-                    'u.slug AS author_slug',
-                    'm.url AS thumbnail_url',
-                    'm.meta AS thumbnail_meta',
-                    'm.mime AS thumbnail_mime',
-                ])
-                ->leftJoin('media m', 'm.id', '=', 'p.thumbnail_id')
-                ->leftJoin('users u', 'u.id', '=', 'p.author_id')
-                ->where('p.author_id', '=', $authorId)
-                ->where('p.status', '=', 'publish')
-                ->where(static function ($q) use ($now): void {
-                    $q->where('p.published_at', '<=', $now)
-                        ->whereNull('p.published_at', 'OR');
-                })
-                ->orderBy('p.published_at', 'DESC')
-                ->limit(max(1, $limit))
-                ->get() ?? [];
-        } catch (Throwable $e) {
-            error_log('Failed to load posts for author: ' . $e->getMessage());
             $this->cache[$key] = [];
             return [];
         }
@@ -239,7 +173,6 @@ final class PostProvider
                     'p.author_id',
                     'p.thumbnail_id',
                     'u.name AS author_name',
-                    'u.slug AS author_slug',
                     'm.url AS thumbnail_url',
                     'm.meta AS thumbnail_meta',
                     'm.mime AS thumbnail_mime',
@@ -308,7 +241,6 @@ final class PostProvider
                     'p.author_id',
                     'p.thumbnail_id',
                     'u.name AS author_name',
-                    'u.slug AS author_slug',
                     'm.url AS thumbnail_url',
                     'm.meta AS thumbnail_meta',
                     'm.mime AS thumbnail_mime',
@@ -376,11 +308,6 @@ final class PostProvider
         $authorId = isset($row['author_id']) ? (int)$row['author_id'] : 0;
         $authorId = $authorId > 0 ? $authorId : null;
         $authorName = trim((string)($row['author_name'] ?? ''));
-        $authorSlug = trim((string)($row['author_slug'] ?? ''));
-        $authorUrl = '';
-        if ($authorId !== null || $authorSlug !== '') {
-            $authorUrl = $this->links->user($authorSlug !== '' ? $authorSlug : null, $authorId);
-        }
 
         $thumbnailId = isset($row['thumbnail_id']) ? (int)$row['thumbnail_id'] : 0;
         $thumbnailUrl = (string)($row['thumbnail_url'] ?? '');
@@ -414,8 +341,6 @@ final class PostProvider
             'excerpt' => $excerpt,
             'author' => $authorName,
             'author_id' => $authorId,
-            'author_slug' => $authorSlug,
-            'author_url' => $authorUrl,
             'published_at' => $publishedDisplay,
             'published_at_iso' => $publishedIso,
             'published_at_raw' => $publishedRaw,

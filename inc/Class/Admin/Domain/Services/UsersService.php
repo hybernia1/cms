@@ -23,13 +23,9 @@ final class UsersService
             throw new \InvalidArgumentException(json_encode($v->errors(), JSON_UNESCAPED_UNICODE));
         }
 
-        $slugService = new UserSlugService($this->repo);
-        $slug = $slugService->generate($name);
-
         $hash = Passwords::hash($password);
         return $this->repo->create([
             'name'          => $name,
-            'slug'          => $slug,
             'email'         => $email,
             'password_hash' => $hash,
             'active'        => 1,
