@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin\Http\Controllers;
 
 use Core\Database\Init as DB;
+use Cms\Admin\Domain\Services\UserSlugService;
 use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Settings\CmsSettings;
@@ -55,6 +56,13 @@ final class UsersController extends BaseAdminController
         $id = (int)($_GET['id'] ?? 0);
         $user = $id ? DB::query()->table('users')->select(['*'])->where('id','=', $id)->first() : null;
 
+        $profileUrl = null;
+        if (is_array($user)) {
+            $links = new LinkGenerator();
+            $slug = isset($user['slug']) ? (string)$user['slug'] : '';
+            $profileUrl = $links->user($slug !== '' ? $slug : null, $id > 0 ? $id : null);
+        }
+
         $templateManager = new TemplateManager();
         $settings = new CmsSettings();
         $mailTemplates = [];
@@ -82,6 +90,7 @@ final class UsersController extends BaseAdminController
             'pageTitle'     => $id ? 'Upravit uživatele' : 'Nový uživatel',
             'nav'           => AdminNavigation::build('users'),
             'user'          => $user,
+            'profileUrl'    => $profileUrl,
             'mailTemplates' => $mailTemplates,
         ]);
     }
@@ -123,8 +132,12 @@ final class UsersController extends BaseAdminController
             ], 'Tento e-mail už používá jiný účet.', 'admin.php?r=users&a=edit' . ($id ? '&id=' . $id : ''));
         }
 
+        $slugService = new UserSlugService();
+        $slug = $slugService->generate($name, $id > 0 ? $id : null);
+
         $data = [
             'name'       => $name,
+            'slug'       => $slug,
             'email'      => $email,
             'role'       => in_array($role, ['admin','user'], true) ? $role : 'user',
             'active'     => $active,
@@ -514,7 +527,7 @@ final class UsersController extends BaseAdminController
      */
     private function prepareListing(string $q, int $page): array
     {
-        $builder = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.role','u.active','u.created_at']);
+        $builder = DB::query()->table('users','u')->select(['u.id','u.name','u.email','u.slug','u.role','u.active','u.created_at']);
         if ($q !== '') {
             $like = "%{$q}%";
             $builder->where(function($w) use($like){
@@ -534,7 +547,7 @@ final class UsersController extends BaseAdminController
             'page' => $resolvedPage,
         ]);
 
-        $items = $this->normalizeCreatedAt($paginated['items'] ?? []);
+        $items = $this->attachProfileLinks($this->normalizeCreatedAt($paginated['items'] ?? []));
 
         return [
             'items'       => $items,
@@ -676,7 +689,7 @@ final class UsersController extends BaseAdminController
         }
 
         $row = DB::query()->table('users','u')
-            ->select(['u.id','u.name','u.email','u.role','u.active','u.created_at'])
+            ->select(['u.id','u.name','u.email','u.slug','u.role','u.active','u.created_at'])
             ->where('u.id','=', $id)
             ->first();
 
@@ -684,7 +697,33 @@ final class UsersController extends BaseAdminController
             return null;
         }
 
-        $normalized = $this->normalizeCreatedAt([$row]);
+        $normalized = $this->attachProfileLinks($this->normalizeCreatedAt([$row]));
         return $normalized[0] ?? null;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array<string,mixed>>
+     */
+    private function attachProfileLinks(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $links = new LinkGenerator();
+
+        foreach ($rows as &$row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $slug = isset($row['slug']) ? trim((string)$row['slug']) : '';
+            $id = isset($row['id']) ? (int)$row['id'] : 0;
+            $row['profile_url'] = $links->user($slug !== '' ? $slug : null, $id > 0 ? $id : null);
+        }
+        unset($row);
+
+        return $rows;
     }
 }
