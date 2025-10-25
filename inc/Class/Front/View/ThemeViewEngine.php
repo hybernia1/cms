@@ -20,6 +20,8 @@ final class ThemeViewEngine
     private array $themeInfo = [];
     /** @var array<string,mixed> */
     private array $defaultMeta = [];
+    /** @var array<string,mixed> */
+    private array $sharedData = [];
     /** @var array<string,callable|null> */
     private array $formatters = [];
     private string $dateFormat;
@@ -70,6 +72,11 @@ final class ThemeViewEngine
 
     public function share(array $data): void
     {
+        foreach ($data as $key => $value) {
+            if (is_string($key)) {
+                $this->sharedData[$key] = $value;
+            }
+        }
         $this->engine->share($data);
     }
 
@@ -87,6 +94,7 @@ final class ThemeViewEngine
     public function renderWithLayout(?string $layout, string $template, array $data = []): void
     {
         $payload = $this->prepareData($data);
+        $resolvedPayload = $this->resolvePayload($payload);
 
         try {
             if ($layout === null) {
@@ -109,7 +117,7 @@ final class ThemeViewEngine
 
             $html = ob_get_clean();
             $html = is_string($html) ? $html : '';
-            echo $this->injectUserBar($html, $payload);
+            echo $this->injectUserBar($html, $resolvedPayload);
         } catch (Throwable $exception) {
             $this->markMissingTemplate($exception);
             throw $exception;
@@ -315,6 +323,19 @@ final class ThemeViewEngine
         }
 
         return $data;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function resolvePayload(array $data): array
+    {
+        if ($this->sharedData === []) {
+            return $data;
+        }
+
+        return array_merge($this->sharedData, $data);
     }
 
     /**
