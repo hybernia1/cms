@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Cms\Front\Data;
 
 use Cms\Admin\Settings\CmsSettings;
-use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\DateTimeFactory;
 use Core\Database\Init as DB;
 use Throwable;
@@ -12,62 +11,19 @@ use Throwable;
 final class CommentProvider
 {
     private CmsSettings $settings;
-    private LinkGenerator $links;
     private string $dateFormat;
     private string $timeFormat;
     private string $dateTimeFormat;
 
-    public function __construct(?CmsSettings $settings = null, ?LinkGenerator $links = null)
+    public function __construct(?CmsSettings $settings = null)
     {
         $this->settings = $settings ?? new CmsSettings();
-        $this->links = $links ?? new LinkGenerator(null, $this->settings);
         $this->dateFormat = $this->settings->dateFormat() ?: 'Y-m-d';
         $this->timeFormat = $this->settings->timeFormat() ?: 'H:i';
         $this->dateTimeFormat = trim($this->dateFormat . ' ' . $this->timeFormat);
         if ($this->dateTimeFormat === '') {
             $this->dateTimeFormat = 'Y-m-d H:i';
         }
-    }
-
-    /**
-     * @return array{items:array<int,array<string,mixed>>,total:int}
-     */
-    public function publishedByUser(int $userId, int $limit = 20): array
-    {
-        if ($userId <= 0) {
-            return ['items' => [], 'total' => 0];
-        }
-
-        try {
-            $rows = DB::query()
-                ->table('comments', 'c')
-                ->select([
-                    'c.id',
-                    'c.post_id',
-                    'c.content',
-                    'c.created_at',
-                    'p.title AS post_title',
-                    'p.slug AS post_slug',
-                    'p.type AS post_type',
-                    'p.status AS post_status',
-                ])
-                ->leftJoin('posts p', 'p.id', '=', 'c.post_id')
-                ->where('c.user_id', '=', $userId)
-                ->where('c.status', '=', 'published')
-                ->orderBy('c.created_at', 'DESC')
-                ->limit(max(1, $limit))
-                ->get() ?? [];
-        } catch (Throwable $e) {
-            error_log('Failed to load user comments: ' . $e->getMessage());
-            return ['items' => [], 'total' => 0];
-        }
-
-        $items = [];
-        foreach ($rows as $row) {
-            $items[] = $this->mapUserComment($row);
-        }
-
-        return ['items' => $items, 'total' => count($items)];
     }
 
     /**
@@ -203,43 +159,5 @@ final class CommentProvider
         }
 
         return $roots;
-    }
-
-    /**
-     * @param array<string,mixed> $row
-     * @return array<string,mixed>
-     */
-    private function mapUserComment(array $row): array
-    {
-        $id = isset($row['id']) ? (int)$row['id'] : 0;
-        $postId = isset($row['post_id']) ? (int)$row['post_id'] : 0;
-        $content = (string)($row['content'] ?? '');
-
-        $createdRaw = isset($row['created_at']) ? (string)$row['created_at'] : '';
-        [$createdDisplay, $createdIso] = $this->normalizeDate($createdRaw);
-
-        $postTitle = (string)($row['post_title'] ?? '');
-        $postSlug = (string)($row['post_slug'] ?? '');
-        $postType = (string)($row['post_type'] ?? 'post');
-        $postStatus = (string)($row['post_status'] ?? '');
-
-        $postUrl = '';
-        if ($postSlug !== '' && $postStatus === 'publish') {
-            $postUrl = $this->links->postOfType($postType !== '' ? $postType : 'post', $postSlug);
-        }
-
-        return [
-            'id' => $id,
-            'post_id' => $postId,
-            'content' => $content,
-            'created_at' => $createdDisplay,
-            'created_at_iso' => $createdIso,
-            'created_at_raw' => $createdRaw,
-            'post_title' => $postTitle,
-            'post_slug' => $postSlug,
-            'post_type' => $postType,
-            'post_status' => $postStatus,
-            'post_url' => $postUrl,
-        ];
     }
 }

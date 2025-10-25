@@ -12,7 +12,6 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
 <?php foreach ($items as $u):
   $role = (string)($u['role'] ?? 'user');
   $userId = (int)($u['id'] ?? 0);
-  $profileUrl = isset($u['profile_url']) ? (string)$u['profile_url'] : '';
   $active = (int)($u['active'] ?? 0) === 1;
   $canDelete = $userId > 0 && $role !== 'admin' && $userId !== $currentUserId;
   $deleteReason = $role === 'admin' ? 'Administrátory nelze mazat.' : 'Nelze smazat vlastní účet.';
@@ -73,19 +72,6 @@ $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'U
       </span>
     </td>
     <td class="text-end">
-      <?php if ($profileUrl !== ''): ?>
-        <a
-          class="btn btn-light btn-sm border me-1"
-          href="<?= $h($profileUrl) ?>"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Zobrazit profil"
-          data-bs-toggle="tooltip"
-          data-bs-title="Zobrazit profil"
-        >
-          <i class="bi bi-box-arrow-up-right"></i>
-        </a>
-      <?php endif; ?>
       <a class="btn btn-light btn-sm border me-1" href="admin.php?r=users&a=edit&id=<?= $userId ?>" aria-label="Upravit" data-bs-toggle="tooltip" data-bs-title="Upravit">
         <i class="bi bi-pencil"></i>
       </a>
