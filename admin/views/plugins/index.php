@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** @var array $nav */
 /** @var array|null $currentUser */
 /** @var array|null $flash */
+/** @var string $csrf */
 /** @var array<int,array{slug:string,name:string,description:string,version:string,author:string,homepage:?string,admin_url:?string,active:bool,meta:array<string,mixed>}> $plugins */
 /** @var array<string,mixed>|null $selectedPlugin */
 
@@ -12,49 +13,10 @@ if ($selected === null && $plugins !== []) {
     $selected = $plugins[0];
 }
 
-$this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($plugins, $selected) {
+$this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($plugins, $selected, $csrf) {
     $h = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
-<div class="row g-4">
-    <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <span>Seznam pluginů</span>
-                <span class="badge text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle"><?= count($plugins); ?></span>
-            </div>
-            <div class="list-group list-group-flush">
-                <?php foreach ($plugins as $plugin): ?>
-                    <?php
-                        $isSelected = $selected && $selected['slug'] === $plugin['slug'];
-                        $isActive = !empty($plugin['active']);
-                        $configured = !empty($plugin['meta']['configured']);
-                        $statusClass = $isActive
-                            ? 'text-bg-success-subtle text-success-emphasis border border-success-subtle'
-                            : 'text-bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle';
-                        $statusLabel = $isActive ? 'Aktivní' : 'Neaktivní';
-                    ?>
-                    <a href="admin.php?r=plugins&amp;plugin=<?= $h($plugin['slug']); ?>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center<?= $isSelected ? ' active' : ''; ?>">
-                        <span><?= $h($plugin['name']); ?></span>
-                        <div class="d-flex gap-2 align-items-center">
-                            <span class="badge <?= $statusClass; ?>"><?= $statusLabel; ?></span>
-                            <?php if (!$configured): ?>
-                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Plugin může vyžadovat dodatečné nastavení.">
-                                    Vyžaduje nastavení
-                                </span>
-                            <?php endif; ?>
-                        </div>
-                    </a>
-                <?php endforeach; ?>
-                <?php if ($plugins === []): ?>
-                    <div class="list-group-item text-muted">
-                        Žádné pluginy nebyly nalezeny ve složce <code>/plugins</code>.
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-8">
-        <?php if ($selected): ?>
+<?php if ($selected): ?>
             <?php
                 $isActive = !empty($selected['active']);
                 $configured = !empty($selected['meta']['configured']);
@@ -67,7 +29,7 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                 $adminUrl = isset($selected['admin_url']) ? (string)$selected['admin_url'] : '';
                 $formId = 'plugin-settings-' . preg_replace('/[^a-z0-9\-]/', '-', $selected['slug']);
             ?>
-            <div class="card shadow-sm">
+    <div class="card shadow-sm">
                 <div class="card-header d-flex align-items-center gap-2">
                     <h2 class="h5 mb-0"><?= $h($selected['name']); ?></h2>
                     <?php if ($version !== ''): ?>
@@ -115,7 +77,7 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                     <hr class="my-4">
 
                     <form id="<?= $h($formId); ?>" method="post" action="admin.php?r=plugins&amp;a=update" class="vstack gap-3">
-                        <input type="hidden" name="csrf" value="<?= $h((string)($csrf ?? '')); ?>">
+                        <input type="hidden" name="csrf" value="<?= $h($csrf); ?>">
                         <input type="hidden" name="plugin" value="<?= $h($selected['slug']); ?>">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" role="switch" id="<?= $h($formId); ?>-active" name="active" value="1"<?= $isActive ? ' checked' : ''; ?>>
@@ -146,13 +108,15 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                         <?= nl2br($h($hint)); ?>
                     </div>
                 <?php endif; ?>
-            </div>
+    </div>
+<?php else: ?>
+    <div class="alert alert-info">
+        <?php if ($plugins === []): ?>
+            Přidejte pluginy do složky <code>/plugins</code>, abyste je mohli spravovat.
         <?php else: ?>
-            <div class="alert alert-info">
-                Přidejte pluginy do složky <code>/plugins</code>, abyste je mohli spravovat.
-            </div>
+            Vyberte plugin z nabídky v levém menu.
         <?php endif; ?>
     </div>
-</div>
+<?php endif; ?>
 <?php
 });
