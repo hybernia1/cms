@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Cms\Admin\Http\Controllers;
 
 use Core\Database\Init as DB;
+use Cms\Admin\Domain\Services\UserSlugService;
 use Cms\Admin\Mail\MailService;
 use Cms\Admin\Mail\TemplateManager;
 use Cms\Admin\Settings\CmsSettings;
@@ -123,8 +124,12 @@ final class UsersController extends BaseAdminController
             ], 'Tento e-mail už používá jiný účet.', 'admin.php?r=users&a=edit' . ($id ? '&id=' . $id : ''));
         }
 
+        $slugService = new UserSlugService();
+        $slug = $slugService->generate($name, $id > 0 ? $id : null);
+
         $data = [
             'name'       => $name,
+            'slug'       => $slug,
             'email'      => $email,
             'role'       => in_array($role, ['admin','user'], true) ? $role : 'user',
             'active'     => $active,
