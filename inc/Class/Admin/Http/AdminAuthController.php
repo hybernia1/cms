@@ -5,6 +5,7 @@ namespace Cms\Admin\Http;
 
 use Cms\Admin\Auth\AuthService;
 use Cms\Admin\View\ViewEngine;
+use Cms\Admin\Http\Support\ControllerHelpers;
 
 final class AdminAuthController
 {
@@ -13,10 +14,6 @@ final class AdminAuthController
 
     public function __construct()
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-
         $this->auth = new AuthService();
         $baseViewsPath = BASE_DIR . '/admin/views';
         $this->view = new ViewEngine($baseViewsPath);
@@ -59,7 +56,7 @@ final class AdminAuthController
     private function login(): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $this->assertCsrf();
+            ControllerHelpers::assertCsrf();
 
             $email = trim((string)($_POST['email'] ?? ''));
             $pass  = (string)($_POST['password'] ?? '');
@@ -112,8 +109,8 @@ final class AdminAuthController
         $this->clearSessionCookie();
         unset($_SESSION['_flash']);
 
-        if ($this->isAjax()) {
-            $this->json([
+        if (ControllerHelpers::isAjax()) {
+            ControllerHelpers::jsonResponse([
                 'success'  => true,
                 'redirect' => 'admin.php?r=auth&a=login',
             ]);
@@ -128,14 +125,14 @@ final class AdminAuthController
     {
         $payload = array_replace([
             'pageTitle' => 'Přihlášení do administrace',
-            'csrf'      => $this->token(),
+            'csrf'      => ControllerHelpers::csrfToken(),
             'error'     => null,
             'errors'    => [],
             'email'     => '',
             'remember'  => false,
         ], $data);
 
-        if ($this->isAjax()) {
+        if (ControllerHelpers::isAjax()) {
             $html = $this->capture('auth/login', $payload);
             $response = [
                 'success' => true,
@@ -151,7 +148,7 @@ final class AdminAuthController
             if (!empty($payload['errors'])) {
                 $response['errors'] = $payload['errors'];
             }
-            $this->json($response);
+            ControllerHelpers::jsonResponse($response);
             return;
         }
 
@@ -162,8 +159,8 @@ final class AdminAuthController
     {
         $redirect = 'admin.php';
 
-        if ($this->isAjax()) {
-            $this->json([
+        if (ControllerHelpers::isAjax()) {
+            ControllerHelpers::jsonResponse([
                 'success'  => true,
                 'redirect' => $redirect,
                 'flash'    => null,
@@ -180,8 +177,8 @@ final class AdminAuthController
      */
     private function respondLoginError(string $message, string $email = '', bool $remember = false, array $errors = []): void
     {
-        if ($this->isAjax()) {
-            $this->json([
+        if (ControllerHelpers::isAjax()) {
+            ControllerHelpers::jsonResponse([
                 'success'  => false,
                 'redirect' => null,
                 'flash'    => [
@@ -241,54 +238,6 @@ final class AdminAuthController
         }
 
         setcookie(session_name(), '', $cookie);
-    }
-
-    private function json(array $payload, int $status = 200): void
-    {
-        http_response_code($status);
-        header('Content-Type: application/json; charset=utf-8');
-        header('X-Content-Type-Options: nosniff');
-        echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
-    }
-
-    private function isAjax(): bool
-    {
-        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower((string)$_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-            return true;
-        }
-
-        $accept = isset($_SERVER['HTTP_ACCEPT']) ? (string)$_SERVER['HTTP_ACCEPT'] : '';
-        return str_contains($accept, 'application/json');
-    }
-
-    private function token(): string
-    {
-        if (empty($_SESSION['csrf_admin'])) {
-            $_SESSION['csrf_admin'] = bin2hex(random_bytes(16));
-        }
-
-        return (string)$_SESSION['csrf_admin'];
-    }
-
-    private function assertCsrf(): void
-    {
-        $incoming = $_POST['csrf'] ?? $_SERVER['HTTP_X_CSRF'] ?? '';
-        if (empty($_SESSION['csrf_admin']) || !hash_equals((string)$_SESSION['csrf_admin'], (string)$incoming)) {
-            if ($this->isAjax()) {
-                $this->json([
-                    'success' => false,
-                    'ok'      => false,
-                    'error'   => 'CSRF token invalid',
-                ], 419);
-            }
-
-            http_response_code(419);
-            header('Content-Type: text/plain; charset=utf-8');
-            header('X-Content-Type-Options: nosniff');
-            echo 'CSRF token invalid';
-            exit;
-        }
     }
 
     private function capture(string $template, array $payload): string

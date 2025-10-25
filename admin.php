@@ -13,12 +13,13 @@ require_once __DIR__ . '/load.php';
 
 cms_bootstrap_config_or_redirect();
 
-$schemaChecker = new SchemaChecker();
-$schemaChecker->preload();
-
-if (session_status() !== PHP_SESSION_ACTIVE) {
+$sessionActive = session_status() === PHP_SESSION_ACTIVE;
+if (!$sessionActive) {
     session_start();
 }
+
+$schemaChecker = new SchemaChecker();
+$schemaChecker->preload();
 
 $route  = (string)($_GET['r'] ?? 'dashboard');
 $action = (string)($_GET['a'] ?? 'index');
