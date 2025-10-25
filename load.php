@@ -74,14 +74,6 @@ if (is_dir(FUNCTIONS_DIR)) {
     }
 }
 
-if (function_exists('cms_bootstrap_plugins')) {
-    cms_bootstrap_plugins();
-}
-
-if (function_exists('cms_bootstrap_widgets')) {
-    cms_bootstrap_widgets();
-}
-
 // ---------------------------------------------------------
 // Util: redirecty a bootstrap
 // ---------------------------------------------------------
@@ -120,6 +112,19 @@ function cms_bootstrap_config_or_redirect(): array
     $config = require $configFile;
 
     \Core\Database\Init::boot($config);
+
+    static $extrasBootstrapped = false;
+    if (!$extrasBootstrapped) {
+        if (function_exists('cms_bootstrap_plugins')) {
+            cms_bootstrap_plugins();
+        }
+
+        if (function_exists('cms_bootstrap_widgets')) {
+            cms_bootstrap_widgets();
+        }
+
+        $extrasBootstrapped = true;
+    }
 
     return $config;
 }
