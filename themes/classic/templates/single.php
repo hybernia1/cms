@@ -18,6 +18,7 @@ $thumbnailUrl = (string)($post['thumbnail_url'] ?? ($thumbnail['url'] ?? ''));
 $thumbnailMeta = is_array($post['thumbnail_meta'] ?? null)
     ? $post['thumbnail_meta']
     : (is_array($thumbnail['meta'] ?? null) ? $thumbnail['meta'] : []);
+$thumbnailWebpUrl = (string)($post['thumbnail_webp_url'] ?? ($thumbnail['webp_url'] ?? ($thumbnailMeta['webp_url'] ?? '')));
 $thumbnailWidth = isset($thumbnailMeta['width']) ? (int)$thumbnailMeta['width'] : 0;
 $thumbnailHeight = isset($thumbnailMeta['height']) ? (int)$thumbnailMeta['height'] : 0;
 $comments = is_array($comments ?? null) ? $comments : [];
@@ -83,13 +84,21 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
 
     <?php if ($thumbnailUrl !== ''): ?>
         <figure class="entry__thumbnail">
-            <img
-                src="<?= htmlspecialchars($thumbnailUrl, ENT_QUOTES, 'UTF-8'); ?>"
-                alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
-                loading="lazy"
-                <?= $thumbnailWidth > 0 ? 'width="' . $thumbnailWidth . '"' : ''; ?>
-                <?= $thumbnailHeight > 0 ? 'height="' . $thumbnailHeight . '"' : ''; ?>
-            >
+            <picture>
+                <?php if ($thumbnailWebpUrl !== ''): ?>
+                    <source
+                        type="image/webp"
+                        srcset="<?= htmlspecialchars($thumbnailWebpUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                    >
+                <?php endif; ?>
+                <img
+                    src="<?= htmlspecialchars($thumbnailUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                    alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
+                    loading="lazy"
+                    <?= $thumbnailWidth > 0 ? 'width="' . $thumbnailWidth . '"' : ''; ?>
+                    <?= $thumbnailHeight > 0 ? 'height="' . $thumbnailHeight . '"' : ''; ?>
+                >
+            </picture>
         </figure>
     <?php endif; ?>
 

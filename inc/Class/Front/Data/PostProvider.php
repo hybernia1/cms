@@ -7,6 +7,7 @@ use Cms\Admin\Domain\Repositories\TermsRepository;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
+use Cms\Admin\Utils\UploadPathFactory;
 use Core\Database\Init as DB;
 use Throwable;
 
@@ -306,6 +307,10 @@ final class PostProvider
         $thumbnailUrl = (string)($row['thumbnail_url'] ?? '');
         $thumbnailMime = (string)($row['thumbnail_mime'] ?? '');
         $thumbnailMeta = $this->normalizeThumbnailMeta($row['thumbnail_meta'] ?? null);
+        $thumbnailWebpUrl = $this->resolveWebpUrl($thumbnailMeta['webp'] ?? null);
+        if ($thumbnailWebpUrl !== '') {
+            $thumbnailMeta['webp_url'] = $thumbnailWebpUrl;
+        }
         $thumbnail = null;
         if ($thumbnailId > 0 && $thumbnailUrl !== '') {
             $thumbnail = [
@@ -315,6 +320,9 @@ final class PostProvider
             ];
             if ($thumbnailMeta !== []) {
                 $thumbnail['meta'] = $thumbnailMeta;
+            }
+            if ($thumbnailWebpUrl !== '') {
+                $thumbnail['webp_url'] = $thumbnailWebpUrl;
             }
         }
 
@@ -334,9 +342,41 @@ final class PostProvider
             'comments_allowed' => $commentsAllowed,
             'thumbnail_id' => $thumbnailId > 0 ? $thumbnailId : null,
             'thumbnail_url' => $thumbnail !== null ? $thumbnailUrl : '',
+            'thumbnail_webp_url' => $thumbnail !== null ? $thumbnailWebpUrl : '',
             'thumbnail_meta' => $thumbnail !== null ? $thumbnailMeta : [],
             'thumbnail' => $thumbnail,
         ];
+    }
+
+    private function resolveWebpUrl(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+
+        $raw = trim($value);
+        if ($raw === '') {
+            return '';
+        }
+
+        if (preg_match('~^(?:https?:)?//~i', $raw)) {
+            return $raw;
+        }
+
+        try {
+            return UploadPathFactory::forUploads()->publicUrl($raw);
+        } catch (\Throwable) {
+            $normalized = ltrim($raw, '/');
+            if ($normalized === '') {
+                return '';
+            }
+
+            if (str_starts_with($normalized, 'uploads/')) {
+                return '/' . $normalized;
+            }
+
+            return '/uploads/' . $normalized;
+        }
     }
 
     private function now(): string
