@@ -20,6 +20,9 @@ final class SettingsController extends BaseAdminController
     public function handle(string $action): void
     {
         switch ($action) {
+            case 'graphics':
+                if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->saveGraphics(); return; }
+                $this->graphics(); return;
             case 'permalinks':
                 if ($_SERVER['REQUEST_METHOD'] === 'POST') { $this->savePermalinks(); return; }
                 $this->permalinks(); return;
@@ -74,22 +77,11 @@ final class SettingsController extends BaseAdminController
         $row['webp_enabled'] = !empty($media['webp_enabled']) ? 1 : 0;
         $row['webp_compression'] = $this->normalizeWebpCompression((string)($media['webp_compression'] ?? ''));
 
-        $favicon = is_array($media['favicon'] ?? null) ? $media['favicon'] : [];
-        $faviconRelative = isset($favicon['relative']) ? (string)$favicon['relative'] : '';
-        $faviconUrl = '';
-        if ($faviconRelative !== '') {
-            try {
-                $faviconUrl = $this->uploadPaths()->publicUrl($faviconRelative);
-            } catch (\Throwable) {
-                $faviconUrl = isset($favicon['url']) ? (string)$favicon['url'] : '';
+        foreach (['favicon', 'logo', 'social_image'] as $assetKey) {
+            foreach ($this->resolveMediaAsset($media, $assetKey) as $field => $value) {
+                $row[$field] = $value;
             }
-        } elseif (!empty($favicon['url'])) {
-            $faviconUrl = (string)$favicon['url'];
         }
-
-        $row['favicon_relative'] = $faviconRelative;
-        $row['favicon_url'] = $faviconUrl;
-        $row['favicon_mime'] = isset($favicon['mime']) ? (string)$favicon['mime'] : '';
 
         [$normalizedTz, $tzAdjusted] = $this->sanitizeTimezone($storedTimezone);
         $row['timezone'] = $normalizedTz;
@@ -102,6 +94,33 @@ final class SettingsController extends BaseAdminController
         }
 
         return $row ?? [];
+    }
+
+    /**
+     * @param array<string,mixed> $media
+     * @return array<string,string>
+     */
+    private function resolveMediaAsset(array $media, string $key): array
+    {
+        $item = is_array($media[$key] ?? null) ? $media[$key] : [];
+        $relative = isset($item['relative']) ? (string)$item['relative'] : '';
+        $url = '';
+
+        if ($relative !== '') {
+            try {
+                $url = $this->uploadPaths()->publicUrl($relative);
+            } catch (\Throwable) {
+                $url = isset($item['url']) ? (string)$item['url'] : '';
+            }
+        } elseif (!empty($item['url'])) {
+            $url = (string)$item['url'];
+        }
+
+        return [
+            $key . '_relative' => $relative,
+            $key . '_url'      => $url,
+            $key . '_mime'     => isset($item['mime']) ? (string)$item['mime'] : '',
+        ];
     }
 
     private function timezones(): array
@@ -235,6 +254,34 @@ final class SettingsController extends BaseAdminController
             'timezones'     => $this->timezones(),
             'previewNow'    => $now->format($dateFmt.' '.$timeFmt),
             'formatPresets' => $this->formatPresets(),
+        ]);
+    }
+
+    private function graphics(): void
+    {
+        $settings = $this->loadSettings();
+        $graphics = [
+            'favicon' => [
+                'url'      => (string)($settings['favicon_url'] ?? ''),
+                'relative' => (string)($settings['favicon_relative'] ?? ''),
+                'mime'     => (string)($settings['favicon_mime'] ?? ''),
+            ],
+            'logo' => [
+                'url'      => (string)($settings['logo_url'] ?? ''),
+                'relative' => (string)($settings['logo_relative'] ?? ''),
+                'mime'     => (string)($settings['logo_mime'] ?? ''),
+            ],
+            'social_image' => [
+                'url'      => (string)($settings['social_image_url'] ?? ''),
+                'relative' => (string)($settings['social_image_relative'] ?? ''),
+                'mime'     => (string)($settings['social_image_mime'] ?? ''),
+            ],
+        ];
+
+        $this->renderAdmin('settings/graphics', [
+            'pageTitle' => 'Grafika webu',
+            'nav'       => AdminNavigation::build('settings:graphics'),
+            'graphics'  => $graphics,
         ]);
     }
 
@@ -388,20 +435,6 @@ final class SettingsController extends BaseAdminController
 
         $webpEnabled = (int)($_POST['webp_enabled'] ?? 0) === 1;
         $webpCompression = $this->normalizeWebpCompression((string)($_POST['webp_compression'] ?? ''));
-        $faviconRemove = (int)($_POST['favicon_remove'] ?? 0) === 1;
-        $hasFaviconUpload = $this->hasUploadedFile('favicon');
-
-        $faviconUpload = null;
-        $uploadPaths = null;
-        if ($hasFaviconUpload && $errors === []) {
-            try {
-                $uploadPaths = $this->uploadPaths();
-                $uploader = new Uploader($uploadPaths, $this->faviconMimeWhitelist(), 2000000);
-                $faviconUpload = $uploader->handle($_FILES['favicon'], 'web', false);
-            } catch (\Throwable) {
-                $errors['favicon'][] = 'Soubor se nepodařilo nahrát. Zkontrolujte formát a velikost.';
-            }
-        }
 
         if ($errors !== []) {
             $errors['form'][] = 'Opravte zvýrazněné chyby.';
@@ -416,27 +449,6 @@ final class SettingsController extends BaseAdminController
         if (!isset($data['media']) || !is_array($data['media'])) {
             $data['media'] = [];
         }
-        $existingFavicon = is_array($data['media']['favicon'] ?? null) ? $data['media']['favicon'] : [];
-        $existingFaviconRel = isset($existingFavicon['relative']) ? (string)$existingFavicon['relative'] : '';
-
-        if ($uploadPaths === null) {
-            $uploadPaths = $this->uploadPaths();
-        }
-
-        if ($faviconUpload !== null) {
-            if ($existingFaviconRel !== '') {
-                $this->removeFaviconFile($existingFavicon, $uploadPaths);
-            }
-            $data['media']['favicon'] = [
-                'relative' => $faviconUpload['relative'],
-                'url'      => $faviconUpload['url'],
-                'mime'     => $faviconUpload['mime'],
-            ];
-        } elseif ($faviconRemove && $existingFaviconRel !== '') {
-            $this->removeFaviconFile($existingFavicon, $uploadPaths);
-            unset($data['media']['favicon']);
-        }
-
         $data['media']['webp_enabled'] = $webpEnabled;
         $data['media']['webp_compression'] = $webpCompression;
 
@@ -464,6 +476,109 @@ final class SettingsController extends BaseAdminController
         $this->respondSettingsSuccess('Nastavení uloženo.', 'admin.php?r=settings');
     }
 
+    private function saveGraphics(): void
+    {
+        $this->assertCsrf();
+
+        $data = $this->readSettingsData();
+        if (!isset($data['media']) || !is_array($data['media'])) {
+            $data['media'] = [];
+        }
+
+        $uploadPaths = $this->uploadPaths();
+        $errors = [];
+        $updates = [];
+
+        $config = [
+            'favicon' => [
+                'field'    => 'favicon',
+                'remove'   => 'favicon_remove',
+                'max_size' => 2000000,
+                'mimes'    => $this->faviconMimeWhitelist(),
+            ],
+            'logo' => [
+                'field'    => 'logo',
+                'remove'   => 'logo_remove',
+                'max_size' => 5000000,
+                'mimes'    => $this->mediaImageWhitelist(),
+            ],
+            'social_image' => [
+                'field'    => 'social_image',
+                'remove'   => 'social_image_remove',
+                'max_size' => 5000000,
+                'mimes'    => $this->mediaImageWhitelist(),
+            ],
+        ];
+
+        foreach ($config as $key => $cfg) {
+            $field = $cfg['field'];
+            $removeFlag = (int)($_POST[$cfg['remove']] ?? 0) === 1;
+            $existing = is_array($data['media'][$key] ?? null) ? $data['media'][$key] : [];
+            $hasUpload = $this->hasUploadedFile($field);
+            $action = 'keep';
+            $uploadData = null;
+
+            if ($hasUpload) {
+                try {
+                    $uploader = new Uploader($uploadPaths, $cfg['mimes'], (int)$cfg['max_size']);
+                    $uploadData = $uploader->handle($_FILES[$field], 'web', false);
+                    $action = 'replace';
+                } catch (\Throwable) {
+                    $errors[$field][] = 'Soubor se nepodařilo nahrát. Zkontrolujte formát a velikost.';
+                }
+            } elseif ($removeFlag) {
+                $action = 'remove';
+            }
+
+            if ($action !== 'keep') {
+                $updates[$key] = [
+                    'action'   => $action,
+                    'upload'   => $uploadData,
+                    'existing' => $existing,
+                ];
+            }
+        }
+
+        if ($errors !== []) {
+            $errors['form'][] = 'Opravte zvýrazněné chyby.';
+            $this->respondSettingsError('Grafické soubory se nepodařilo uložit.', $errors, 422, 'admin.php?r=settings&a=graphics');
+        }
+
+        foreach ($updates as $key => $update) {
+            $existing = is_array($update['existing'] ?? null) ? $update['existing'] : [];
+            $action = (string)($update['action'] ?? 'keep');
+
+            if (in_array($action, ['replace', 'remove'], true) && $existing !== []) {
+                $this->removeMediaFile($existing, $uploadPaths);
+            }
+
+            if ($action === 'replace' && is_array($update['upload'] ?? null)) {
+                $upload = $update['upload'];
+                $data['media'][$key] = [
+                    'relative' => $upload['relative'],
+                    'url'      => $upload['url'],
+                    'mime'     => $upload['mime'],
+                ];
+            } elseif ($action === 'remove') {
+                unset($data['media'][$key]);
+            }
+        }
+
+        $dataJson = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($dataJson === false) {
+            $dataJson = '{}';
+        }
+
+        DB::query()->table('settings')->update([
+            'data'       => $dataJson,
+            'updated_at' => DateTimeFactory::nowString(),
+        ])->where('id','=',1)->execute();
+
+        CmsSettings::refresh();
+
+        $this->respondSettingsSuccess('Grafika webu uložena.', 'admin.php?r=settings&a=graphics');
+    }
+
     private function hasUploadedFile(string $field): bool
     {
         if (empty($_FILES[$field]) || !is_array($_FILES[$field])) {
@@ -489,9 +604,21 @@ final class SettingsController extends BaseAdminController
         ];
     }
 
-    private function removeFaviconFile(array $favicon, PathResolver $paths): void
+    private function mediaImageWhitelist(): array
     {
-        $relative = isset($favicon['relative']) ? (string)$favicon['relative'] : '';
+        return [
+            'image/png',
+            'image/jpeg',
+            'image/gif',
+            'image/webp',
+            'image/avif',
+            'image/svg+xml',
+        ];
+    }
+
+    private function removeMediaFile(array $item, PathResolver $paths): void
+    {
+        $relative = isset($item['relative']) ? (string)$item['relative'] : '';
         if ($relative === '') {
             return;
         }

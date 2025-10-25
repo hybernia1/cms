@@ -74,6 +74,7 @@ final class AdminNavigation
                 'section'   => true,
                 'children'  => [
                     ['key' => 'settings:general',    'label' => 'Obecné',   'href' => 'admin.php?r=settings',    'icon' => 'bi-sliders'],
+                    ['key' => 'settings:graphics',   'label' => 'Grafika webu', 'href' => 'admin.php?r=settings&a=graphics', 'icon' => 'bi-image'],
                     ['key' => 'settings:permalinks','label' => 'Trvalé odkazy', 'href' => 'admin.php?r=settings&a=permalinks', 'icon' => 'bi-link-45deg'],
                     ['key' => 'settings:mail',       'label' => 'E-mail',   'href' => 'admin.php?r=settings&a=mail', 'icon' => 'bi-envelope'],
                     ['key' => 'settings:migrations', 'label' => 'Migrace',  'href' => 'admin.php?r=migrations', 'icon' => 'bi-arrow-repeat'],
