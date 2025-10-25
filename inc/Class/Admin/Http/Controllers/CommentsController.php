@@ -6,7 +6,6 @@ namespace Cms\Admin\Http\Controllers;
 use Core\Database\Init as DB;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
-use Cms\Admin\View\Listing\BulkConfig;
 
 final class CommentsController extends BaseAdminController
 {
@@ -384,33 +383,14 @@ final class CommentsController extends BaseAdminController
         $items = $this->normalizeCreatedAt($paginated['items'] ?? [], true);
         $currentUrl = $buildUrl(['page' => $pagination['page']]);
 
-        $csrf = $this->token();
-        $bulkConfig = new BulkConfig(
-            formId: 'comments-bulk-form',
-            action: 'admin.php?r=comments&a=bulk',
-            csrf: $csrf,
-            selectAllId: 'comments-select-all',
-            rowSelector: '.comment-row-check',
-            actionSelectId: 'comments-bulk-select',
-            applyButtonId: 'comments-bulk-apply',
-            counterId: 'comments-bulk-counter',
-            hidden: [
-                'status' => $normalized['status'],
-                'q'      => $normalized['q'],
-                'post'   => $normalized['post'],
-                'page'   => (string)($pagination['page'] ?? 1),
-            ],
-        );
-
         return [
             'filters'      => $normalized,
             'items'        => $items,
             'pagination'   => $pagination,
             'statusCounts' => $this->countByStatus(),
             'buildUrl'     => $buildUrl,
-            'csrf'         => $csrf,
+            'csrf'         => $this->token(),
             'currentUrl'   => $currentUrl,
-            'bulkConfig'   => $bulkConfig,
         ];
     }
 
@@ -428,7 +408,6 @@ final class CommentsController extends BaseAdminController
             'buildUrl'     => $listing['buildUrl'],
             'csrf'         => $listing['csrf'],
             'backUrl'      => $listing['currentUrl'],
-            'bulkConfig'   => $listing['bulkConfig'],
         ];
 
         $payload = [
@@ -442,11 +421,7 @@ final class CommentsController extends BaseAdminController
                 '[data-comments-filters]'    => $this->renderPartial('comments/partials/filters', $partialData),
                 '[data-comments-bulk]'       => $this->renderPartial('comments/partials/bulk', $partialData),
                 '[data-comments-table]'      => $this->renderPartial('comments/partials/table', $partialData),
-                '[data-comments-pagination]' => $this->renderPartial('parts/listing/pagination-block', [
-                    'pagination'       => $listing['pagination'],
-                    'buildUrl'         => $listing['buildUrl'],
-                    'wrapperAttributes'=> ['data-comments-pagination' => ''],
-                ]),
+                '[data-comments-pagination]' => $this->renderPartial('comments/partials/pagination', $partialData),
             ],
             'listing'      => [
                 'url'    => $listing['currentUrl'],

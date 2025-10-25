@@ -13,7 +13,6 @@ use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\Utils\Slugger;
-use Cms\Admin\View\Listing\BulkConfig;
 use Core\Database\Init as DB;
 final class PostsController extends BaseAdminController
 {
@@ -324,17 +323,6 @@ final class PostsController extends BaseAdminController
 
         $items = $this->normalizeCreatedAt($pag['items'] ?? [], true);
         $urls = new LinkGenerator();
-        $csrf = $this->token();
-        $bulkConfig = new BulkConfig(
-            formId: 'posts-bulk-form',
-            action: 'admin.php?' . http_build_query(['r' => 'posts', 'a' => 'bulk', 'type' => $type]),
-            csrf: $csrf,
-            selectAllId: 'select-all',
-            rowSelector: '.row-check',
-            actionSelectId: 'bulk-action-select',
-            applyButtonId: 'bulk-apply',
-            counterId: 'bulk-selection-counter',
-        );
 
         if ($this->wantsJsonIndex()) {
             $partials = [
@@ -349,16 +337,14 @@ final class PostsController extends BaseAdminController
                 ]),
                 'table' => $this->renderPartial('posts/partials/table', [
                     'items' => $items,
-                    'csrf'  => $csrf,
+                    'csrf'  => $this->token(),
                     'type'  => $type,
                     'typeConfig' => $typeConfig,
                     'urls'  => $urls,
-                    'bulkConfig' => $bulkConfig,
                 ]),
-                'pagination' => $this->renderPartial('parts/listing/pagination-block', [
-                    'pagination'        => $pagination,
-                    'buildUrl'          => $buildUrl,
-                    'wrapperAttributes' => ['data-posts-pagination' => ''],
+                'pagination' => $this->renderPartial('posts/partials/pagination', [
+                    'pagination' => $pagination,
+                    'buildUrl'   => $buildUrl,
                 ]),
             ];
 
@@ -388,8 +374,6 @@ final class PostsController extends BaseAdminController
             'urls'       => $urls,
             'statusCounts' => $statusCounts,
             'buildUrl'   => $buildUrl,
-            'csrf'       => $csrf,
-            'bulkConfig' => $bulkConfig,
         ]);
     }
 

@@ -3,7 +3,6 @@ declare(strict_types=1);
 /** @var array<int,array<string,mixed>> $items */
 /** @var string $csrf */
 /** @var string|null $backUrl */
-/** @var \Cms\Admin\View\Listing\BulkConfig $bulkConfig */
 
 $h = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 $badge = static function (string $status): string {
@@ -21,18 +20,24 @@ $statusLabels = [
 $currentBack = $backUrl !== null && $backUrl !== '' ? $backUrl : ((string)($_SERVER['REQUEST_URI'] ?? 'admin.php?r=comments'));
 ?>
 <div class="card" data-comments-table>
-  <?php $this->render('parts/listing/bulk-header', $bulkConfig->headerParams([
+  <?php $this->render('parts/listing/bulk-header', [
+    'formId'         => 'comments-bulk-form',
+    'actionSelectId' => 'comments-bulk-select',
+    'applyButtonId'  => 'comments-bulk-apply',
+    'options'        => [
       ['value' => 'published', 'label' => 'Schválit'],
       ['value' => 'draft',     'label' => 'Uložit jako koncept'],
       ['value' => 'spam',      'label' => 'Označit jako spam'],
       ['value' => 'delete',    'label' => 'Smazat'],
-    ], 'bi bi-arrow-repeat'));
-  ?>
+    ],
+    'counterId'      => 'comments-bulk-counter',
+    'applyIcon'      => 'bi bi-arrow-repeat',
+  ]); ?>
   <div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
       <thead class="table-light">
         <tr>
-          <th style="width:36px"><input class="form-check-input" type="checkbox" id="<?= $h($bulkConfig->selectAllId()) ?>" aria-label="Vybrat všechny"></th>
+          <th style="width:36px"><input class="form-check-input" type="checkbox" id="comments-select-all" aria-label="Vybrat všechny"></th>
           <th>Autor / E-mail</th>
           <th>Text</th>
           <th>Příspěvek</th>
@@ -60,7 +65,7 @@ $currentBack = $backUrl !== null && $backUrl !== '' ? $backUrl : ((string)($_SER
         ?>
           <tr data-comment-row data-comment-id="<?= $h((string)($c['id'] ?? '')) ?>" data-comment-status="<?= $h($statusValue) ?>">
             <td>
-              <input class="form-check-input comment-row-check" type="checkbox" name="ids[]" value="<?= $h((string)($c['id'] ?? '')) ?>" aria-label="Vybrat komentář" form="<?= $h($bulkConfig->formId()) ?>">
+              <input class="form-check-input comment-row-check" type="checkbox" name="ids[]" value="<?= $h((string)($c['id'] ?? '')) ?>" aria-label="Vybrat komentář" form="comments-bulk-form">
             </td>
             <td>
               <div class="admin-table-stack">
