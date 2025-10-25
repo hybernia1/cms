@@ -9,10 +9,9 @@ final class PermalinkSettings
     public const DEFAULT_PAGE_BASE = 'page';
     public const DEFAULT_TAG_BASE = 'tag';
     public const DEFAULT_CATEGORY_BASE = 'category';
-    public const DEFAULT_AUTHOR_BASE = 'author';
 
     /**
-     * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string,author_base:string}
+     * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string}
      */
     public static function defaults(): array
     {
@@ -22,7 +21,6 @@ final class PermalinkSettings
             'page_base'     => self::DEFAULT_PAGE_BASE,
             'tag_base'      => self::DEFAULT_TAG_BASE,
             'category_base' => self::DEFAULT_CATEGORY_BASE,
-            'author_base'   => self::DEFAULT_AUTHOR_BASE,
         ];
     }
 
@@ -53,7 +51,7 @@ final class PermalinkSettings
 
     /**
      * @param array<string,mixed> $input
-     * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string,author_base:string}
+     * @return array{seo_urls:bool,post_base:string,page_base:string,tag_base:string,category_base:string}
      */
     public static function normalize(array $input): array
     {
@@ -65,7 +63,6 @@ final class PermalinkSettings
             'page_base'     => self::sanitizeSlug((string)($input['page_base'] ?? ''), $defaults['page_base']),
             'tag_base'      => self::sanitizeSlug((string)($input['tag_base'] ?? ''), $defaults['tag_base']),
             'category_base' => self::sanitizeSlug((string)($input['category_base'] ?? ''), $defaults['category_base']),
-            'author_base'   => self::sanitizeSlug((string)($input['author_base'] ?? ''), $defaults['author_base']),
         ];
     }
 }
