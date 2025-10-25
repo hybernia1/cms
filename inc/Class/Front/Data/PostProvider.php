@@ -110,6 +110,7 @@ final class PostProvider
                     'p.content',
                     'p.type',
                     'p.published_at',
+                    'p.updated_at',
                     'p.author_id',
                     'p.thumbnail_id',
                     'u.name AS author_name',
@@ -168,6 +169,7 @@ final class PostProvider
                     'p.content',
                     'p.type',
                     'p.published_at',
+                    'p.updated_at',
                     'p.author_id',
                     'p.thumbnail_id',
                     'u.name AS author_name',
@@ -235,6 +237,7 @@ final class PostProvider
                     'p.content',
                     'p.type',
                     'p.published_at',
+                    'p.updated_at',
                     'p.author_id',
                     'p.thumbnail_id',
                     'u.name AS author_name',
@@ -299,6 +302,9 @@ final class PostProvider
         $publishedRaw = isset($row['published_at']) ? (string)$row['published_at'] : '';
         [$publishedDisplay, $publishedIso] = $this->normalizeDate($publishedRaw);
 
+        $updatedRaw = isset($row['updated_at']) ? (string)$row['updated_at'] : '';
+        [$updatedDisplay, $updatedIso] = $this->normalizeDate($updatedRaw);
+
         $authorId = isset($row['author_id']) ? (int)$row['author_id'] : 0;
         $authorId = $authorId > 0 ? $authorId : null;
         $authorName = trim((string)($row['author_name'] ?? ''));
@@ -338,6 +344,9 @@ final class PostProvider
             'published_at' => $publishedDisplay,
             'published_at_iso' => $publishedIso,
             'published_at_raw' => $publishedRaw,
+            'updated_at' => $updatedDisplay,
+            'updated_at_iso' => $updatedIso,
+            'updated_at_raw' => $updatedRaw,
             'permalink' => $permalink,
             'comments_allowed' => $commentsAllowed,
             'thumbnail_id' => $thumbnailId > 0 ? $thumbnailId : null,

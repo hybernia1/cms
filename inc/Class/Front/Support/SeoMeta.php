@@ -6,13 +6,15 @@ namespace Cms\Front\Support;
 final class SeoMeta
 {
     /**
-     * @param array<string,string> $extra
+     * @param array<string,string|array<string,string>> $extra
+     * @param list<array<string,mixed>> $structuredData
      */
     public function __construct(
         private string $title,
         private ?string $description = null,
         private ?string $canonical = null,
-        private array $extra = []
+        private array $extra = [],
+        private array $structuredData = []
     ) {
     }
 
@@ -40,7 +42,15 @@ final class SeoMeta
     }
 
     /**
-     * @return array{title:string,description:?string,canonical:?string,extra:array<string,string>}
+     * @return list<array<string,mixed>>
+     */
+    public function structuredData(): array
+    {
+        return $this->structuredData;
+    }
+
+    /**
+     * @return array{title:string,description:?string,canonical:?string,extra:array<string,string|array<string,string>>,structured_data:list<array<string,mixed>>}
      */
     public function toArray(): array
     {
@@ -49,6 +59,7 @@ final class SeoMeta
             'description' => $this->description,
             'canonical' => $this->canonical,
             'extra' => $this->extra,
+            'structured_data' => $this->structuredData,
         ];
     }
 }
