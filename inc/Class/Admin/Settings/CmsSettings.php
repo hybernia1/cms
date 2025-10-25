@@ -137,11 +137,13 @@ final class CmsSettings
         $normalized = $normalized !== '' ? $normalized : 'cs';
         return str_replace('_', '-', $normalized);
     }
+    public function siteLogo(): string
+    {
+        return $this->mediaItemUrl('logo');
+    }
     public function siteSocialImage(): string
     {
-        $site = self::siteSettings();
-        $image = trim((string)($site['social_image'] ?? ''));
-        return $image;
+        return $this->mediaItemUrl('social_image');
     }
     public function registrationAllowed(): bool
     {
@@ -204,9 +206,20 @@ final class CmsSettings
 
     public function siteFavicon(): string
     {
+        return $this->mediaItemUrl('favicon');
+    }
+
+    public function seoUrlsEnabled(): bool
+    {
+        $permalinks = self::permalinkSettings();
+        return (bool)$permalinks['seo_urls'];
+    }
+
+    private function mediaItemUrl(string $key): string
+    {
         $media = self::mediaSettings();
-        $favicon = is_array($media['favicon'] ?? null) ? $media['favicon'] : [];
-        $relative = isset($favicon['relative']) ? trim((string)$favicon['relative']) : '';
+        $item = is_array($media[$key] ?? null) ? $media[$key] : [];
+        $relative = isset($item['relative']) ? trim((string)$item['relative']) : '';
         if ($relative !== '') {
             try {
                 return UploadPathFactory::forUploads()->publicUrl($relative);
@@ -215,14 +228,8 @@ final class CmsSettings
             }
         }
 
-        $url = isset($favicon['url']) ? trim((string)$favicon['url']) : '';
+        $url = isset($item['url']) ? trim((string)$item['url']) : '';
         return $url;
-    }
-
-    public function seoUrlsEnabled(): bool
-    {
-        $permalinks = self::permalinkSettings();
-        return (bool)$permalinks['seo_urls'];
     }
 
     /**
