@@ -15,6 +15,7 @@ $metaTitle = (string)($meta['title'] ?? $siteTitle);
 $metaDescription = isset($meta['description']) && $meta['description'] !== '' ? (string)$meta['description'] : null;
 $canonical = isset($meta['canonical']) && $meta['canonical'] !== '' ? (string)$meta['canonical'] : null;
 $metaExtra = is_array($meta['extra'] ?? null) ? $meta['extra'] : [];
+$structuredData = is_array($meta['structured_data'] ?? null) ? $meta['structured_data'] : [];
 $themeName = (string)($theme['name'] ?? 'Classic');
 $themeVersion = trim((string)($theme['version'] ?? ''));
 $palette = is_array($theme['palette'] ?? null) ? $theme['palette'] : [];
@@ -139,6 +140,21 @@ $renderMenu = static function (array $items, string $class = 'menu', int $depth 
             }
         ?>
         <meta <?= $attr; ?>="<?= htmlspecialchars($attrValue, ENT_QUOTES, 'UTF-8'); ?>" content="<?= htmlspecialchars($metaContent, ENT_QUOTES, 'UTF-8'); ?>">
+    <?php endforeach; ?>
+    <?php foreach ($structuredData as $schema): ?>
+        <?php
+            if (!is_array($schema)) {
+                continue;
+            }
+            $jsonOptions = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT;
+            $schemaJson = json_encode($schema, $jsonOptions);
+            if (!is_string($schemaJson)) {
+                continue;
+            }
+        ?>
+        <script type="application/ld+json">
+<?php echo $schemaJson, "\n"; ?>
+        </script>
     <?php endforeach; ?>
     <link rel="stylesheet" href="<?= htmlspecialchars($asset('assets/style.css'), ENT_QUOTES, 'UTF-8'); ?>">
     <?php if ($paletteCss !== []): ?>

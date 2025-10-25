@@ -458,7 +458,16 @@ final class Router
     private function handleHome(): RouteResult
     {
         $posts = $this->posts->latest('post', 10);
-        $meta = new SeoMeta($this->settings->siteTitle(), canonical: $this->links->home());
+        $siteTitle = $this->settings->siteTitle();
+        $tagline = $this->limitString($this->settings->siteTagline());
+        $canonical = $this->absoluteUrl($this->links->home());
+
+        $meta = new SeoMeta(
+            $siteTitle,
+            $tagline !== '' ? $tagline : null,
+            $canonical,
+            structuredData: $this->buildHomeStructuredData($canonical)
+        );
 
         return new RouteResult('home', [
             'posts' => $posts,
@@ -684,10 +693,15 @@ final class Router
 
         $commentForm['csrf'] = $this->csrfToken();
 
+        $canonical = $this->absoluteUrl((string)($post['permalink'] ?? ''));
+        $excerpt = isset($post['excerpt']) ? (string)$post['excerpt'] : '';
+
         $meta = new SeoMeta(
             $post['title'] . ' | ' . $this->settings->siteTitle(),
-            $post['excerpt'],
-            $post['permalink']
+            $excerpt !== '' ? $excerpt : null,
+            $canonical,
+            extra: $this->buildContentMetaExtra($post, true),
+            structuredData: $this->buildPostStructuredData($post, $canonical, 'BlogPosting')
         );
 
         return new RouteResult('single', [
@@ -748,10 +762,15 @@ final class Router
             return $this->notFound();
         }
 
+        $canonical = $this->absoluteUrl((string)($page['permalink'] ?? ''));
+        $excerpt = isset($page['excerpt']) ? (string)$page['excerpt'] : '';
+
         $meta = new SeoMeta(
             $page['title'] . ' | ' . $this->settings->siteTitle(),
-            $page['excerpt'],
-            $page['permalink']
+            $excerpt !== '' ? $excerpt : null,
+            $canonical,
+            extra: $this->buildContentMetaExtra($page, false),
+            structuredData: $this->buildPostStructuredData($page, $canonical, 'WebPage')
         );
 
         return new RouteResult('page', [
@@ -764,9 +783,15 @@ final class Router
     {
         $type = $type !== '' ? $type : 'post';
         $posts = $this->posts->latest($type, 20);
+        $typeTitle = ucfirst($type);
+        $canonical = $this->absoluteUrl($this->links->type($type));
+        $description = $this->limitString(sprintf('Archiv příspěvků typu %s na %s.', $typeTitle, $this->settings->siteTitle()));
+
         $meta = new SeoMeta(
-            ucfirst($type) . ' | ' . $this->settings->siteTitle(),
-            canonical: $this->links->type($type)
+            $typeTitle . ' | ' . $this->settings->siteTitle(),
+            $description !== '' ? $description : null,
+            $canonical,
+            structuredData: $this->buildCollectionStructuredData($typeTitle, $canonical, $description)
         );
 
         return new RouteResult('archive', [
@@ -792,10 +817,20 @@ final class Router
         $canonical = $type === 'category'
             ? $this->links->category($slug)
             : $this->links->tag($slug);
+        $canonicalUrl = $this->absoluteUrl($canonical);
+
+        $termName = (string)$term['name'];
+        $rawDescription = isset($term['description']) ? (string)$term['description'] : '';
+        $descriptionSource = $rawDescription !== ''
+            ? $rawDescription
+            : sprintf('Obsah označený jako %s.', $termName);
+        $description = $this->limitString($descriptionSource);
 
         $meta = new SeoMeta(
-            (string)$term['name'] . ' | ' . $this->settings->siteTitle(),
-            canonical: $canonical
+            $termName . ' | ' . $this->settings->siteTitle(),
+            $description !== '' ? $description : null,
+            $canonicalUrl,
+            structuredData: $this->buildCollectionStructuredData($termName, $canonicalUrl, $description)
         );
 
         $template = $type === 'category' ? 'category' : 'tag';
@@ -812,10 +847,19 @@ final class Router
         $query = trim($query);
         $posts = $query === '' ? [] : $this->posts->search($query, 20);
 
-        $canonical = $this->links->search($query !== '' ? $query : null);
+        $canonicalUrl = $this->absoluteUrl($this->links->search($query !== '' ? $query : null));
+        $siteTitle = $this->settings->siteTitle();
+        $titleBase = $query === '' ? 'Vyhledávání' : 'Hledám "' . $query . '"';
+        $descriptionSource = $query === ''
+            ? sprintf('Vyhledávání napříč webem %s.', $siteTitle)
+            : sprintf('Výsledky hledání pro "%s" na %s.', $query, $siteTitle);
+        $description = $this->limitString($descriptionSource);
+
         $meta = new SeoMeta(
-            ($query === '' ? 'Vyhledávání' : 'Hledám "' . $query . '"') . ' | ' . $this->settings->siteTitle(),
-            canonical: $canonical
+            $titleBase . ' | ' . $siteTitle,
+            $description !== '' ? $description : null,
+            $canonicalUrl,
+            structuredData: $this->buildSearchStructuredData($canonicalUrl, $query)
         );
 
         return new RouteResult('search', [
@@ -1221,6 +1265,504 @@ final class Router
         $data['message'] = 'Heslo bylo úspěšně změněno. Nyní se můžete přihlásit.';
 
         return new RouteResult('reset', $data);
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @return array<string,string>
+     */
+    private function buildContentMetaExtra(array $content, bool $asArticle): array
+    {
+        $extra = [];
+
+        if ($asArticle) {
+            $extra['og:type'] = 'article';
+        }
+
+        $image = $this->resolvePrimaryImage($content);
+        if ($image !== null) {
+            $extra['og:image'] = $image['url'];
+            $extra['twitter:image'] = $image['url'];
+            if ($image['mime'] !== null && $image['mime'] !== '') {
+                $extra['og:image:type'] = $image['mime'];
+            }
+            if ($image['width'] !== null && $image['width'] > 0) {
+                $extra['og:image:width'] = (string)$image['width'];
+            }
+            if ($image['height'] !== null && $image['height'] > 0) {
+                $extra['og:image:height'] = (string)$image['height'];
+            }
+        }
+
+        if ($asArticle) {
+            $published = isset($content['published_at_iso']) ? (string)$content['published_at_iso'] : '';
+            if ($published !== '') {
+                $extra['article:published_time'] = $published;
+            }
+            $updated = isset($content['updated_at_iso']) ? (string)$content['updated_at_iso'] : '';
+            if ($updated !== '') {
+                $extra['article:modified_time'] = $updated;
+            }
+            $author = trim((string)($content['author'] ?? ''));
+            if ($author !== '') {
+                $extra['article:author'] = $author;
+            }
+        }
+
+        return $extra;
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @return list<array<string,mixed>>
+     */
+    private function buildPostStructuredData(array $content, string $canonical, string $schemaType): array
+    {
+        $siteName = $this->settings->siteTitle();
+        $siteLocale = $this->settings->siteLocale();
+        $siteUrl = $this->absoluteUrl($this->settings->siteUrl());
+        $siteLogo = $this->absoluteUrl($this->settings->siteLogo());
+
+        $image = $this->resolvePrimaryImage($content);
+        $imageObject = $image !== null
+            ? $this->cleanStructuredData([
+                '@type' => 'ImageObject',
+                'url' => $image['url'],
+                'width' => $image['width'],
+                'height' => $image['height'],
+            ])
+            : [];
+        $imageObject = $imageObject !== [] ? $imageObject : null;
+
+        $data = [
+            '@context' => 'https://schema.org',
+            '@type' => $schemaType,
+            'name' => (string)($content['title'] ?? ''),
+            'description' => $this->limitString((string)($content['excerpt'] ?? '')),
+            'url' => $canonical,
+            'datePublished' => $content['published_at_iso'] ?? null,
+            'dateModified' => $content['updated_at_iso'] ?? ($content['published_at_iso'] ?? null),
+            'inLanguage' => $siteLocale,
+        ];
+
+        if ($schemaType === 'BlogPosting') {
+            $data['headline'] = (string)($content['title'] ?? '');
+            if ($imageObject !== null) {
+                $data['image'] = $imageObject;
+            }
+            $data['mainEntityOfPage'] = [
+                '@type' => 'WebPage',
+                '@id' => $canonical,
+            ];
+
+            $authorName = trim((string)($content['author'] ?? ''));
+            $data['author'] = $authorName !== ''
+                ? ['@type' => 'Person', 'name' => $authorName]
+                : ['@type' => 'Organization', 'name' => $siteName];
+
+            $publisher = [
+                '@type' => 'Organization',
+                'name' => $siteName,
+            ];
+            if ($siteLogo !== '') {
+                $publisher['logo'] = [
+                    '@type' => 'ImageObject',
+                    'url' => $siteLogo,
+                ];
+            }
+            $data['publisher'] = $publisher;
+
+            $data['isPartOf'] = [
+                '@type' => 'WebSite',
+                'name' => $siteName,
+                'url' => $siteUrl !== '' ? $siteUrl : $canonical,
+            ];
+
+            $wordCount = $this->estimateWordCount((string)($content['content'] ?? ''));
+            if ($wordCount > 0) {
+                $data['wordCount'] = $wordCount;
+            }
+
+            $categories = [];
+            $keywords = [];
+            if (isset($content['terms']) && is_array($content['terms'])) {
+                foreach ($content['terms'] as $term) {
+                    if (!is_array($term)) {
+                        continue;
+                    }
+                    $name = trim((string)($term['name'] ?? ''));
+                    if ($name === '') {
+                        continue;
+                    }
+                    $termType = (string)($term['type'] ?? '');
+                    if ($termType === 'category') {
+                        $categories[] = $name;
+                    } elseif ($termType === 'tag') {
+                        $keywords[] = $name;
+                    }
+                }
+            }
+
+            if ($categories !== []) {
+                $data['articleSection'] = count($categories) === 1 ? $categories[0] : $categories;
+            }
+            if ($keywords !== []) {
+                $data['keywords'] = implode(', ', $keywords);
+            }
+        } else {
+            $data['headline'] = (string)($content['title'] ?? '');
+            $data['isPartOf'] = [
+                '@type' => 'WebSite',
+                'name' => $siteName,
+                'url' => $siteUrl !== '' ? $siteUrl : $canonical,
+            ];
+            if ($imageObject !== null) {
+                $data['primaryImageOfPage'] = $imageObject;
+            }
+        }
+
+        return $this->cleanStructuredDataList([$data]);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function buildHomeStructuredData(string $canonical): array
+    {
+        $siteName = $this->settings->siteTitle();
+        $siteLocale = $this->settings->siteLocale();
+        $siteUrl = $this->absoluteUrl($this->settings->siteUrl());
+        $siteDescription = $this->limitString($this->settings->siteTagline());
+        $siteLogo = $this->absoluteUrl($this->settings->siteLogo());
+        $siteEmail = $this->settings->siteEmail();
+        $searchTarget = $this->buildSearchTarget();
+
+        $website = [
+            '@context' => 'https://schema.org',
+            '@type' => 'WebSite',
+            'name' => $siteName,
+            'url' => $canonical !== '' ? $canonical : $siteUrl,
+            'description' => $siteDescription,
+            'inLanguage' => $siteLocale,
+        ];
+        if ($searchTarget !== '') {
+            $website['potentialAction'] = [
+                '@type' => 'SearchAction',
+                'target' => $searchTarget,
+                'query-input' => 'required name=search_term_string',
+            ];
+        }
+
+        $organization = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Organization',
+            'name' => $siteName,
+            'url' => $siteUrl !== '' ? $siteUrl : $canonical,
+        ];
+        if ($siteLogo !== '') {
+            $organization['logo'] = [
+                '@type' => 'ImageObject',
+                'url' => $siteLogo,
+            ];
+        }
+        if ($siteEmail !== '') {
+            $organization['contactPoint'] = [[
+                '@type' => 'ContactPoint',
+                'contactType' => 'customer support',
+                'email' => $siteEmail,
+            ]];
+        }
+
+        return $this->cleanStructuredDataList([$website, $organization]);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function buildCollectionStructuredData(string $title, string $canonical, string $description): array
+    {
+        $siteName = $this->settings->siteTitle();
+        $siteUrl = $this->absoluteUrl($this->settings->siteUrl());
+
+        $data = [
+            '@context' => 'https://schema.org',
+            '@type' => 'CollectionPage',
+            'name' => $title,
+            'description' => $this->limitString($description),
+            'url' => $canonical,
+            'inLanguage' => $this->settings->siteLocale(),
+            'isPartOf' => [
+                '@type' => 'WebSite',
+                'name' => $siteName,
+                'url' => $siteUrl !== '' ? $siteUrl : $canonical,
+            ],
+        ];
+
+        return $this->cleanStructuredDataList([$data]);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function buildSearchStructuredData(string $canonical, string $query): array
+    {
+        $siteName = $this->settings->siteTitle();
+        $siteLocale = $this->settings->siteLocale();
+        $searchTarget = $this->buildSearchTarget();
+
+        $descriptionText = $query === ''
+            ? sprintf('Vyhledávání napříč webem %s.', $siteName)
+            : sprintf('Výsledky hledání pro "%s" na %s.', $query, $siteName);
+
+        $data = [
+            '@context' => 'https://schema.org',
+            '@type' => 'SearchResultsPage',
+            'name' => $query === '' ? 'Vyhledávání' : sprintf('Výsledky hledání pro "%s"', $query),
+            'description' => $this->limitString($descriptionText),
+            'url' => $canonical,
+            'inLanguage' => $siteLocale,
+        ];
+        if ($query !== '') {
+            $data['query'] = $query;
+        }
+        if ($searchTarget !== '') {
+            $data['potentialAction'] = [
+                '@type' => 'SearchAction',
+                'target' => $searchTarget,
+                'query-input' => 'required name=search_term_string',
+            ];
+        }
+
+        return $this->cleanStructuredDataList([$data]);
+    }
+
+    /**
+     * @param array<string,mixed> $content
+     * @return array{url:string,width:?int,height:?int,mime:?string}|null
+     */
+    private function resolvePrimaryImage(array $content): ?array
+    {
+        $candidates = [];
+        if (isset($content['thumbnail_url'])) {
+            $candidates[] = (string)$content['thumbnail_url'];
+        }
+        if (is_array($content['thumbnail'] ?? null) && isset($content['thumbnail']['url'])) {
+            $candidates[] = (string)$content['thumbnail']['url'];
+        }
+        if (isset($content['thumbnail_webp_url'])) {
+            $candidates[] = (string)$content['thumbnail_webp_url'];
+        }
+
+        $url = '';
+        foreach ($candidates as $candidate) {
+            $trimmed = trim($candidate);
+            if ($trimmed !== '') {
+                $url = $trimmed;
+                break;
+            }
+        }
+
+        if ($url === '') {
+            $fallback = $this->settings->siteSocialImage();
+            if ($fallback === '') {
+                $fallback = $this->settings->siteLogo();
+            }
+            $url = $fallback;
+        }
+
+        $absolute = $this->absoluteUrl($url);
+        if ($absolute === '') {
+            return null;
+        }
+
+        $meta = is_array($content['thumbnail_meta'] ?? null) ? $content['thumbnail_meta'] : [];
+        $width = null;
+        foreach (['w', 'width'] as $widthKey) {
+            if (isset($meta[$widthKey]) && (int)$meta[$widthKey] > 0) {
+                $width = (int)$meta[$widthKey];
+                break;
+            }
+        }
+        $height = null;
+        foreach (['h', 'height'] as $heightKey) {
+            if (isset($meta[$heightKey]) && (int)$meta[$heightKey] > 0) {
+                $height = (int)$meta[$heightKey];
+                break;
+            }
+        }
+
+        $mime = null;
+        if (is_array($content['thumbnail'] ?? null) && isset($content['thumbnail']['mime'])) {
+            $mimeCandidate = trim((string)$content['thumbnail']['mime']);
+            if ($mimeCandidate !== '') {
+                $mime = $mimeCandidate;
+            }
+        }
+
+        return [
+            'url' => $absolute,
+            'width' => $width,
+            'height' => $height,
+            'mime' => $mime,
+        ];
+    }
+
+    private function estimateWordCount(string $content): int
+    {
+        $text = trim(strip_tags($content));
+        if ($text === '') {
+            return 0;
+        }
+
+        $words = preg_split('~\s+~u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($words)) {
+            return 0;
+        }
+
+        return count($words);
+    }
+
+    private function limitString(string $value, int $limit = 160): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+            if (mb_strlen($trimmed) <= $limit) {
+                return $trimmed;
+            }
+            return rtrim(mb_substr($trimmed, 0, $limit - 1)) . '…';
+        }
+
+        if (strlen($trimmed) <= $limit) {
+            return $trimmed;
+        }
+
+        return rtrim(substr($trimmed, 0, $limit - 1)) . '…';
+    }
+
+    private function buildSearchTarget(): string
+    {
+        $searchBase = $this->absoluteUrl($this->links->search());
+        if ($searchBase === '') {
+            return '';
+        }
+
+        $separator = str_contains($searchBase, '?') ? '&' : '?';
+        return $searchBase . $separator . 's={search_term_string}';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private function cleanStructuredDataList(array $items): array
+    {
+        $result = [];
+        foreach ($items as $item) {
+            $clean = $this->cleanStructuredData($item);
+            if ($clean === []) {
+                continue;
+            }
+            $result[] = $clean;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function cleanStructuredData(array $data): array
+    {
+        $clean = $this->cleanStructuredDataValue($data);
+        return is_array($clean) ? $clean : [];
+    }
+
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private function cleanStructuredDataValue(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            if ($this->isAssoc($value)) {
+                $result = [];
+                foreach ($value as $key => $child) {
+                    $cleaned = $this->cleanStructuredDataValue($child);
+                    if ($cleaned === null) {
+                        continue;
+                    }
+                    $result[$key] = $cleaned;
+                }
+                return $result === [] ? null : $result;
+            }
+
+            $result = [];
+            foreach ($value as $child) {
+                $cleaned = $this->cleanStructuredDataValue($child);
+                if ($cleaned === null) {
+                    continue;
+                }
+                $result[] = $cleaned;
+            }
+
+            return $result === [] ? null : $result;
+        }
+
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            return $trimmed === '' ? null : $trimmed;
+        }
+
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return $value;
+        }
+
+        return null;
+    }
+
+    private function isAssoc(array $value): bool
+    {
+        if ($value === []) {
+            return false;
+        }
+
+        return array_keys($value) !== range(0, count($value) - 1);
+    }
+
+    private function absoluteUrl(?string $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        if (str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://') || str_starts_with($trimmed, '//')) {
+            return $trimmed;
+        }
+
+        if (str_starts_with($trimmed, './')) {
+            $trimmed = substr($trimmed, 2) ?: '';
+        }
+
+        $base = $this->settings->siteUrl();
+        if ($base === '') {
+            return $trimmed;
+        }
+
+        return rtrim($base, '/') . '/' . ltrim($trimmed, '/');
     }
 
     private function notFound(): RouteResult

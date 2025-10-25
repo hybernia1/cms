@@ -288,21 +288,17 @@ final class ThemeViewEngine
             $incoming = $data['meta'];
             $merged = array_merge($this->defaultMeta, $incoming);
 
-            $baseExtra = [];
-            if (isset($this->defaultMeta['extra']) && is_array($this->defaultMeta['extra'])) {
-                $baseExtra = $this->defaultMeta['extra'];
-            }
-            $incomingExtra = [];
-            if (isset($incoming['extra']) && is_array($incoming['extra'])) {
-                $incomingExtra = $incoming['extra'];
-            }
-            $merged['extra'] = $baseExtra === [] && $incomingExtra === []
-                ? []
-                : array_merge($baseExtra, $incomingExtra);
+            $baseExtra = is_array($this->defaultMeta['extra'] ?? null) ? $this->defaultMeta['extra'] : [];
+            $incomingExtra = is_array($incoming['extra'] ?? null) ? $incoming['extra'] : [];
+            $merged['extra'] = $this->mergeMetaExtra($baseExtra, $incomingExtra);
 
-            $data['meta'] = $merged;
+            $baseStructured = is_array($this->defaultMeta['structured_data'] ?? null) ? $this->defaultMeta['structured_data'] : [];
+            $incomingStructured = is_array($incoming['structured_data'] ?? null) ? $incoming['structured_data'] : [];
+            $merged['structured_data'] = $this->mergeStructuredData($baseStructured, $incomingStructured);
+
+            $data['meta'] = $this->normalizeMeta($merged);
         } else {
-            $data['meta'] = $this->defaultMeta;
+            $data['meta'] = $this->normalizeMeta($this->defaultMeta);
         }
 
         return $data;
@@ -344,7 +340,140 @@ final class ThemeViewEngine
             'description' => $description !== '' ? $description : null,
             'canonical' => $canonical !== '' ? $canonical : null,
             'extra' => $extra,
+            'structured_data' => [],
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $meta
+     * @return array<string,mixed>
+     */
+    private function normalizeMeta(array $meta): array
+    {
+        $title = isset($meta['title']) ? (string)$meta['title'] : (string)($this->defaultMeta['title'] ?? '');
+        $description = isset($meta['description']) && $meta['description'] !== null
+            ? (string)$meta['description']
+            : '';
+
+        $canonical = isset($meta['canonical']) ? $this->absoluteUrl((string)$meta['canonical']) : '';
+        $meta['canonical'] = $canonical !== '' ? $canonical : null;
+
+        $extra = is_array($meta['extra'] ?? null) ? $meta['extra'] : [];
+        $extra = $this->ensureMetaValue($extra, 'og:title', $title);
+        $extra = $this->ensureMetaValue($extra, 'twitter:title', $title);
+
+        if ($description !== '') {
+            $extra = $this->ensureMetaValue($extra, 'og:description', $description);
+            $extra = $this->ensureMetaValue($extra, 'twitter:description', $description);
+        }
+
+        if ($canonical !== '') {
+            $extra = $this->ensureMetaValue($extra, 'og:url', $canonical);
+            $extra = $this->ensureMetaValue($extra, 'twitter:url', $canonical);
+        }
+
+        foreach (['og:image', 'twitter:image'] as $imageKey) {
+            if (!array_key_exists($imageKey, $extra)) {
+                continue;
+            }
+            $extra[$imageKey] = $this->normalizeMetaUrl($extra[$imageKey]);
+        }
+
+        $meta['extra'] = $extra;
+
+        $structured = is_array($meta['structured_data'] ?? null) ? $meta['structured_data'] : [];
+        $meta['structured_data'] = $this->mergeStructuredData([], $structured);
+
+        return $meta;
+    }
+
+    /**
+     * @param array<string,mixed> $base
+     * @param array<string,mixed> $incoming
+     * @return array<string,mixed>
+     */
+    private function mergeMetaExtra(array $base, array $incoming): array
+    {
+        return $base === [] && $incoming === []
+            ? []
+            : array_merge($base, $incoming);
+    }
+
+    /**
+     * @param array<int|string,mixed> $base
+     * @param array<int|string,mixed> $incoming
+     * @return list<array<string,mixed>>
+     */
+    private function mergeStructuredData(array $base, array $incoming): array
+    {
+        $normalize = static function (array $items): array {
+            $result = [];
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $result[] = $item;
+            }
+            return $result;
+        };
+
+        return array_values(array_merge($normalize($base), $normalize($incoming)));
+    }
+
+    /**
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private function ensureMetaValue(array $extra, string $key, string $value): array
+    {
+        if ($value === '') {
+            return $extra;
+        }
+
+        if (!array_key_exists($key, $extra)) {
+            $extra[$key] = $value;
+            return $extra;
+        }
+
+        $current = $extra[$key];
+        if (is_array($current)) {
+            $content = isset($current['content']) ? (string)$current['content'] : '';
+            if (trim($content) === '') {
+                $extra[$key]['content'] = $value;
+            }
+            return $extra;
+        }
+
+        if (trim((string)$current) === '') {
+            $extra[$key] = $value;
+        }
+
+        return $extra;
+    }
+
+    /**
+     * @param mixed $value
+     * @return mixed
+     */
+    private function normalizeMetaUrl(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $normalized = $value;
+            if (isset($value['content']) && is_string($value['content'])) {
+                $normalized['content'] = $this->absoluteUrl($value['content']);
+            }
+            if (isset($value['url']) && is_string($value['url'])) {
+                $normalized['url'] = $this->absoluteUrl($value['url']);
+            }
+            return $normalized;
+        }
+
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $absolute = $this->absoluteUrl($value);
+        return $absolute !== '' ? $absolute : $value;
     }
 
     private function absoluteUrl(string $value): string
