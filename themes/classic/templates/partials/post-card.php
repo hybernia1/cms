@@ -19,10 +19,31 @@ $excerpt = (string)($post['excerpt'] ?? '');
 $author = trim((string)($post['author'] ?? ''));
 $published = trim((string)($post['published_at'] ?? ''));
 $publishedIso = trim((string)($post['published_at_iso'] ?? ''));
+$thumbnail = is_array($post['thumbnail'] ?? null) ? $post['thumbnail'] : null;
+$thumbnailUrl = (string)($post['thumbnail_url'] ?? ($thumbnail['url'] ?? ''));
+$thumbnailMeta = is_array($post['thumbnail_meta'] ?? null)
+    ? $post['thumbnail_meta']
+    : (is_array($thumbnail['meta'] ?? null) ? $thumbnail['meta'] : []);
+$thumbnailWidth = isset($thumbnailMeta['width']) ? (int)$thumbnailMeta['width'] : 0;
+$thumbnailHeight = isset($thumbnailMeta['height']) ? (int)$thumbnailMeta['height'] : 0;
 
 $headingTag = 'h' . $headingLevel;
 ?>
 <article class="post-card<?= $cardClass !== '' ? ' ' . htmlspecialchars($cardClass, ENT_QUOTES, 'UTF-8') : ''; ?>">
+    <?php if ($thumbnailUrl !== ''): ?>
+        <figure class="post-card__thumbnail">
+            <a href="<?= htmlspecialchars($permalink, ENT_QUOTES, 'UTF-8'); ?>" class="post-card__thumbnail-link">
+                <img
+                    src="<?= htmlspecialchars($thumbnailUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                    alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
+                    loading="lazy"
+                    <?= $thumbnailWidth > 0 ? 'width="' . $thumbnailWidth . '"' : ''; ?>
+                    <?= $thumbnailHeight > 0 ? 'height="' . $thumbnailHeight . '"' : ''; ?>
+                >
+            </a>
+        </figure>
+    <?php endif; ?>
+
     <<?= $headingTag; ?> class="post-card__title">
         <a class="post-card__link" href="<?= htmlspecialchars($permalink, ENT_QUOTES, 'UTF-8'); ?>">
             <?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>

@@ -13,6 +13,13 @@ $publishedIso = trim((string)($post['published_at_iso'] ?? ''));
 $terms = is_array($post['terms'] ?? null) ? $post['terms'] : [];
 $categories = array_values(array_filter($terms, static fn ($term) => ($term['type'] ?? '') === 'category'));
 $tags = array_values(array_filter($terms, static fn ($term) => ($term['type'] ?? '') === 'tag'));
+$thumbnail = is_array($post['thumbnail'] ?? null) ? $post['thumbnail'] : null;
+$thumbnailUrl = (string)($post['thumbnail_url'] ?? ($thumbnail['url'] ?? ''));
+$thumbnailMeta = is_array($post['thumbnail_meta'] ?? null)
+    ? $post['thumbnail_meta']
+    : (is_array($thumbnail['meta'] ?? null) ? $thumbnail['meta'] : []);
+$thumbnailWidth = isset($thumbnailMeta['width']) ? (int)$thumbnailMeta['width'] : 0;
+$thumbnailHeight = isset($thumbnailMeta['height']) ? (int)$thumbnailMeta['height'] : 0;
 $comments = is_array($comments ?? null) ? $comments : [];
 $commentCount = isset($commentCount) ? (int)$commentCount : count($comments);
 $commentsAllowed = isset($commentsAllowed) ? (bool)$commentsAllowed : false;
@@ -73,6 +80,18 @@ $renderComment = static function (array $commentNode) use (&$renderComment, $com
             </ul>
         <?php endif; ?>
     </header>
+
+    <?php if ($thumbnailUrl !== ''): ?>
+        <figure class="entry__thumbnail">
+            <img
+                src="<?= htmlspecialchars($thumbnailUrl, ENT_QUOTES, 'UTF-8'); ?>"
+                alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?>"
+                loading="lazy"
+                <?= $thumbnailWidth > 0 ? 'width="' . $thumbnailWidth . '"' : ''; ?>
+                <?= $thumbnailHeight > 0 ? 'height="' . $thumbnailHeight . '"' : ''; ?>
+            >
+        </figure>
+    <?php endif; ?>
 
     <div class="entry__content post-content">
         <?= $post['content']; ?>
