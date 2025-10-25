@@ -3,9 +3,12 @@
 /** @var callable $renderComment */
 
 $children = is_array($commentNode['children'] ?? null) ? $commentNode['children'] : [];
-$author = trim((string)($commentNode['author'] ?? 'Anonym'));
-$created = trim((string)($commentNode['created_at'] ?? ''));
-$createdIso = trim((string)($commentNode['created_at_iso'] ?? ''));
+$author = (string)($commentNode['author'] ?? 'Anonym');
+if ($author === '') {
+    $author = 'Anonym';
+}
+$created = (string)($commentNode['created_at'] ?? '');
+$createdIso = (string)($commentNode['created_at_iso'] ?? '');
 $content = (string)($commentNode['content'] ?? '');
 $commentId = isset($commentNode['id']) ? (int)$commentNode['id'] : 0;
 $threadRootId = isset($commentNode['thread_root_id']) ? (int)$commentNode['thread_root_id'] : 0;

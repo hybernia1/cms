@@ -7,6 +7,12 @@ use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\LinkGenerator;
 use Cms\Admin\View\ViewEngine;
+use Cms\Front\View\ThemeCommentsData;
+use Cms\Front\View\ThemeContext;
+use Cms\Front\View\ThemeMetaData;
+use Cms\Front\View\ThemeNavigationData;
+use Cms\Front\View\ThemeSiteData;
+use Cms\Front\View\ThemeThemeData;
 use Throwable;
 
 final class ThemeViewEngine
@@ -25,6 +31,7 @@ final class ThemeViewEngine
     private string $dateFormat;
     private string $timeFormat;
     private string $dateTimeFormat;
+    private ThemeContext $context;
     private bool $missingTemplate = false;
     private ?string $missingTemplateError = null;
 
@@ -70,6 +77,83 @@ final class ThemeViewEngine
 
     public function share(array $data): void
     {
+        if (isset($this->context)) {
+            if (array_key_exists('site', $data)) {
+                $value = $data['site'];
+                if ($value instanceof ThemeSiteData) {
+                    $this->context->applySite($value);
+                } elseif (is_array($value)) {
+                    $this->context->applySite($value);
+                }
+                $data['site'] = $this->context->site();
+            }
+
+            if (array_key_exists('meta', $data)) {
+                $value = $data['meta'];
+                if ($value instanceof ThemeMetaData) {
+                    $this->context->applyMeta($value);
+                } elseif (is_array($value)) {
+                    $this->context->applyMeta($value);
+                }
+                $data['meta'] = $this->context->meta();
+            }
+
+            if (array_key_exists('theme', $data)) {
+                $value = $data['theme'];
+                if ($value instanceof ThemeThemeData) {
+                    $this->context->applyTheme($value);
+                } elseif (is_array($value)) {
+                    $this->context->applyTheme($value);
+                }
+                $data['theme'] = $this->context->theme();
+            }
+
+            if (array_key_exists('navigation', $data)) {
+                $value = $data['navigation'];
+                if ($value instanceof ThemeNavigationData) {
+                    $this->context->applyNavigation($value);
+                } elseif (is_array($value)) {
+                    $this->context->applyNavigation($value);
+                }
+                $data['navigation'] = $this->context->navigation();
+            }
+
+            if (array_key_exists('comments', $data)) {
+                $value = $data['comments'];
+                if ($value instanceof ThemeCommentsData) {
+                    $this->context->applyComments($value);
+                } elseif (is_array($value)) {
+                    $this->context->applyComments($value);
+                }
+                $data['comments'] = $this->context->comments();
+            }
+
+            $count = null;
+            $allowed = null;
+            if (array_key_exists('commentCount', $data)) {
+                $count = isset($data['commentCount']) ? (int)$data['commentCount'] : null;
+            }
+            if (array_key_exists('commentsAllowed', $data)) {
+                $allowed = !empty($data['commentsAllowed']);
+            }
+            if ($count !== null || $allowed !== null) {
+                $this->context->applyComments(null, $count, $allowed);
+                $data['comments'] = $this->context->comments();
+            }
+
+            if (array_key_exists('links', $data) && $data['links'] instanceof LinkGenerator) {
+                $this->context->applyLinks($data['links']);
+                $data['links'] = $this->context->links();
+            }
+
+            if (array_key_exists('format', $data) && is_array($data['format'])) {
+                $this->context->applyFormatters($data['format']);
+                $data['format'] = $this->context->formatters();
+            }
+
+            ThemeContext::setInstance($this->context);
+        }
+
         $this->engine->share($data);
     }
 
@@ -145,32 +229,49 @@ final class ThemeViewEngine
         $this->defaultMeta = $this->buildDefaultMeta($siteTitle, $siteTagline, $siteUrl, $siteLocale);
         $this->createFormatters();
 
-        $this->share([
-            'site' => [
-                'title' => $siteTitle,
-                'url' => $siteUrl,
-                'description' => $siteTagline,
-                'email' => $siteEmail,
-                'locale' => $siteLocale,
-                'timezone' => $siteTimezone,
-                'date_format' => $this->dateFormat,
-                'time_format' => $this->timeFormat,
-                'datetime_format' => $this->dateTimeFormat,
-                'favicon' => $siteFavicon,
-            ],
-            'links' => $this->links,
-            'navigation' => [],
-            'meta' => $this->defaultMeta,
-            'format' => $this->formatters,
-        ]);
+        $site = [
+            'title' => $siteTitle,
+            'url' => $siteUrl,
+            'description' => $siteTagline,
+            'email' => $siteEmail,
+            'locale' => $siteLocale,
+            'timezone' => $siteTimezone,
+            'date_format' => $this->dateFormat,
+            'time_format' => $this->timeFormat,
+            'datetime_format' => $this->dateTimeFormat,
+            'favicon' => $siteFavicon,
+        ];
 
-        $this->shareThemeContext();
+        $theme = $this->buildThemeContext();
+
+        $this->context = new ThemeContext(
+            $site,
+            $this->defaultMeta,
+            $theme,
+            [],
+            [],
+            $this->links,
+            $this->formatters
+        );
+
+        ThemeContext::setInstance($this->context);
+
+        $this->engine->share($this->context->toViewData());
     }
 
     private function shareThemeContext(): void
     {
-        $this->share([
-            'theme' => $this->buildThemeContext(),
+        $theme = $this->buildThemeContext();
+
+        if (isset($this->context)) {
+            $this->context->applyTheme($theme);
+            ThemeContext::setInstance($this->context);
+            $this->engine->share(['theme' => $this->context->theme()]);
+            return;
+        }
+
+        $this->engine->share([
+            'theme' => ThemeThemeData::fromArray($theme),
         ]);
     }
 
@@ -280,28 +381,88 @@ final class ThemeViewEngine
      */
     private function prepareData(array $data): array
     {
-        if (isset($data['meta']) && is_array($data['meta'])) {
-            $incoming = $data['meta'];
-            $merged = array_merge($this->defaultMeta, $incoming);
+        $context = isset($this->context) ? $this->context->duplicate() : new ThemeContext([], [], [], [], [], $this->links);
 
-            $baseExtra = [];
-            if (isset($this->defaultMeta['extra']) && is_array($this->defaultMeta['extra'])) {
-                $baseExtra = $this->defaultMeta['extra'];
+        if (array_key_exists('site', $data)) {
+            $value = $data['site'];
+            if ($value instanceof ThemeSiteData) {
+                $context->applySite($value);
+            } elseif (is_array($value)) {
+                $context->applySite($value);
             }
-            $incomingExtra = [];
-            if (isset($incoming['extra']) && is_array($incoming['extra'])) {
-                $incomingExtra = $incoming['extra'];
-            }
-            $merged['extra'] = $baseExtra === [] && $incomingExtra === []
-                ? []
-                : array_merge($baseExtra, $incomingExtra);
-
-            $data['meta'] = $merged;
-        } else {
-            $data['meta'] = $this->defaultMeta;
+            unset($data['site']);
         }
 
-        return $data;
+        if (array_key_exists('meta', $data)) {
+            $value = $data['meta'];
+            if ($value instanceof ThemeMetaData) {
+                $context->applyMeta($value);
+            } elseif (is_array($value)) {
+                $context->applyMeta($value);
+            } else {
+                $context->applyMeta(null);
+            }
+            unset($data['meta']);
+        } else {
+            $context->applyMeta(null);
+        }
+
+        if (array_key_exists('theme', $data)) {
+            $value = $data['theme'];
+            if ($value instanceof ThemeThemeData) {
+                $context->applyTheme($value);
+            } elseif (is_array($value)) {
+                $context->applyTheme($value);
+            }
+            unset($data['theme']);
+        }
+
+        if (array_key_exists('navigation', $data)) {
+            $value = $data['navigation'];
+            if ($value instanceof ThemeNavigationData) {
+                $context->applyNavigation($value);
+            } elseif (is_array($value)) {
+                $context->applyNavigation($value);
+            }
+            unset($data['navigation']);
+        }
+
+        $count = null;
+        $allowed = null;
+        if (array_key_exists('commentCount', $data)) {
+            $count = isset($data['commentCount']) ? (int)$data['commentCount'] : null;
+        }
+        if (array_key_exists('commentsAllowed', $data)) {
+            $allowed = !empty($data['commentsAllowed']);
+        }
+
+        if (array_key_exists('comments', $data)) {
+            $value = $data['comments'];
+            if ($value instanceof ThemeCommentsData) {
+                $context->applyComments($value, $count, $allowed);
+            } elseif (is_array($value)) {
+                $context->applyComments($value, $count, $allowed);
+            }
+            unset($data['comments']);
+        } elseif ($count !== null || $allowed !== null) {
+            $context->applyComments(null, $count, $allowed);
+        }
+
+        if (array_key_exists('links', $data) && $data['links'] instanceof LinkGenerator) {
+            $context->applyLinks($data['links']);
+            unset($data['links']);
+        }
+
+        if (array_key_exists('format', $data) && is_array($data['format'])) {
+            $context->applyFormatters($data['format']);
+            unset($data['format']);
+        }
+
+        ThemeContext::setInstance($context);
+
+        $viewData = $context->toViewData();
+
+        return array_merge($data, $viewData);
     }
 
     /**

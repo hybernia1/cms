@@ -1,24 +1,23 @@
 <?php
-/** @var array<string,mixed> $site */
-/** @var array<string,mixed> $meta */
-/** @var array<string,mixed> $navigation */
-/** @var array<string,mixed> $theme */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
 
-$asset = is_callable($theme['asset'] ?? null) ? $theme['asset'] : static fn (string $path): string => $path;
-$locale = (string)($site['locale'] ?? 'cs');
-$locale = $locale !== '' ? $locale : 'cs';
-$siteTitle = (string)($site['title'] ?? 'Web');
-$siteTagline = (string)($site['description'] ?? '');
-$siteFavicon = (string)($site['favicon'] ?? '');
-$metaTitle = (string)($meta['title'] ?? $siteTitle);
-$metaDescription = isset($meta['description']) && $meta['description'] !== '' ? (string)$meta['description'] : null;
-$canonical = isset($meta['canonical']) && $meta['canonical'] !== '' ? (string)$meta['canonical'] : null;
-$metaExtra = is_array($meta['extra'] ?? null) ? $meta['extra'] : [];
-$themeName = (string)($theme['name'] ?? 'Classic');
-$themeVersion = trim((string)($theme['version'] ?? ''));
-$palette = is_array($theme['palette'] ?? null) ? $theme['palette'] : [];
-$themeColor = isset($palette['accent']) ? (string)$palette['accent'] : '';
+$asset = theme_theme('asset');
+if (!is_callable($asset)) {
+    $asset = static fn (string $path): string => $path;
+}
+
+$locale = theme_site('locale') ?: 'cs';
+$siteTitle = theme_site('title');
+$siteTagline = theme_site('description');
+$siteFavicon = theme_site('favicon');
+$metaTitle = theme_meta('title') ?? $siteTitle;
+$metaDescription = theme_meta('description');
+$canonical = theme_meta('canonical');
+$metaExtra = theme_meta('extra', []);
+$themeName = theme_theme('name');
+$themeVersion = trim((string)theme_theme('version'));
+$palette = theme_palette();
+$themeColor = theme_palette('accent', '');
 $paletteMap = [
     'background' => '--classic-bg',
     'accent' => '--classic-accent',
@@ -39,10 +38,10 @@ foreach ($paletteMap as $paletteKey => $cssVar) {
     }
     $paletteCss[] = sprintf('%s:%s', $cssVar, $value);
 }
-$themeSlug = preg_replace('~[^a-z0-9\-]~i', '', (string)($theme['slug'] ?? 'classic'));
+$themeSlug = preg_replace('~[^a-z0-9\-]~i', '', (string)theme_theme('slug'));
 $bodyClass = 'theme-' . ($themeSlug !== '' ? strtolower($themeSlug) : 'classic');
 $bodyClasses = [$bodyClass];
-$metaBody = isset($meta['body_class']) ? (string)$meta['body_class'] : '';
+$metaBody = (string)theme_meta('body_class', '');
 if ($metaBody !== '') {
     foreach (preg_split('~\s+~', $metaBody) as $class) {
         $class = trim($class);
@@ -53,8 +52,8 @@ if ($metaBody !== '') {
     }
 }
 $bodyClass = trim(implode(' ', array_unique(array_filter($bodyClasses))));
-$primaryNav = $navigation['primary']['items'] ?? [];
-$footerNav = $navigation['footer']['items'] ?? [];
+$primaryNav = theme_navigation('primary');
+$footerNav = theme_navigation('footer');
 
 $renderMenu = static function (array $items, string $class = 'menu', int $depth = 0) use (&$renderMenu): string {
     if ($items === []) {

@@ -1,10 +1,7 @@
 <?php
 /** @var array<string,mixed> $post */
 /** @var \Cms\Admin\Utils\LinkGenerator $links */
-/** @var array<int,array<string,mixed>> $comments */
 /** @var array<string,mixed> $commentForm */
-/** @var bool $commentsAllowed */
-/** @var int $commentCount */
 
 $title = (string)($post['title'] ?? '');
 $author = trim((string)($post['author'] ?? ''));
@@ -13,9 +10,9 @@ $publishedIso = trim((string)($post['published_at_iso'] ?? ''));
 $terms = is_array($post['terms'] ?? null) ? $post['terms'] : [];
 $categories = array_values(array_filter($terms, static fn ($term) => ($term['type'] ?? '') === 'category'));
 $tags = array_values(array_filter($terms, static fn ($term) => ($term['type'] ?? '') === 'tag'));
-$comments = is_array($comments ?? null) ? $comments : [];
-$commentCount = isset($commentCount) ? (int)$commentCount : count($comments);
-$commentsAllowed = isset($commentsAllowed) ? (bool)$commentsAllowed : false;
+$comments = theme_comments('items');
+$commentCount = (int)theme_comments('count');
+$commentsAllowed = (bool)theme_comments('allowed');
 $commentForm = is_array($commentForm ?? null) ? $commentForm : [];
 $commentErrors = is_array($commentForm['errors'] ?? null) ? $commentForm['errors'] : [];
 $commentOld = is_array($commentForm['old'] ?? null) ? $commentForm['old'] : [];
