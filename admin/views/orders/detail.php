@@ -119,7 +119,8 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
           <label class="form-label" for="order-status">Stav objednávky</label>
           <select class="form-select" id="order-status" name="status">
             <?php foreach ($statuses as $status): ?>
-              <option value="<?= $h($status) ?>" <?= ($order['status'] ?? 'pending') === $status ? 'selected' : '' ?>><?= $h(ucfirst($status)) ?></option>
+              <?php $label = ucwords(str_replace('_', ' ', $status)); ?>
+              <option value="<?= $h($status) ?>" <?= ($order['status'] ?? 'new') === $status ? 'selected' : '' ?>><?= $h($label) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -138,6 +139,10 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
         <div class="col-md-4">
           <label class="form-label" for="order-shipping-tracking">Číslo zásilky</label>
           <input class="form-control" id="order-shipping-tracking" name="shipping_tracking" type="text">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="order-shipping-date">Datum odeslání</label>
+          <input class="form-control" id="order-shipping-date" name="shipping_date" type="datetime-local">
         </div>
         <div class="col-12">
           <label class="form-label" for="order-notes">Poznámky</label>

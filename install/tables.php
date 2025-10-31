@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS orders (
   order_number VARCHAR(190) NOT NULL,
   customer_id BIGINT UNSIGNED NULL,
   user_id BIGINT UNSIGNED NULL,
-  status ENUM('draft','pending','processing','completed','cancelled','refunded') NOT NULL DEFAULT 'pending',
+  status ENUM('new','awaiting_payment','packed','shipped','delivered','cancelled') NOT NULL DEFAULT 'new',
   currency CHAR(3) NOT NULL DEFAULT 'USD',
   subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
   discount_total DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -260,6 +260,37 @@ CREATE TABLE IF NOT EXISTS order_items (
   INDEX ix_order_items_order (order_id),
   INDEX ix_order_items_product (product_id),
   INDEX ix_order_items_variant (variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** ORDER STATUS HISTORY */
+<<<SQL
+CREATE TABLE IF NOT EXISTS order_status_history (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  from_status VARCHAR(60) NULL,
+  to_status VARCHAR(60) NOT NULL,
+  note TEXT NULL,
+  context JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX ix_order_status_history_order (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL
+,
+
+/** ORDER SHIPMENTS */
+<<<SQL
+CREATE TABLE IF NOT EXISTS order_shipments (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  carrier VARCHAR(120) NULL,
+  tracking_number VARCHAR(190) NULL,
+  shipped_at DATETIME NOT NULL,
+  note VARCHAR(190) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX ix_order_shipments_order (order_id),
+  INDEX ix_order_shipments_tracking (tracking_number)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL
 ,
