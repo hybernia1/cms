@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Cms\Admin\Utils;
 
-use Cms\Admin\Domain\PostTypes\PostTypeRegistry;
 use Core\Plugins\PluginRegistry;
 use Core\Widgets\WidgetRegistry;
 
@@ -19,16 +18,6 @@ final class AdminNavigation
      */
     public static function build(string $activeKey): array
     {
-        $postTypeChildren = [];
-        foreach (PostTypeRegistry::all() as $type => $config) {
-            $postTypeChildren[] = [
-                'key'   => 'posts:' . $type,
-                'label' => $config['nav'],
-                'href'  => 'admin.php?r=posts&type=' . urlencode((string)$type),
-                'icon'  => $config['icon'] ?? 'bi-file-earmark',
-            ];
-        }
-
         $pluginChildren = [];
         foreach (PluginRegistry::all() as $plugin) {
             $pluginChildren[] = [
@@ -58,17 +47,18 @@ final class AdminNavigation
                 'children'  => [],
             ],
             [
-                'key'       => 'content',
-                'label'     => 'Obsah',
+                'key'       => 'commerce',
+                'label'     => 'Obchod',
                 'href'      => null,
-                'icon'      => 'bi-folder2',
+                'icon'      => 'bi-bag',
                 'section'   => true,
-                'children'  => array_merge($postTypeChildren, [
-                    ['key' => 'media',         'label' => 'Média',     'href' => 'admin.php?r=media',             'icon' => 'bi-images'],
-                    ['key' => 'terms:category','label' => 'Kategorie', 'href' => 'admin.php?r=terms&type=category','icon' => 'bi-collection'],
-                    ['key' => 'terms:tag',     'label' => 'Štítky',    'href' => 'admin.php?r=terms&type=tag',     'icon' => 'bi-hash'],
-                    ['key' => 'comments',      'label' => 'Komentáře', 'href' => 'admin.php?r=comments',          'icon' => 'bi-chat-dots'],
-                ]),
+                'children'  => [
+                    ['key' => 'products',   'label' => 'Produkty',      'href' => 'admin.php?r=products',   'icon' => 'bi-box'],
+                    ['key' => 'categories', 'label' => 'Kategorie',     'href' => 'admin.php?r=categories', 'icon' => 'bi-collection'],
+                    ['key' => 'stock',      'label' => 'Sklad',         'href' => 'admin.php?r=stock',      'icon' => 'bi-archive'],
+                    ['key' => 'orders',     'label' => 'Objednávky',    'href' => 'admin.php?r=orders',     'icon' => 'bi-receipt'],
+                    ['key' => 'media',      'label' => 'Média',         'href' => 'admin.php?r=media',      'icon' => 'bi-images'],
+                ],
             ],
             [
                 'key'       => 'users',
