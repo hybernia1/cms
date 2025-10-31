@@ -17,12 +17,15 @@ use Core\Validation\Validator;
 use Cms\Front\Data\CommentProvider;
 use Cms\Front\Data\MenuProvider;
 use Cms\Front\Data\PostProvider;
+use Cms\Front\Data\ProductCatalog;
 use Cms\Front\Data\TermProvider;
 use Cms\Front\Support\SeoMeta;
 use Cms\Front\View\ThemeViewEngine;
 use Core\Files\PathResolver;
 use Core\Files\Uploader;
 use Core\Database\Init as DB;
+use Cms\Services\OrderService;
+use Cms\Admin\Domain\Services\UserSlugService;
 use Throwable;
 
 final class Router
@@ -40,6 +43,8 @@ final class Router
     private MailService $mail;
     private TemplateManager $templates;
     private AuthService $auth;
+    private ProductCatalog $catalog;
+    private OrderService $orders;
     private ?PathResolver $uploadPaths = null;
 
     public function __construct(
@@ -70,6 +75,8 @@ final class Router
         $this->mail = $mail ?? new MailService($this->settings);
         $this->templates = $templates ?? new TemplateManager();
         $this->auth = $auth ?? new AuthService();
+        $this->catalog = new ProductCatalog(links: $this->links);
+        $this->orders = new OrderService();
 
         $this->shareCommonViewData();
     }
@@ -80,7 +87,30 @@ final class Router
             'navigation' => $this->menus->menusByLocation(),
             'notifications' => $this->takeSharedNotifications(),
             'currentUser' => $this->currentUserContext(),
+            'cart' => $this->cartState(),
         ]);
+    }
+
+    /**
+     * @return array{items:list<array<string,mixed>>,subtotal:float,total:float,currency:string,count:int,updated_at:?string}
+     */
+    private function cartState(): array
+    {
+        if (function_exists('cms_cart')) {
+            $cart = cms_cart();
+            if (is_array($cart)) {
+                return $cart;
+            }
+        }
+
+        return [
+            'items' => [],
+            'subtotal' => 0.0,
+            'total' => 0.0,
+            'currency' => 'USD',
+            'count' => 0,
+            'updated_at' => null,
+        ];
     }
 
     /**
@@ -313,6 +343,398 @@ final class Router
             'avatar_initial' => $avatarInitial,
             'bio' => $bio,
         ];
+    }
+
+    /**
+     * @return array{shipping:array<string,array{label:string,amount:float,description?:string}>,payments:array<string,array{label:string,description?:string}>}
+     */
+    private function checkoutOptions(): array
+    {
+        return [
+            'shipping' => [
+                'standard' => [
+                    'label' => 'Standardní doručení (3-5 dní)',
+                    'amount' => 5.0,
+                    'description' => 'Doručení kurýrem v rámci ČR.',
+                ],
+                'express' => [
+                    'label' => 'Expresní doručení (1-2 dny)',
+                    'amount' => 15.0,
+                    'description' => 'Přednostní doručení do 48 hodin.',
+                ],
+                'pickup' => [
+                    'label' => 'Osobní odběr',
+                    'amount' => 0.0,
+                    'description' => 'Vyberte si objednávku na naší pobočce.',
+                ],
+            ],
+            'payments' => [
+                'card' => [
+                    'label' => 'Platba kartou online',
+                ],
+                'cod' => [
+                    'label' => 'Dobírka',
+                ],
+                'bank' => [
+                    'label' => 'Bankovní převod',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param array{shipping:array<string,array{label:string,amount:float}>,payments:array<string,array{label:string}>} $options
+     * @return array<string,mixed>
+     */
+    private function defaultCheckoutForm(array $options): array
+    {
+        $shippingDefault = array_key_first($options['shipping']) ?? 'standard';
+        $paymentDefault = array_key_first($options['payments']) ?? 'card';
+
+        return [
+            'customer' => [
+                'first_name' => '',
+                'last_name' => '',
+                'email' => '',
+                'phone' => '',
+            ],
+            'billing' => [
+                'first_name' => '',
+                'last_name' => '',
+                'company' => '',
+                'line1' => '',
+                'line2' => '',
+                'city' => '',
+                'state' => '',
+                'postal_code' => '',
+                'country' => 'CZ',
+            ],
+            'shipping' => [
+                'first_name' => '',
+                'last_name' => '',
+                'company' => '',
+                'line1' => '',
+                'line2' => '',
+                'city' => '',
+                'state' => '',
+                'postal_code' => '',
+                'country' => 'CZ',
+            ],
+            'shipping_same' => true,
+            'payment_method' => $paymentDefault,
+            'shipping_method' => $shippingDefault,
+            'marketing_opt_in' => false,
+            'create_account' => false,
+            'notes' => '',
+            'password' => '',
+            'password_confirmation' => '',
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $form
+     * @return array<string,mixed>
+     */
+    private function prefillCheckoutForm(array $form): array
+    {
+        $user = $this->auth->user();
+        if (!is_array($user)) {
+            return $form;
+        }
+
+        $email = isset($user['email']) ? trim((string)$user['email']) : '';
+        if ($email !== '') {
+            $form['customer']['email'] = $email;
+        }
+
+        $name = isset($user['name']) ? trim((string)$user['name']) : '';
+        if ($name !== '') {
+            $parts = preg_split('~\s+~u', $name, 2) ?: [];
+            if ($form['customer']['first_name'] === '' && isset($parts[0])) {
+                $form['customer']['first_name'] = $parts[0];
+            }
+            if ($form['customer']['last_name'] === '' && isset($parts[1])) {
+                $form['customer']['last_name'] = $parts[1];
+            }
+        }
+
+        return $form;
+    }
+
+    /**
+     * @param array<string,mixed> $form
+     * @return array<string,mixed>
+     */
+    private function captureCheckoutInput(array $form): array
+    {
+        $form['customer']['first_name'] = $this->sanitizeCheckoutString($_POST['customer_first_name'] ?? $form['customer']['first_name']);
+        $form['customer']['last_name'] = $this->sanitizeCheckoutString($_POST['customer_last_name'] ?? $form['customer']['last_name']);
+        $form['customer']['email'] = strtolower($this->sanitizeCheckoutString($_POST['customer_email'] ?? $form['customer']['email']));
+        $form['customer']['phone'] = $this->sanitizeCheckoutString($_POST['customer_phone'] ?? $form['customer']['phone'], 50);
+
+        $form['billing']['first_name'] = $this->sanitizeCheckoutString($_POST['billing_first_name'] ?? $form['billing']['first_name']);
+        $form['billing']['last_name'] = $this->sanitizeCheckoutString($_POST['billing_last_name'] ?? $form['billing']['last_name']);
+        $form['billing']['company'] = $this->sanitizeCheckoutString($_POST['billing_company'] ?? $form['billing']['company']);
+        $form['billing']['line1'] = $this->sanitizeCheckoutString($_POST['billing_line1'] ?? $form['billing']['line1']);
+        $form['billing']['line2'] = $this->sanitizeCheckoutString($_POST['billing_line2'] ?? $form['billing']['line2']);
+        $form['billing']['city'] = $this->sanitizeCheckoutString($_POST['billing_city'] ?? $form['billing']['city']);
+        $form['billing']['state'] = $this->sanitizeCheckoutString($_POST['billing_state'] ?? $form['billing']['state']);
+        $form['billing']['postal_code'] = $this->sanitizeCheckoutString($_POST['billing_postal_code'] ?? $form['billing']['postal_code']);
+        $form['billing']['country'] = strtoupper($this->sanitizeCheckoutString($_POST['billing_country'] ?? $form['billing']['country'], 2));
+
+        $form['shipping']['first_name'] = $this->sanitizeCheckoutString($_POST['shipping_first_name'] ?? $form['shipping']['first_name']);
+        $form['shipping']['last_name'] = $this->sanitizeCheckoutString($_POST['shipping_last_name'] ?? $form['shipping']['last_name']);
+        $form['shipping']['company'] = $this->sanitizeCheckoutString($_POST['shipping_company'] ?? $form['shipping']['company']);
+        $form['shipping']['line1'] = $this->sanitizeCheckoutString($_POST['shipping_line1'] ?? $form['shipping']['line1']);
+        $form['shipping']['line2'] = $this->sanitizeCheckoutString($_POST['shipping_line2'] ?? $form['shipping']['line2']);
+        $form['shipping']['city'] = $this->sanitizeCheckoutString($_POST['shipping_city'] ?? $form['shipping']['city']);
+        $form['shipping']['state'] = $this->sanitizeCheckoutString($_POST['shipping_state'] ?? $form['shipping']['state']);
+        $form['shipping']['postal_code'] = $this->sanitizeCheckoutString($_POST['shipping_postal_code'] ?? $form['shipping']['postal_code']);
+        $form['shipping']['country'] = strtoupper($this->sanitizeCheckoutString($_POST['shipping_country'] ?? $form['shipping']['country'], 2));
+
+        $form['shipping_same'] = !empty($_POST['shipping_same']);
+        $form['create_account'] = !empty($_POST['create_account']);
+        $form['marketing_opt_in'] = !empty($_POST['marketing_opt_in']);
+        $form['payment_method'] = $this->sanitizeCheckoutString($_POST['payment_method'] ?? $form['payment_method'], 50);
+        $form['shipping_method'] = $this->sanitizeCheckoutString($_POST['shipping_method'] ?? $form['shipping_method'], 50);
+        $form['notes'] = $this->sanitizeCheckoutText($_POST['order_notes'] ?? ($form['notes'] ?? ''), 1000);
+        $form['password'] = (string)($_POST['password'] ?? '');
+        $form['password_confirmation'] = (string)($_POST['password_confirmation'] ?? '');
+
+        return $form;
+    }
+
+    private function sanitizeCheckoutString($value, int $length = 190): string
+    {
+        $string = trim((string)$value);
+        $string = preg_replace('~[\x00-\x1F]+~u', '', $string) ?? $string;
+        if ($length > 0) {
+            if (function_exists('mb_substr')) {
+                $string = mb_substr($string, 0, $length, 'UTF-8');
+            } else {
+                $string = substr($string, 0, $length) ?: '';
+            }
+        }
+
+        return $string;
+    }
+
+    private function sanitizeCheckoutText($value, int $length = 1000): string
+    {
+        $string = trim((string)$value);
+        $string = preg_replace('~[\x00-\x08\x0B\x0C\x0E-\x1F]+~u', '', $string) ?? $string;
+        if ($length > 0) {
+            if (function_exists('mb_substr')) {
+                $string = mb_substr($string, 0, $length, 'UTF-8');
+            } else {
+                $string = substr($string, 0, $length) ?: '';
+            }
+        }
+
+        return $string;
+    }
+
+    /**
+     * @param array<string,mixed> $form
+     * @param array<string,mixed> $options
+     * @return array{0:array<string,list<string>>,1:array<string,mixed>,2:array<string,mixed>}
+     */
+    private function validateCheckoutForm(array $form, array $options): array
+    {
+        $errors = [];
+
+        if ($form['customer']['first_name'] === '') {
+            $errors['customer_first_name'][] = 'Zadejte křestní jméno.';
+        }
+        if ($form['customer']['last_name'] === '') {
+            $errors['customer_last_name'][] = 'Zadejte příjmení.';
+        }
+        if ($form['customer']['email'] === '' || !filter_var($form['customer']['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['customer_email'][] = 'Zadejte platnou e-mailovou adresu.';
+        }
+
+        foreach (['first_name', 'last_name', 'line1', 'city', 'postal_code'] as $field) {
+            if ($form['billing'][$field] === '') {
+                $errors['billing_' . $field][] = 'Vyplňte prosím toto pole.';
+            }
+        }
+        if ($form['billing']['country'] === '') {
+            $errors['billing_country'][] = 'Vyberte zemi.';
+        }
+
+        $shipping = $form['shipping'];
+        if ($form['shipping_same']) {
+            $shipping = $form['billing'];
+        } else {
+            foreach (['first_name', 'last_name', 'line1', 'city', 'postal_code', 'country'] as $field) {
+                if ($shipping[$field] === '') {
+                    $errors['shipping_' . $field][] = 'Vyplňte prosím toto pole.';
+                }
+            }
+        }
+
+        $shippingCode = $form['shipping_method'];
+        if (!isset($options['shipping'][$shippingCode])) {
+            $shippingCode = array_key_first($options['shipping']) ?? $shippingCode;
+        }
+
+        $paymentCode = $form['payment_method'];
+        if (!isset($options['payments'][$paymentCode])) {
+            $paymentCode = array_key_first($options['payments']) ?? $paymentCode;
+        }
+
+        if ($form['create_account']) {
+            if ($form['password'] === '' || strlen($form['password']) < 8) {
+                $errors['password'][] = 'Heslo musí mít alespoň 8 znaků.';
+            }
+            if ($form['password'] !== $form['password_confirmation']) {
+                $errors['password_confirmation'][] = 'Hesla se neshodují.';
+            }
+        }
+
+        $prepared = [
+            'customer' => [
+                'first_name' => $form['customer']['first_name'],
+                'last_name' => $form['customer']['last_name'],
+                'email' => strtolower($form['customer']['email']),
+                'phone' => $form['customer']['phone'],
+                'marketing_opt_in' => (bool)$form['marketing_opt_in'],
+            ],
+            'billing' => [
+                'first_name' => $form['billing']['first_name'],
+                'last_name' => $form['billing']['last_name'],
+                'company' => $form['billing']['company'],
+                'line1' => $form['billing']['line1'],
+                'line2' => $form['billing']['line2'],
+                'city' => $form['billing']['city'],
+                'state' => $form['billing']['state'],
+                'postal_code' => $form['billing']['postal_code'],
+                'country' => strtoupper($form['billing']['country']),
+                'phone' => $form['customer']['phone'],
+                'email' => strtolower($form['customer']['email']),
+            ],
+            'shipping' => [
+                'first_name' => $shipping['first_name'],
+                'last_name' => $shipping['last_name'],
+                'company' => $shipping['company'],
+                'line1' => $shipping['line1'],
+                'line2' => $shipping['line2'],
+                'city' => $shipping['city'],
+                'state' => $shipping['state'],
+                'postal_code' => $shipping['postal_code'],
+                'country' => strtoupper($shipping['country']),
+                'phone' => $form['customer']['phone'],
+                'email' => strtolower($form['customer']['email']),
+            ],
+            'shipping_method' => $shippingCode,
+            'shipping_method_label' => (string)($options['shipping'][$shippingCode]['label'] ?? $shippingCode),
+            'shipping_total' => (float)($options['shipping'][$shippingCode]['amount'] ?? 0.0),
+            'payment_method' => $paymentCode,
+            'payment_method_label' => (string)($options['payments'][$paymentCode]['label'] ?? $paymentCode),
+            'notes' => $form['notes'],
+            'create_account' => (bool)$form['create_account'],
+            'password' => (string)($form['password'] ?? ''),
+            'password_confirmation' => (string)($form['password_confirmation'] ?? ''),
+        ];
+
+        $form['shipping'] = $shipping;
+        $form['shipping_method'] = $shippingCode;
+        $form['payment_method'] = $paymentCode;
+        $form['password'] = '';
+        $form['password_confirmation'] = '';
+
+        return [$errors, $prepared, $form];
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @param array<string,list<string>> $errors
+     */
+    private function resolveCheckoutUserId(array $payload, array &$errors): ?int
+    {
+        $current = $this->auth->user();
+        if (is_array($current)) {
+            $userId = isset($current['id']) ? (int)$current['id'] : 0;
+            return $userId > 0 ? $userId : null;
+        }
+
+        if (empty($payload['create_account'])) {
+            return null;
+        }
+
+        $existing = $this->users->findByEmail($payload['customer']['email']);
+        if ($existing) {
+            $errors['customer_email'][] = 'Na tento e-mail již existuje účet. Přihlaste se, prosím.';
+            return null;
+        }
+
+        $password = (string)($payload['password'] ?? '');
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        if ($hash === false) {
+            $errors['password'][] = 'Nepodařilo se vytvořit účet. Zkuste jiné heslo.';
+            return null;
+        }
+
+        $name = trim($payload['customer']['first_name'] . ' ' . $payload['customer']['last_name']);
+        if ($name === '') {
+            $name = $payload['customer']['email'];
+        }
+
+        $slugService = new UserSlugService($this->users);
+        $slug = $slugService->generate($name);
+        $userId = $this->users->create([
+            'name' => $name,
+            'email' => $payload['customer']['email'],
+            'slug' => $slug,
+            'password_hash' => $hash,
+            'role' => 'user',
+            'active' => 1,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return $userId > 0 ? $userId : null;
+    }
+
+    /**
+     * @param array<string,mixed> $product
+     * @return list<array<string,mixed>>
+     */
+    private function buildProductStructuredData(array $product, string $canonical): array
+    {
+        $price = isset($product['price']) ? (float)$product['price'] : 0.0;
+        $currency = isset($product['currency']) ? (string)$product['currency'] : 'USD';
+        $description = strip_tags((string)($product['short_description'] ?? ($product['description'] ?? '')));
+
+        $data = [
+            '@context' => 'https://schema.org',
+            '@type' => 'Product',
+            'name' => (string)($product['name'] ?? ''),
+            'description' => $description,
+            'offers' => [
+                '@type' => 'Offer',
+                'priceCurrency' => $currency,
+                'price' => number_format($price, 2, '.', ''),
+                'availability' => 'https://schema.org/InStock',
+                'url' => $canonical,
+            ],
+        ];
+
+        $variants = is_array($product['variants'] ?? null) ? $product['variants'] : [];
+        if ($variants !== []) {
+            $firstVariant = $variants[0];
+            if (isset($firstVariant['sku']) && $firstVariant['sku'] !== '') {
+                $data['sku'] = (string)$firstVariant['sku'];
+            }
+            if (isset($firstVariant['price'])) {
+                $variantPrice = (float)$firstVariant['price'];
+                $data['offers']['price'] = number_format($variantPrice, 2, '.', '');
+                if (!empty($firstVariant['currency'])) {
+                    $data['offers']['priceCurrency'] = (string)$firstVariant['currency'];
+                }
+            }
+        }
+
+        return [$data];
     }
 
     private function normalizeWebsiteUrl(string $value): ?string
@@ -593,6 +1015,9 @@ final class Router
             'lost' => $this->handleLost(),
             'reset' => $this->handleReset((string)($params['token'] ?? ''), (int)($params['id'] ?? 0)),
             'user' => $this->handleUser((string)($params['slug'] ?? ''), (int)($params['id'] ?? 0)),
+            'catalog' => $this->handleCatalog(),
+            'catalog-product' => $this->handleCatalogProduct((string)($params['slug'] ?? '')),
+            'checkout' => $this->handleCheckout(),
             default => $this->notFound(),
         };
     }
@@ -606,6 +1031,9 @@ final class Router
         if ($route !== null && $route !== '') {
             $params = $_GET;
             unset($params['r']);
+            if ($route === 'catalog' || $route === 'catalog-product' || $route === 'checkout') {
+                return ['name' => $route, 'params' => $params];
+            }
             $mapped = $this->mapPostRouteFromSlug($route, $params);
             if ($mapped !== null) {
                 return $mapped;
@@ -649,6 +1077,16 @@ final class Router
             $first = $segments[0];
             $second = $segments[1] ?? '';
 
+            if ($first === 'products') {
+                if ($second === '') {
+                    return ['name' => 'catalog', 'params' => []];
+                }
+
+                return ['name' => 'catalog-product', 'params' => ['slug' => $second]];
+            }
+            if ($first === 'checkout') {
+                return ['name' => 'checkout', 'params' => []];
+            }
             if ($bases['post_base'] !== '' && $first === trim($bases['post_base'], '/')) {
                 return ['name' => 'post', 'params' => ['slug' => $second, 'type' => 'post']];
             }
@@ -1200,6 +1638,191 @@ final class Router
             'posts' => $posts,
             'meta' => $meta->toArray(),
         ]);
+    }
+
+    private function handleCatalog(): RouteResult
+    {
+        $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $listing = $this->catalog->paginate($page, 12);
+        $siteTitle = $this->settings->siteTitle();
+        $tagline = $this->settings->siteTagline();
+
+        $meta = new SeoMeta(
+            'Produkty | ' . $siteTitle,
+            $tagline !== '' ? $this->limitString($tagline) : null,
+            $this->absoluteUrl($this->links->products())
+        );
+
+        return new RouteResult('product-list', [
+            'products' => $listing['items'],
+            'pagination' => $listing['pagination'],
+            'cart' => $this->cartState(),
+            'csrf' => $this->csrfToken(),
+            'meta' => $meta->toArray(),
+        ]);
+    }
+
+    private function handleCatalogProduct(string $slug): RouteResult
+    {
+        $slug = trim($slug);
+        if ($slug === '') {
+            return $this->notFound();
+        }
+
+        $product = $this->catalog->findBySlug($slug);
+        if ($product === null) {
+            return $this->notFound();
+        }
+
+        $canonical = $this->absoluteUrl($this->links->productDetail($slug));
+        $rawDescription = (string)($product['short_description'] ?? '');
+        if ($rawDescription === '') {
+            $rawDescription = strip_tags((string)($product['description'] ?? ''));
+        }
+        $description = $this->limitString($rawDescription);
+
+        $meta = new SeoMeta(
+            (string)$product['name'] . ' | ' . $this->settings->siteTitle(),
+            $description !== '' ? $description : null,
+            $canonical,
+            structuredData: $this->buildProductStructuredData($product, $canonical)
+        );
+
+        return new RouteResult('product-detail', [
+            'product' => $product,
+            'variants' => $product['variants'] ?? [],
+            'cart' => $this->cartState(),
+            'csrf' => $this->csrfToken(),
+            'meta' => $meta->toArray(),
+        ]);
+    }
+
+    private function handleCheckout(): RouteResult
+    {
+        $cart = $this->cartState();
+        $options = $this->checkoutOptions();
+        $form = $this->defaultCheckoutForm($options);
+        $form = $this->prefillCheckoutForm($form);
+        $errors = [];
+        $status = 200;
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        $orderResult = null;
+
+        if (($cart['count'] ?? 0) <= 0) {
+            $meta = new SeoMeta(
+                'Pokladna | ' . $this->settings->siteTitle(),
+                'Váš košík je prázdný.',
+                $this->absoluteUrl($this->links->checkout())
+            );
+
+            return new RouteResult('checkout/empty', [
+                'cart' => $cart,
+                'meta' => $meta->toArray(),
+            ]);
+        }
+
+        if ($method === 'POST' && isset($_POST['checkout_form'])) {
+            $token = isset($_POST['csrf']) ? (string)$_POST['csrf'] : '';
+            if (!$this->verifyCsrf($token)) {
+                $errors['general'][] = 'Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.';
+                $status = 419;
+            } else {
+                $form = $this->captureCheckoutInput($form);
+                [$errors, $payload, $form] = $this->validateCheckoutForm($form, $options);
+
+                if ($errors === []) {
+                    $userId = $this->resolveCheckoutUserId($payload, $errors);
+                    if ($errors === []) {
+                        try {
+                            $orderResult = $this->orders->create($cart, [
+                                'customer' => [
+                                    'email' => $payload['customer']['email'],
+                                    'first_name' => $payload['customer']['first_name'],
+                                    'last_name' => $payload['customer']['last_name'],
+                                    'phone' => $payload['customer']['phone'],
+                                    'marketing_opt_in' => $payload['customer']['marketing_opt_in'],
+                                ],
+                                'billing' => $payload['billing'],
+                                'shipping' => $payload['shipping'],
+                                'payment_method' => $payload['payment_method_label'],
+                                'shipping_method' => $payload['shipping_method_label'],
+                                'shipping_total' => $payload['shipping_total'],
+                                'notes' => $payload['notes'],
+                                'user_id' => $userId,
+                            ]);
+                            $completedCart = $cart;
+                            if (function_exists('cms_cart_clear')) {
+                                cms_cart_clear();
+                                $cart = $this->cartState();
+                                $this->view->share(['cart' => $cart]);
+                            }
+
+                            $order = $orderResult['order'];
+                            $customer = $orderResult['customer'];
+                            $meta = new SeoMeta(
+                                'Objednávka dokončena | ' . $this->settings->siteTitle(),
+                                'Děkujeme za váš nákup.',
+                                $this->absoluteUrl($this->links->checkout())
+                            );
+
+                            return new RouteResult('checkout/complete', [
+                                'order' => $order->toArray(),
+                                'customer' => $customer->toArray(),
+                                'cart' => $completedCart,
+                                'shipping' => [
+                                    'code' => $payload['shipping_method'],
+                                    'label' => $payload['shipping_method_label'],
+                                    'amount' => $payload['shipping_total'],
+                                ],
+                                'payment' => [
+                                    'code' => $payload['payment_method'],
+                                    'label' => $payload['payment_method_label'],
+                                ],
+                                'meta' => $meta->toArray(),
+                            ]);
+                        } catch (Throwable $exception) {
+                            error_log('Failed to create order: ' . $exception->getMessage());
+                            $errors['general'][] = 'Objednávku se nepodařilo dokončit. Zkuste to prosím znovu.';
+                            $status = 500;
+                        }
+                    } else {
+                        $status = 422;
+                    }
+                } else {
+                    $status = 422;
+                }
+            }
+        }
+
+        if (!isset($form['password'])) {
+            $form['password'] = '';
+        }
+        if (!isset($form['password_confirmation'])) {
+            $form['password_confirmation'] = '';
+        }
+
+        $selectedShipping = $form['shipping_method'];
+        if (!isset($options['shipping'][$selectedShipping])) {
+            $selectedShipping = array_key_first($options['shipping']) ?? $selectedShipping;
+        }
+        $shippingInfo = $options['shipping'][$selectedShipping] ?? ['amount' => 0.0, 'label' => ''];
+
+        $meta = new SeoMeta(
+            'Pokladna | ' . $this->settings->siteTitle(),
+            'Dokončete svou objednávku.',
+            $this->absoluteUrl($this->links->checkout())
+        );
+
+        return new RouteResult('checkout/index', [
+            'cart' => $cart,
+            'form' => $form,
+            'errors' => $errors,
+            'options' => $options,
+            'selected_shipping' => $selectedShipping,
+            'shipping_total' => (float)($shippingInfo['amount'] ?? 0.0),
+            'meta' => $meta->toArray(),
+            'csrf' => $this->csrfToken(),
+        ], $status);
     }
 
     private function handleUser(string $slug, int $id): RouteResult

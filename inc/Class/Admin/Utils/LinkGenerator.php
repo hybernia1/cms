@@ -116,6 +116,35 @@ final class LinkGenerator
         return $base === '' ? './' : $base . '/';
     }
 
+    public function products(): string
+    {
+        if ($this->pretty) {
+            return $this->prettyPath('products');
+        }
+
+        return $this->fallback('catalog');
+    }
+
+    public function productDetail(string $slug): string
+    {
+        $encoded = rawurlencode($slug);
+
+        if ($this->pretty) {
+            return $this->prettyPath('products/' . $encoded);
+        }
+
+        return $this->fallback('catalog-product', ['slug' => $slug]);
+    }
+
+    public function checkout(): string
+    {
+        if ($this->pretty) {
+            return $this->prettyPath('checkout');
+        }
+
+        return $this->fallback('checkout');
+    }
+
     public function post(string $slug): string
     {
         return $this->postOfType('post', $slug);

@@ -84,6 +84,21 @@ if (is_dir(FUNCTIONS_DIR)) {
 }
 
 // ---------------------------------------------------------
+// Služby (košík, objednávky)
+// ---------------------------------------------------------
+
+if (is_file(__DIR__ . '/inc/services/cart.php')) {
+    require_once __DIR__ . '/inc/services/cart.php';
+    if (function_exists('cms_cart_boot')) {
+        cms_cart_boot();
+    }
+}
+
+if (is_file(__DIR__ . '/inc/services/order.php')) {
+    require_once __DIR__ . '/inc/services/order.php';
+}
+
+// ---------------------------------------------------------
 // Util: redirecty a bootstrap
 // ---------------------------------------------------------
 
@@ -136,5 +151,109 @@ function cms_bootstrap_config_or_redirect(): array
     }
 
     return $config;
+}
+
+// ---------------------------------------------------------
+// HTTP obsluha košíku
+// ---------------------------------------------------------
+
+/**
+ * @return never
+ */
+function cms_handle_cart_action(string $action): never
+{
+    cms_bootstrap_config_or_redirect();
+
+    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    if ($method !== 'POST') {
+        cms_cart_respond(cms_cart_error('Neplatná metoda požadavku.', 405));
+    }
+
+    $token = isset($_REQUEST['csrf']) ? (string)$_REQUEST['csrf'] : (isset($_POST['csrf']) ? (string)$_POST['csrf'] : '');
+    if (!cms_cart_verify_csrf($token)) {
+        cms_cart_respond(cms_cart_error('Formulář vypršel. Načtěte stránku a zkuste to prosím znovu.', 419));
+    }
+
+    $result = cms_cart_error('Akce nebyla nalezena.', 404);
+
+    switch ($action) {
+        case 'add':
+            $productId = isset($_POST['product_id']) ? (int)$_POST['product_id'] : 0;
+            $variantRaw = $_POST['variant_id'] ?? null;
+            $variantId = is_numeric($variantRaw) ? (int)$variantRaw : null;
+            if ($variantId !== null && $variantId <= 0) {
+                $variantId = null;
+            }
+            $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
+            if ($productId <= 0) {
+                $result = cms_cart_error('Vyberte prosím produkt.', 422);
+                break;
+            }
+            $result = cms_cart_add_item($productId, $variantId, $quantity);
+            break;
+        case 'update':
+            $itemId = isset($_POST['item_id']) ? (string)$_POST['item_id'] : '';
+            $quantity = isset($_POST['quantity']) ? (int)$_POST['quantity'] : 1;
+            if ($itemId === '') {
+                $result = cms_cart_error('Chybí identifikátor položky.', 422);
+                break;
+            }
+            $result = cms_cart_update_item($itemId, $quantity);
+            break;
+        case 'remove':
+            $itemId = isset($_POST['item_id']) ? (string)$_POST['item_id'] : '';
+            if ($itemId === '') {
+                $result = cms_cart_error('Chybí identifikátor položky.', 422);
+                break;
+            }
+            $result = cms_cart_remove_item($itemId);
+            break;
+        default:
+            $result = cms_cart_error('Neznámá akce košíku.', 404);
+    }
+
+    cms_cart_respond($result);
+}
+
+/**
+ * @param array{success:bool,message:string,status:int,cart:array{items:list<array<string,mixed>>,subtotal:float,total:float,currency:string,count:int,updated_at:?string}} $result
+ */
+function cms_cart_respond(array $result): never
+{
+    $status = $result['status'] ?? 200;
+    http_response_code($status);
+
+    if (cms_cart_wants_json()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'cart' => $result['cart'],
+        ], JSON_THROW_ON_ERROR);
+        exit;
+    }
+
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $_SESSION['_front_notification'] ??= [];
+        $_SESSION['_front_notification'][] = [
+            'type' => $result['success'] ? 'success' : 'danger',
+            'message' => $result['message'],
+        ];
+    }
+
+    $redirect = isset($_POST['redirect']) ? (string)$_POST['redirect'] : '';
+    if ($redirect === '') {
+        $redirect = isset($_SERVER['HTTP_REFERER']) ? (string)$_SERVER['HTTP_REFERER'] : '';
+    }
+    if ($redirect === '') {
+        $redirect = './';
+    }
+
+    header('Location: ' . $redirect, true, $status >= 400 ? 303 : 303);
+    exit;
+}
+
+if (isset($_REQUEST['cart_action']) && function_exists('cms_cart_add_item')) {
+    cms_handle_cart_action((string)$_REQUEST['cart_action']);
 }
 
