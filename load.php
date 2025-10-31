@@ -13,6 +13,7 @@ declare(strict_types=1);
 const BASE_DIR      = __DIR__;
 const CLASS_DIR     = __DIR__ . '/inc/Class';
 const FUNCTIONS_DIR = __DIR__ . '/inc/functions';
+const MODELS_DIR    = __DIR__ . '/inc/models';
 const PLUGINS_DIR   = __DIR__ . '/plugins';
 const WIDGETS_DIR   = __DIR__ . '/widgets';
 
@@ -22,6 +23,7 @@ const WIDGETS_DIR   = __DIR__ . '/widgets';
 const CLASS_NAMESPACE_MAP = [
     'Cms\\Admin\\' => __DIR__ . '/inc/Class/Admin',
     'Cms\\Front\\' => __DIR__ . '/inc/Class/Front',
+    'Cms\\Models\\' => __DIR__ . '/inc/models',
     'Core\\'        => __DIR__ . '/inc/Class/Core',
 ];
 
@@ -63,6 +65,13 @@ spl_autoload_register(
     },
     prepend: true
 );
+
+// ---------------------------------------------------------
+// Database helpers (global procedural utilities)
+// ---------------------------------------------------------
+if (is_file(__DIR__ . '/inc/db.php')) {
+    require_once __DIR__ . '/inc/db.php';
+}
 
 if (is_dir(FUNCTIONS_DIR)) {
     /** @var list<string> $functionFiles */
