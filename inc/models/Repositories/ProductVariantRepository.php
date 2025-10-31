@@ -19,6 +19,54 @@ final class ProductVariantRepository extends BaseRepository
     }
 
     /**
+     * @return array{id:int,inventory_quantity:int,inventory_reserved:int,track_inventory:bool}|null
+     */
+    public function snapshotQuantities(int $variantId): ?array
+    {
+        $sql = 'SELECT `id`, `inventory_quantity`, `inventory_reserved`, `track_inventory`'
+            . ' FROM `' . ProductVariant::TABLE . '` WHERE `id` = :id LIMIT 1';
+        $row = db_fetch_one($sql, ['id' => $variantId]);
+        if ($row === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int)$row['id'],
+            'inventory_quantity' => isset($row['inventory_quantity']) ? (int)$row['inventory_quantity'] : 0,
+            'inventory_reserved' => isset($row['inventory_reserved']) ? (int)$row['inventory_reserved'] : 0,
+            'track_inventory' => !empty($row['track_inventory']),
+        ];
+    }
+
+    public function incrementOnHand(int $variantId, int $quantityChange): void
+    {
+        db_execute(
+            'UPDATE `' . ProductVariant::TABLE . '`'
+            . ' SET `inventory_quantity` = `inventory_quantity` + :change, `updated_at` = :updated'
+            . ' WHERE `id` = :id',
+            [
+                'change' => $quantityChange,
+                'updated' => gmdate('Y-m-d H:i:s'),
+                'id' => $variantId,
+            ]
+        );
+    }
+
+    public function incrementReserved(int $variantId, int $quantityChange): void
+    {
+        db_execute(
+            'UPDATE `' . ProductVariant::TABLE . '`'
+            . ' SET `inventory_reserved` = `inventory_reserved` + :change, `updated_at` = :updated'
+            . ' WHERE `id` = :id',
+            [
+                'change' => $quantityChange,
+                'updated' => gmdate('Y-m-d H:i:s'),
+                'id' => $variantId,
+            ]
+        );
+    }
+
+    /**
      * @return list<ProductVariant>
      */
     public function forProduct(int $productId): array

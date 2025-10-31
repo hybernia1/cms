@@ -24,6 +24,7 @@ const CLASS_NAMESPACE_MAP = [
     'Cms\\Admin\\' => __DIR__ . '/inc/Class/Admin',
     'Cms\\Front\\' => __DIR__ . '/inc/Class/Front',
     'Cms\\Models\\' => __DIR__ . '/inc/models',
+    'Cms\\Services\\' => __DIR__ . '/inc/services',
     'Core\\'        => __DIR__ . '/inc/Class/Core',
 ];
 
