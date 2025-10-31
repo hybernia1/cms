@@ -29,6 +29,22 @@ CREATE TABLE IF NOT EXISTS products (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL,
             <<<SQL
+CREATE TABLE IF NOT EXISTS customers (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT UNSIGNED NULL,
+  email VARCHAR(190) NOT NULL,
+  first_name VARCHAR(150) NOT NULL,
+  last_name VARCHAR(150) NOT NULL,
+  phone VARCHAR(50) NULL,
+  marketing_opt_in TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_customers_email (email),
+  INDEX ix_customers_user (user_id),
+  INDEX ix_customers_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL,
+            <<<SQL
 CREATE TABLE IF NOT EXISTS product_variants (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   product_id BIGINT UNSIGNED NOT NULL,
@@ -112,6 +128,7 @@ SQL,
 CREATE TABLE IF NOT EXISTS orders (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   order_number VARCHAR(190) NOT NULL,
+  customer_id BIGINT UNSIGNED NULL,
   user_id BIGINT UNSIGNED NULL,
   status ENUM('draft','pending','processing','completed','cancelled','refunded') NOT NULL DEFAULT 'pending',
   currency CHAR(3) NOT NULL DEFAULT 'USD',
@@ -128,6 +145,7 @@ CREATE TABLE IF NOT EXISTS orders (
   UNIQUE KEY uq_orders_number (order_number),
   INDEX ix_orders_status (status),
   INDEX ix_orders_user (user_id),
+  INDEX ix_orders_customer (customer_id),
   INDEX ix_orders_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL,

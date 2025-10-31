@@ -59,12 +59,25 @@ final class ThemeViewEngine
         $this->missingTemplate = false;
         $this->missingTemplateError = null;
 
-        $themePath = $this->baseDir . '/themes/' . $trimmed . '/templates';
-        if (!is_dir($themePath)) {
-            throw MissingThemeException::forSlug($trimmed, $themePath);
+        $hierarchy = $this->resolveThemeHierarchy($trimmed);
+        $paths = [];
+        foreach ($hierarchy as $entry) {
+            $path = $this->baseDir . '/themes/' . $entry['slug'] . '/templates';
+            if (!is_dir($path)) {
+                if ($entry['slug'] === $trimmed) {
+                    throw MissingThemeException::forSlug($trimmed, $path);
+                }
+                continue;
+            }
+            $paths[] = $path;
         }
 
-        $this->engine->setBasePaths([$themePath]);
+        if ($paths === []) {
+            $fallback = $this->baseDir . '/themes/' . $trimmed . '/templates';
+            throw MissingThemeException::forSlug($trimmed, $fallback);
+        }
+
+        $this->engine->setBasePaths($paths);
         $this->loadThemeManifest($trimmed);
         $this->shareThemeContext();
         $this->loadThemeFunctions($trimmed);
@@ -221,6 +234,14 @@ final class ThemeViewEngine
 
     private function loadThemeManifest(string $slug): void
     {
+        $this->themeInfo = $this->readThemeManifest($slug);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function readThemeManifest(string $slug): array
+    {
         $defaults = [
             'slug' => $slug,
             'name' => ucfirst($slug),
@@ -229,6 +250,7 @@ final class ThemeViewEngine
             'description' => '',
             'supports' => [],
             'palette' => [],
+            'extends' => null,
         ];
 
         $file = $this->baseDir . '/themes/' . $slug . '/theme.json';
@@ -251,9 +273,41 @@ final class ThemeViewEngine
         if (!is_array($info['palette'] ?? null)) {
             $info['palette'] = [];
         }
+        if (!isset($info['extends']) || !is_string($info['extends'])) {
+            $info['extends'] = null;
+        } else {
+            $info['extends'] = trim($info['extends']);
+            if ($info['extends'] === '') {
+                $info['extends'] = null;
+            }
+        }
+
         unset($info['asset']);
 
-        $this->themeInfo = $info;
+        return $info;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function resolveThemeHierarchy(string $slug): array
+    {
+        $hierarchy = [];
+        $current = $slug;
+        $visited = [];
+
+        while ($current !== '' && !in_array($current, $visited, true)) {
+            $visited[] = $current;
+            $manifest = $this->readThemeManifest($current);
+            $hierarchy[] = $manifest;
+            $parent = $manifest['extends'] ?? null;
+            if (!is_string($parent) || $parent === '') {
+                break;
+            }
+            $current = $parent;
+        }
+
+        return $hierarchy;
     }
 
     private function createFormatters(): void
