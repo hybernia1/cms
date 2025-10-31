@@ -8,9 +8,10 @@ declare(strict_types=1);
 /** @var array<int,array{value:string,label:string}> $quickDraftTypes */
 /** @var array<string,string> $quickDraftOld */
 /** @var array<int,array{id:int,title:string,type:string,created_at_display:string}> $quickDraftRecent */
+/** @var bool $quickDraftEnabled */
 
 // pro render použijeme layout s obsahem přes slot $content()
-$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash','csrf','quickDraftTypes','quickDraftOld','quickDraftRecent'), function () use ($csrf, $quickDraftTypes, $quickDraftOld, $quickDraftRecent) {
+$this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','flash','csrf','quickDraftTypes','quickDraftOld','quickDraftRecent','quickDraftEnabled'), function () use ($csrf, $quickDraftTypes, $quickDraftOld, $quickDraftRecent, $quickDraftEnabled) {
     $draftValues = is_array($quickDraftOld ?? null) ? $quickDraftOld : [];
 ?>
   <div class="row g-3">
@@ -54,12 +55,21 @@ $this->render('parts/layouts/base', compact('pageTitle','nav','currentUser','fla
       </div>
     </div>
     <div class="col-xl-4">
-      <?php $this->render('parts/widget/quick-draft', [
-        'csrf'   => $csrf,
-        'types'  => $quickDraftTypes,
-        'values' => $draftValues,
-        'recentDrafts' => $quickDraftRecent,
-      ]); ?>
+      <?php if ($quickDraftEnabled): ?>
+        <?php $this->render('parts/widget/quick-draft', [
+          'csrf'   => $csrf,
+          'types'  => $quickDraftTypes,
+          'values' => $draftValues,
+          'recentDrafts' => $quickDraftRecent,
+        ]); ?>
+      <?php else: ?>
+        <div class="card shadow-sm h-100">
+          <div class="card-header fw-semibold">Rychlý koncept</div>
+          <div class="card-body">
+            <p class="text-secondary mb-0">Modul příspěvků není aktivní, rychlé koncepty jsou proto vypnuté.</p>
+          </div>
+        </div>
+      <?php endif; ?>
     </div>
   </div>
 <?php

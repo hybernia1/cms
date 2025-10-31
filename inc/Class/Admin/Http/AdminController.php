@@ -62,7 +62,7 @@ final class AdminController
         $this->view->setBasePaths($this->resolveViewPaths($baseViewsPath));
         $this->auth = new AuthService();
         $this->schemaChecker = $schemaChecker ?? new SchemaChecker();
-        $this->quickDraftService = $quickDraftService ?? new QuickDraftService();
+        $this->quickDraftService = $quickDraftService ?? new QuickDraftService(schemaChecker: $this->schemaChecker);
     }
 
     /**
@@ -112,15 +112,18 @@ final class AdminController
 
     private function dashboardIndex(): void
     {
+        $quickDraftEnabled = $this->schemaChecker->hasTable('posts');
+
         $data = [
             'pageTitle'   => 'Dashboard',
             'nav'         => AdminNavigation::build('dashboard'),
             'currentUser' => $this->auth->user(),
             'flash'       => $this->takeFlash(),
             'csrf'        => ControllerHelpers::csrfToken(),
-            'quickDraftTypes' => $this->quickDraftTypes(),
-            'quickDraftOld'   => $this->quickDraftService->pullQuickDraftOld(),
-            'quickDraftRecent' => $this->recentQuickDrafts(),
+            'quickDraftTypes' => $quickDraftEnabled ? $this->quickDraftTypes() : [],
+            'quickDraftOld'   => $quickDraftEnabled ? $this->quickDraftService->pullQuickDraftOld() : ['title' => '', 'content' => '', 'type' => 'post'],
+            'quickDraftRecent' => $quickDraftEnabled ? $this->recentQuickDrafts() : [],
+            'quickDraftEnabled' => $quickDraftEnabled,
         ];
         $this->view->render('dashboard/index', $data);
     }
@@ -141,6 +144,10 @@ final class AdminController
      */
     private function recentQuickDrafts(): array
     {
+        if (!$this->schemaChecker->hasTable('posts')) {
+            return [];
+        }
+
         $service = new PostsService();
         $settings = new CmsSettings();
         $items = [];

@@ -264,5 +264,6 @@ SQL,
         foreach ($legacy as $table) {
             $pdo->exec(sprintf('DROP TABLE IF EXISTS `%s`', $table));
         }
+
     }
 }
