@@ -64,7 +64,7 @@ if (!Authorization::isAdmin($user)) {
     exit;
 }
 
-$quickDraftService = new QuickDraftService(auth: $auth);
+$quickDraftService = new QuickDraftService(auth: $auth, schemaChecker: $schemaChecker);
 
 $controller = new AdminController(
     baseViewsPath: __DIR__ . '/admin/views',

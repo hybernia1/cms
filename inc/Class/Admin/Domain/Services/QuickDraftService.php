@@ -9,6 +9,7 @@ use Cms\Admin\Http\Support\ControllerHelpers;
 use Cms\Admin\Settings\CmsSettings;
 use Cms\Admin\Utils\DateTimeFactory;
 use Throwable;
+use Core\Database\SchemaChecker;
 
 final class QuickDraftService
 {
@@ -22,23 +23,44 @@ final class QuickDraftService
 
     private string $redirectUrl;
 
+    private SchemaChecker $schemaChecker;
+
     public function __construct(
         ?AuthService $auth = null,
         ?PostsService $postsService = null,
         ?PostsRepository $postsRepository = null,
         ?CmsSettings $settings = null,
+        ?SchemaChecker $schemaChecker = null,
         string $redirectUrl = 'admin.php?r=dashboard'
     ) {
         $this->auth = $auth ?? new AuthService();
         $this->postsService = $postsService ?? new PostsService();
         $this->postsRepository = $postsRepository ?? new PostsRepository();
         $this->settings = $settings ?? new CmsSettings();
+        $this->schemaChecker = $schemaChecker ?? new SchemaChecker();
         $this->redirectUrl = $redirectUrl;
     }
 
     public function handleQuickDraft(): void
     {
         ControllerHelpers::assertCsrf();
+
+        if (!$this->postsTableAvailable()) {
+            $message = 'Rychlé koncepty nejsou dostupné, protože modul příspěvků není aktivní.';
+
+            if (ControllerHelpers::isAjax()) {
+                ControllerHelpers::jsonResponse([
+                    'success' => false,
+                    'flash'   => [
+                        'type' => 'warning',
+                        'msg'  => $message,
+                    ],
+                ], 503);
+                return;
+            }
+
+            $this->redirect($this->redirectUrl, 'warning', $message);
+        }
 
         $user = $this->auth->user();
         $authorId = isset($user['id']) ? (int)$user['id'] : 0;
@@ -166,6 +188,17 @@ final class QuickDraftService
      */
     private function buildQuickDraftPayload(int $postId, string $fallbackType): array
     {
+        if (!$this->postsTableAvailable()) {
+            return [
+                'id'                  => $postId,
+                'title'               => '',
+                'type'                => $fallbackType,
+                'created_at'          => null,
+                'created_at_display'  => '',
+                'url'                 => $this->redirectUrl,
+            ];
+        }
+
         $row = $this->postsRepository->find($postId);
         if (!is_array($row)) {
             $row = [];
@@ -198,6 +231,11 @@ final class QuickDraftService
             'created_at_display'  => $createdAtDisplay,
             'url'                 => 'admin.php?' . $query,
         ];
+    }
+
+    private function postsTableAvailable(): bool
+    {
+        return $this->schemaChecker->hasTable('posts');
     }
 
     private function flash(string $type, string $message): void
