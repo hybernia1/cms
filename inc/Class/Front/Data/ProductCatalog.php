@@ -165,7 +165,13 @@ final class ProductCatalog
                 'sku' => (string)($variant->sku ?? ''),
                 'price' => isset($variant->price) ? (float)$variant->price : 0.0,
                 'currency' => (string)($variant->currency ?? ''),
-                'stock' => isset($variant->inventory_quantity) ? (int)$variant->inventory_quantity : 0,
+                'on_hand' => isset($variant->inventory_quantity) ? (int)$variant->inventory_quantity : 0,
+                'reserved' => isset($variant->inventory_reserved) ? (int)$variant->inventory_reserved : 0,
+                'stock' => max(
+                    0,
+                    (isset($variant->inventory_quantity) ? (int)$variant->inventory_quantity : 0)
+                    - (isset($variant->inventory_reserved) ? (int)$variant->inventory_reserved : 0)
+                ),
                 'attributes' => $attributes,
             ];
         }

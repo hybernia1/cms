@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   cost DECIMAL(12,2) NULL,
   currency CHAR(3) NOT NULL DEFAULT 'USD',
   inventory_quantity INT NOT NULL DEFAULT 0,
+  inventory_reserved INT NOT NULL DEFAULT 0,
   track_inventory TINYINT(1) NOT NULL DEFAULT 1,
   sort_order INT NOT NULL DEFAULT 0,
   weight DECIMAL(10,3) NULL,
@@ -122,6 +123,22 @@ CREATE TABLE IF NOT EXISTS stock_entries (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX ix_stock_entries_variant (variant_id),
   INDEX ix_stock_entries_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+SQL,
+            <<<SQL
+CREATE TABLE IF NOT EXISTS stock_reservations (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  order_id BIGINT UNSIGNED NOT NULL,
+  variant_id BIGINT UNSIGNED NOT NULL,
+  quantity INT NOT NULL,
+  state ENUM('reserved','released','consumed') NOT NULL DEFAULT 'reserved',
+  reference VARCHAR(190) NULL,
+  note VARCHAR(190) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  INDEX ix_stock_reservations_order (order_id),
+  INDEX ix_stock_reservations_variant (variant_id),
+  INDEX ix_stock_reservations_state (state)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 SQL,
             <<<SQL

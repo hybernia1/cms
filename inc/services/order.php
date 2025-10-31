@@ -13,11 +13,13 @@ final class OrderService
 {
     private OrderRepository $orders;
     private CustomerRepository $customers;
+    private InventoryService $inventory;
 
-    public function __construct(?OrderRepository $orders = null, ?CustomerRepository $customers = null)
+    public function __construct(?OrderRepository $orders = null, ?CustomerRepository $customers = null, ?InventoryService $inventory = null)
     {
         $this->orders = $orders ?? new OrderRepository();
         $this->customers = $customers ?? new CustomerRepository();
+        $this->inventory = $inventory ?? new InventoryService();
     }
 
     /**
@@ -121,6 +123,9 @@ final class OrderService
 
             $this->orders->setAddress((int)$order->id, 'billing', $billing);
             $this->orders->setAddress((int)$order->id, 'shipping', $shipping);
+
+            $reference = isset($order->order_number) ? (string)$order->order_number : null;
+            $this->inventory->reserveForOrder((int)$order->id, $cart['items'], $reference, 'Order placement');
 
             return $order;
         });

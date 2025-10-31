@@ -8,7 +8,9 @@ use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Models\Repositories\OrderRepository;
 use Cms\Models\Repositories\OrderItemRepository;
 use Cms\Models\Repositories\AddressRepository;
+use Cms\Services\InventoryService;
 use Core\Database\Init as DB;
+use Throwable;
 
 final class OrdersController extends BaseAdminController
 {
@@ -117,11 +119,13 @@ final class OrdersController extends BaseAdminController
         }
 
         $repo = new OrderRepository();
+        $inventory = new InventoryService();
         $order = $repo->find($id);
         if ($order === null) {
             $this->redirect('admin.php?r=orders', 'danger', 'Objednávka nebyla nalezena.');
         }
 
+        $previousStatus = isset($order->status) ? (string)$order->status : 'pending';
         $status = (string)($_POST['status'] ?? $order->status ?? 'pending');
         if (!in_array($status, self::STATUSES, true)) {
             $status = 'pending';
@@ -164,7 +168,8 @@ final class OrdersController extends BaseAdminController
             }
         }
 
-        $repo->update($id, $payload);
+        $updatedOrder = $repo->update($id, $payload);
+        $finalStatus = isset($updatedOrder->status) ? (string)$updatedOrder->status : $status;
 
         if (isset($_POST['fulfill']) && $_POST['fulfill'] === '1') {
             $fulfillPayload = [
@@ -174,7 +179,26 @@ final class OrdersController extends BaseAdminController
             if (empty($order->placed_at)) {
                 $fulfillPayload['placed_at'] = gmdate('Y-m-d H:i:s');
             }
-            $repo->update($id, $fulfillPayload);
+            $updatedOrder = $repo->update($id, $fulfillPayload);
+            $finalStatus = isset($updatedOrder->status) ? (string)$updatedOrder->status : 'processing';
+        }
+
+        try {
+            if ($finalStatus === 'cancelled' && $previousStatus !== 'cancelled') {
+                $inventory->releaseForOrder($id, 'Order cancelled');
+            }
+
+            $fulfillmentStatuses = ['processing', 'completed'];
+            if (in_array($finalStatus, $fulfillmentStatuses, true) && !in_array($previousStatus, $fulfillmentStatuses, true)) {
+                $reference = isset($updatedOrder->order_number) ? (string)$updatedOrder->order_number : null;
+                $inventory->consumeForOrder($id, $reference, 'Order fulfilled');
+            }
+        } catch (Throwable $exception) {
+            $this->redirect(
+                'admin.php?r=orders&a=detail&id=' . $id,
+                'danger',
+                'Nepodařilo se aktualizovat sklad: ' . $exception->getMessage()
+            );
         }
 
         $this->redirect('admin.php?r=orders&a=detail&id=' . $id, 'success', 'Objednávka byla aktualizována.');

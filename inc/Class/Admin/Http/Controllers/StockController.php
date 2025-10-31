@@ -5,6 +5,7 @@ namespace Cms\Admin\Http\Controllers;
 
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Services\InventoryService;
+use Cms\Services\PurchaseInvoiceService;
 
 final class StockController extends BaseAdminController
 {
@@ -56,21 +57,24 @@ final class StockController extends BaseAdminController
             $errors['quantity_change'] = 'Zadejte nenulové množství.';
         }
 
-        $meta = [];
+        $invoicePayload = [];
+        $unitCost = trim((string)($_POST['unit_cost'] ?? ''));
         if ($mode === 'invoice') {
             $invoiceNumber = trim((string)($_POST['invoice_number'] ?? ''));
             if ($invoiceNumber === '') {
                 $errors['invoice_number'] = 'Doplňte číslo dokladu.';
             } else {
-                $meta['invoice_number'] = $invoiceNumber;
+                $invoicePayload['invoice_number'] = $invoiceNumber;
             }
             $supplier = trim((string)($_POST['supplier'] ?? ''));
             if ($supplier !== '') {
-                $meta['supplier'] = $supplier;
+                $invoicePayload['supplier'] = $supplier;
             }
-            $unitCost = trim((string)($_POST['unit_cost'] ?? ''));
             if ($unitCost !== '') {
-                $meta['unit_cost'] = $unitCost;
+                $invoicePayload['unit_cost'] = $unitCost;
+            }
+            if ($reference !== '') {
+                $invoicePayload['reference'] = $reference;
             }
             if ($reason === '') {
                 $reason = 'Doplnění skladu podle faktury';
@@ -82,7 +86,18 @@ final class StockController extends BaseAdminController
         }
 
         $service = new InventoryService();
-        $service->adjust($variantId, $quantity, $reason === '' ? 'Ruční úprava' : $reason, $reference !== '' ? $reference : null, $meta);
+        if ($mode === 'invoice') {
+            $invoiceService = new PurchaseInvoiceService($service);
+            $items = [[
+                'variant_id' => $variantId,
+                'quantity' => $quantity,
+                'unit_cost' => $unitCost,
+            ]];
+            $invoiceService->ingestManual($invoicePayload, $items, $reason);
+        } else {
+            $meta = [];
+            $service->adjust($variantId, $quantity, $reason === '' ? 'Ruční úprava' : $reason, $reference !== '' ? $reference : null, $meta);
+        }
 
         $target = 'admin.php?r=stock';
         if ($variantId > 0) {
