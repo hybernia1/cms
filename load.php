@@ -13,6 +13,7 @@ declare(strict_types=1);
 const BASE_DIR      = __DIR__;
 const CLASS_DIR     = __DIR__ . '/inc/Class';
 const FUNCTIONS_DIR = __DIR__ . '/inc/functions';
+const DB_LAYER_DIR  = __DIR__ . '/inc/db';
 
 /**
  * @var array<string,string>
@@ -29,6 +30,16 @@ if (is_dir(FUNCTIONS_DIR)) {
     sort($functionFiles);
 
     foreach ($functionFiles as $file) {
+        require_once $file;
+    }
+}
+
+if (is_dir(DB_LAYER_DIR)) {
+    /** @var list<string> $dbFiles */
+    $dbFiles = glob(DB_LAYER_DIR . '/*.php') ?: [];
+    sort($dbFiles);
+
+    foreach ($dbFiles as $file) {
         require_once $file;
     }
 }
