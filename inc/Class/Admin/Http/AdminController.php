@@ -12,6 +12,10 @@ use Cms\Admin\Http\Controllers\MigrationsController;
 use Cms\Admin\Http\Controllers\NavigationController;
 use Cms\Admin\Http\Controllers\PluginsController;
 use Cms\Admin\Http\Controllers\PostsController;
+use Cms\Admin\Http\Controllers\ProductsController;
+use Cms\Admin\Http\Controllers\CategoriesController;
+use Cms\Admin\Http\Controllers\StockController;
+use Cms\Admin\Http\Controllers\OrdersController;
 use Cms\Admin\Http\Controllers\SettingsController;
 use Cms\Admin\Http\Controllers\TermsController;
 use Cms\Admin\Http\Controllers\ThemesController;
@@ -35,6 +39,10 @@ final class AdminController
     /** @var array<string,class-string> */
     private const ROUTE_MAP = [
         'posts'      => PostsController::class,
+        'products'   => \Cms\Admin\Http\Controllers\ProductsController::class,
+        'categories' => \Cms\Admin\Http\Controllers\CategoriesController::class,
+        'stock'      => \Cms\Admin\Http\Controllers\StockController::class,
+        'orders'     => \Cms\Admin\Http\Controllers\OrdersController::class,
         'media'      => MediaController::class,
         'terms'      => TermsController::class,
         'comments'   => CommentsController::class,
