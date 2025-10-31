@@ -8,13 +8,21 @@ use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Models\Repositories\OrderRepository;
 use Cms\Models\Repositories\OrderItemRepository;
 use Cms\Models\Repositories\AddressRepository;
-use Cms\Services\InventoryService;
+use Cms\Services\OrderService;
 use Core\Database\Init as DB;
+use InvalidArgumentException;
 use Throwable;
 
 final class OrdersController extends BaseAdminController
 {
-    private const STATUSES = ['draft', 'pending', 'processing', 'completed', 'cancelled', 'refunded'];
+    private const STATUSES = [
+        OrderService::STATUS_NEW,
+        OrderService::STATUS_AWAITING_PAYMENT,
+        OrderService::STATUS_PACKED,
+        OrderService::STATUS_SHIPPED,
+        OrderService::STATUS_DELIVERED,
+        OrderService::STATUS_CANCELLED,
+    ];
 
     public function handle(string $action): void
     {
@@ -119,21 +127,19 @@ final class OrdersController extends BaseAdminController
         }
 
         $repo = new OrderRepository();
-        $inventory = new InventoryService();
         $order = $repo->find($id);
         if ($order === null) {
             $this->redirect('admin.php?r=orders', 'danger', 'Objednávka nebyla nalezena.');
         }
 
-        $previousStatus = isset($order->status) ? (string)$order->status : 'pending';
-        $status = (string)($_POST['status'] ?? $order->status ?? 'pending');
-        if (!in_array($status, self::STATUSES, true)) {
-            $status = 'pending';
-        }
+        $service = new OrderService($repo);
+
+        $requestedStatus = (string)($_POST['status'] ?? $order->status ?? OrderService::STATUS_NEW);
         $notes = trim((string)($_POST['notes'] ?? ''));
         $paymentReference = trim((string)($_POST['payment_reference'] ?? ''));
         $shippingTracking = trim((string)($_POST['shipping_tracking'] ?? ''));
         $shippingCarrier = trim((string)($_POST['shipping_carrier'] ?? ''));
+        $shippingDate = trim((string)($_POST['shipping_date'] ?? ''));
         $shippingTotalRaw = (string)($_POST['shipping_total'] ?? '');
         $shippingTotal = $shippingTotalRaw !== '' ? (float)str_replace(',', '.', $shippingTotalRaw) : (float)$order->shipping_total;
 
@@ -144,61 +150,61 @@ final class OrdersController extends BaseAdminController
         if ($paymentReference !== '') {
             $noteParts[] = 'Platba: ' . $paymentReference;
         }
-        if ($shippingTracking !== '') {
-            $label = 'Doprava';
-            if ($shippingCarrier !== '') {
-                $label .= ' (' . $shippingCarrier . ')';
-            }
-            $noteParts[] = $label . ': ' . $shippingTracking;
-        }
         $finalNotes = $noteParts !== [] ? implode("\n\n", $noteParts) : null;
 
         $payload = [
-            'status' => $status,
             'notes' => $finalNotes,
             'shipping_total' => round($shippingTotal, 2),
             'updated_at' => gmdate('Y-m-d H:i:s'),
         ];
 
-        if ($status === 'cancelled') {
-            $payload['cancelled_at'] = gmdate('Y-m-d H:i:s');
-        } elseif ($status === 'completed' || $status === 'processing') {
-            if (empty($order->placed_at)) {
-                $payload['placed_at'] = gmdate('Y-m-d H:i:s');
-            }
-        }
+        /** @var Order $order */
+        $order = $repo->update($id, $payload);
 
-        $updatedOrder = $repo->update($id, $payload);
-        $finalStatus = isset($updatedOrder->status) ? (string)$updatedOrder->status : $status;
+        $context = array_filter([
+            'source' => 'admin_ui',
+            'payment_reference' => $paymentReference !== '' ? $paymentReference : null,
+        ], static fn($value) => $value !== null && $value !== '');
 
+        $targetStatus = $requestedStatus;
         if (isset($_POST['fulfill']) && $_POST['fulfill'] === '1') {
-            $fulfillPayload = [
-                'status' => 'processing',
-                'updated_at' => gmdate('Y-m-d H:i:s'),
-            ];
-            if (empty($order->placed_at)) {
-                $fulfillPayload['placed_at'] = gmdate('Y-m-d H:i:s');
-            }
-            $updatedOrder = $repo->update($id, $fulfillPayload);
-            $finalStatus = isset($updatedOrder->status) ? (string)$updatedOrder->status : 'processing';
+            $targetStatus = OrderService::STATUS_PACKED;
         }
 
         try {
-            if ($finalStatus === 'cancelled' && $previousStatus !== 'cancelled') {
-                $inventory->releaseForOrder($id, 'Order cancelled');
-            }
-
-            $fulfillmentStatuses = ['processing', 'completed'];
-            if (in_array($finalStatus, $fulfillmentStatuses, true) && !in_array($previousStatus, $fulfillmentStatuses, true)) {
-                $reference = isset($updatedOrder->order_number) ? (string)$updatedOrder->order_number : null;
-                $inventory->consumeForOrder($id, $reference, 'Order fulfilled');
-            }
+            $order = $service->changeStatus($order, $targetStatus, $notes !== '' ? $notes : null, $context);
+        } catch (InvalidArgumentException $exception) {
+            $this->redirect(
+                'admin.php?r=orders&a=detail&id=' . $id,
+                'danger',
+                'Změna stavu selhala: ' . $exception->getMessage()
+            );
         } catch (Throwable $exception) {
             $this->redirect(
                 'admin.php?r=orders&a=detail&id=' . $id,
                 'danger',
-                'Nepodařilo se aktualizovat sklad: ' . $exception->getMessage()
+                'Nepodařilo se uložit změny: ' . $exception->getMessage()
             );
+        }
+
+        $shouldCreateShipment = $shippingCarrier !== '' || $shippingTracking !== '' || $shippingDate !== '';
+
+        if ($shouldCreateShipment) {
+            try {
+                $result = $service->createShipment($order, [
+                    'carrier' => $shippingCarrier,
+                    'tracking_number' => $shippingTracking,
+                    'shipping_date' => $shippingDate,
+                    'note' => $notes !== '' ? $notes : null,
+                ]);
+                $order = $result['order'];
+            } catch (Throwable $exception) {
+                $this->redirect(
+                    'admin.php?r=orders&a=detail&id=' . $id,
+                    'danger',
+                    'Zásilku se nepodařilo vytvořit: ' . $exception->getMessage()
+                );
+            }
         }
 
         $this->redirect('admin.php?r=orders&a=detail&id=' . $id, 'success', 'Objednávka byla aktualizována.');
