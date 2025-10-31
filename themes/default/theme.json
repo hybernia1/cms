@@ -1,6 +1,6 @@
 {
   "name": "Default Storefront",
-  "version": "1.0.0",
-  "description": "Výchozí šablona s podporou katalogu produktů a pokladny.",
+  "version": "1.1.0",
+  "description": "Výchozí šablona se zaměřením na katalog produktů a rychlý přístup do košíku.",
   "extends": "classic"
 }
