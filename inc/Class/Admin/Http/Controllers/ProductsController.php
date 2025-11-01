@@ -6,10 +6,13 @@ namespace Cms\Admin\Http\Controllers;
 use Cms\Admin\Utils\AdminNavigation;
 use Cms\Admin\Utils\DateTimeFactory;
 use Cms\Admin\Utils\Slugger;
+use Cms\Models\ProductVariant;
 use Cms\Models\Repositories\CategoryRepository;
 use Cms\Models\Repositories\ProductAttributeRepository;
 use Cms\Models\Repositories\ProductRepository;
 use Cms\Models\Repositories\ProductVariantRepository;
+use Cms\Models\StockEntry;
+use Cms\Services\InventoryService;
 use Core\Database\Init as DB;
 
 final class ProductsController extends BaseAdminController
@@ -134,6 +137,8 @@ final class ProductsController extends BaseAdminController
             }
         }
 
+        $variantStockHistory = $this->loadVariantStockHistory($variants);
+
         $this->renderAdmin('products/edit', [
             'pageTitle'         => $product ? 'Upravit produkt' : 'Nový produkt',
             'nav'               => AdminNavigation::build('products'),
@@ -143,7 +148,96 @@ final class ProductsController extends BaseAdminController
             'variants'          => array_map(static fn($variant) => $variant->toArray(), $variants),
             'variantAttributes' => $variantAttributes,
             'attributes'        => array_map(static fn($attribute) => $attribute->toArray(), $attributes),
+            'variantStockHistory' => $variantStockHistory,
         ]);
+    }
+
+    /**
+     * @param list<ProductVariant> $variants
+     * @return array<int,list<array<string,mixed>>>
+     */
+    private function loadVariantStockHistory(array $variants): array
+    {
+        if ($variants === []) {
+            return [];
+        }
+
+        $service = new InventoryService();
+        $history = [];
+
+        foreach ($variants as $variant) {
+            $variantId = isset($variant->id) ? (int)$variant->id : 0;
+            if ($variantId <= 0) {
+                continue;
+            }
+
+            $entries = $service->historyForVariant($variantId);
+            if ($entries === []) {
+                $history[$variantId] = [];
+                continue;
+            }
+
+            $history[$variantId] = $this->normalizeStockEntries($entries);
+        }
+
+        return $history;
+    }
+
+    /**
+     * @param list<StockEntry> $entries
+     * @return list<array<string,mixed>>
+     */
+    private function normalizeStockEntries(array $entries): array
+    {
+        $normalized = [];
+        $dateFactory = new DateTimeFactory();
+
+        foreach ($entries as $entry) {
+            $row = $entry->toArray();
+            $createdRaw = isset($row['created_at']) ? (string)$row['created_at'] : '';
+            $createdDisplay = $createdRaw;
+            if ($createdRaw !== '') {
+                $date = $dateFactory->fromStorage($createdRaw);
+                if ($date !== null) {
+                    $createdDisplay = $date->format('d.m.Y H:i');
+                }
+            }
+
+            $row['created_at_display'] = $createdDisplay;
+            $row['quantity_change'] = (int)($row['quantity_change'] ?? 0);
+            $row['reason_display'] = $this->formatStockReason(isset($row['reason']) ? (string)$row['reason'] : '');
+            $row['meta'] = $this->decodeStockMeta($row['meta'] ?? null);
+
+            $normalized[] = $row;
+        }
+
+        return $normalized;
+    }
+
+    private function formatStockReason(string $reason): string
+    {
+        $normalized = trim($reason);
+        if ($normalized === '') {
+            return '—';
+        }
+
+        if (strcasecmp($normalized, 'Order shipment') === 0) {
+            return 'Expedice objednávky';
+        }
+
+        return $normalized;
+    }
+
+    private function decodeStockMeta(mixed $meta): mixed
+    {
+        if (is_string($meta) && $meta !== '') {
+            $decoded = json_decode($meta, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $meta;
     }
 
     private function store(): void
