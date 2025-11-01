@@ -10,9 +10,10 @@ declare(strict_types=1);
 /** @var array<int,array<string,mixed>> $variants */
 /** @var array<int,array<int,string|null>> $variantAttributes */
 /** @var array<int,array<string,mixed>> $attributes */
+/** @var array<int,list<array<string,mixed>>> $variantStockHistory */
 /** @var string $csrf */
 
-$this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($product, $categories, $selectedCategories, $variants, $variantAttributes, $attributes, $csrf) {
+$this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', 'flash'), function () use ($product, $categories, $selectedCategories, $variants, $variantAttributes, $attributes, $variantStockHistory, $csrf) {
     $isEdit = $product !== null && isset($product['id']);
     $action = $isEdit ? 'admin.php?r=products&a=edit&id=' . (int)$product['id'] : 'admin.php?r=products&a=create';
     $h = fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
@@ -84,7 +85,13 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                     <input class="form-control" id="variant-compare-<?= $index ?>" name="variants[<?= $index ?>][compare_at_price]" type="text" value="<?= $h((string)($variant['compare_at_price'] ?? '')) ?>">
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label" for="variant-stock-<?= $index ?>">Sklad</label>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <label class="form-label mb-0" for="variant-stock-<?= $index ?>">Sklad</label>
+                      <?php if (!empty($variant['id'])): ?>
+                        <?php $modalId = 'variant-stock-modal-' . (int)$variant['id']; ?>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#<?= $h($modalId) ?>">Sklad</button>
+                      <?php endif; ?>
+                    </div>
                     <input class="form-control" id="variant-stock-<?= $index ?>" name="variants[<?= $index ?>][inventory_quantity]" type="number" value="<?= (int)($variant['inventory_quantity'] ?? 0) ?>">
                   </div>
                   <div class="col-md-3 d-flex align-items-end">
@@ -111,6 +118,69 @@ $this->render('parts/layouts/base', compact('pageTitle', 'nav', 'currentUser', '
                   <input type="hidden" name="variants[<?= $index ?>][id]" value="<?= (int)$variant['id'] ?>">
                 <?php endif; ?>
               </div>
+              <?php if (!empty($variant['id'])): ?>
+                <?php
+                  $variantId = (int)$variant['id'];
+                  $history = $variantStockHistory[$variantId] ?? [];
+                  $modalId = 'variant-stock-modal-' . $variantId;
+                ?>
+                <div class="modal fade" id="<?= $h($modalId) ?>" tabindex="-1" aria-labelledby="<?= $h($modalId) ?>Label" aria-hidden="true">
+                  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id="<?= $h($modalId) ?>Label">Skladové pohyby – <?= $h((string)($variant['name'] ?? 'Varianta')) ?></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Zavřít"></button>
+                      </div>
+                      <div class="modal-body">
+                        <?php if ($history === []): ?>
+                          <p class="text-muted mb-0">Zatím nejsou žádné záznamy.</p>
+                        <?php else: ?>
+                          <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                              <thead>
+                                <tr>
+                                  <th>Datum</th>
+                                  <th class="text-end">Změna</th>
+                                  <th>Důvod</th>
+                                  <th>Detaily</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <?php foreach ($history as $entry): ?>
+                                  <tr>
+                                    <td><?= $h((string)($entry['created_at_display'] ?? $entry['created_at'] ?? '')) ?></td>
+                                    <td class="text-end">
+                                      <?php $qty = (int)($entry['quantity_change'] ?? 0); ?>
+                                      <span class="fw-semibold <?= $qty >= 0 ? 'text-success' : 'text-danger' ?>"><?= $qty >= 0 ? '+' : '' ?><?= $qty ?></span>
+                                    </td>
+                                    <td><?= $h((string)($entry['reason_display'] ?? $entry['reason'] ?? '')) ?></td>
+                                    <td>
+                                      <?php if (!empty($entry['meta']) && is_array($entry['meta'])): ?>
+                                        <?php foreach ($entry['meta'] as $key => $value): ?>
+                                          <div class="small text-muted"><?= $h((string)$key) ?>: <?= $h((string)$value) ?></div>
+                                        <?php endforeach; ?>
+                                      <?php endif; ?>
+                                      <?php if (!empty($entry['reference'])): ?>
+                                        <div class="small text-muted">Reference: <?= $h((string)$entry['reference']) ?></div>
+                                      <?php endif; ?>
+                                      <?php if ((empty($entry['meta']) || !is_array($entry['meta'])) && empty($entry['reference'])): ?>
+                                        <span class="text-muted">—</span>
+                                      <?php endif; ?>
+                                    </td>
+                                  </tr>
+                                <?php endforeach; ?>
+                              </tbody>
+                            </table>
+                          </div>
+                        <?php endif; ?>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Zavřít</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <?php endif; ?>
             <?php endforeach; ?>
             <p class="text-muted small mb-0">Novou variantu přidejte vyplněním prázdného formuláře. Ponecháním polí prázdných se varianta nevytvoří.</p>
           </div>
